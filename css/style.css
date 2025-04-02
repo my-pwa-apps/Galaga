@@ -141,92 +141,124 @@ button:hover {
     to { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 30px #0F0; }
 }
 
-/* Enhanced mobile controls styling */
+/* Optimized mobile controls */
 
 #mobile-controls {
     position: absolute;
     bottom: 0;
     width: 100%;
-    height: 30vh; /* Taller touch area */
+    height: 35vh; /* Increased touch area */
     display: flex;
     z-index: 10;
+    user-select: none;
 }
 
 #mobile-controls button {
     flex: 1;
     border: none;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: transparent;
     color: transparent;
     font-size: 0;
     position: relative;
-    touch-action: manipulation;
+    touch-action: none; /* Prevent scrolling completely */
     -webkit-tap-highlight-color: transparent;
+    outline: none;
 }
 
-#mobile-controls button:active {
-    background-color: rgba(255, 255, 255, 0.3);
+/* Visual feedback on touch */
+#mobile-controls button:active::after {
+    transform: translateX(-50%) scale(1.2);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.4);
 }
 
-/* Add visual indicators */
+/* Better visual indicators with gradients */
 #mobile-controls button::after {
     content: '';
     position: absolute;
-    bottom: 20px;
+    bottom: 15%;
     left: 50%;
     transform: translateX(-50%);
-    width: 40px;
-    height: 40px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.2);
-    border: 2px solid rgba(255, 255, 255, 0.4);
+    background-color: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.1s ease-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+    text-shadow: 0 0 10px rgba(0, 0, 255, 0.8);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
 }
 
 #move-left::after {
-    content: '←' !important;
-    color: white;
-    font-size: 24px;
-    line-height: 40px;
-    text-align: center;
+    content: '←';
+    background: radial-gradient(circle, rgba(0,127,255,0.3) 0%, rgba(0,127,255,0.1) 70%, rgba(0,0,0,0) 100%);
 }
 
 #move-right::after {
-    content: '→' !important;
-    color: white;
-    font-size: 24px;
-    line-height: 40px;
-    text-align: center;
+    content: '→';
+    background: radial-gradient(circle, rgba(0,127,255,0.3) 0%, rgba(0,127,255,0.1) 70%, rgba(0,0,0,0) 100%);
 }
 
 #shoot::after {
-    content: '↑' !important;
-    color: white;
-    font-size: 24px;
-    line-height: 40px;
-    text-align: center;
+    content: '⬆';
+    background: radial-gradient(circle, rgba(255,0,0,0.3) 0%, rgba(255,0,0,0.1) 70%, rgba(0,0,0,0) 100%);
 }
 
+/* Better responsive sizing for different devices */
+@media (max-width: 480px) {
+    #mobile-controls button::after {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+    #mobile-controls {
+        height: 50vh; /* Larger area on landscape small screens */
+    }
+    
+    #mobile-controls button::after {
+        bottom: 10%;
+    }
+}
+
+/* Hide on desktop but keep code structure */
 @media (min-width: 768px) {
     .hidden-on-desktop {
         display: none !important;
     }
 }
 
-@media (max-width: 767px) {
-    h1 {
-        font-size: 2rem;
-    }
-    
-    h2 {
-        font-size: 1.5rem;
-    }
-    
-    .instructions {
-        font-size: 0.6rem;
-    }
-    
-    .hud {
-        font-size: 0.6rem;
-    }
+/* Ensure controls are visible in the game area */
+#game-screen {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Add a subtle hint for controls on first play */
+.controls-hint {
+    position: absolute;
+    bottom: 40vh;
+    width: 100%;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    padding: 10px;
+    pointer-events: none;
+    animation: fadeOut 5s forwards;
+    z-index: 9;
+}
+
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 /* Optimized power-up timer styles */

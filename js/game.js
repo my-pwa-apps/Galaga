@@ -1,4 +1,4 @@
-// Update Game class to display level difficulty
+// Update game state transitions to properly reset controls
 
 class Game {
     constructor() {
@@ -113,6 +113,11 @@ class Game {
             window.audioManager.stopAll();
             this.backgroundMusic = window.audioManager.play('background', 0.5);
         }
+        
+        // Reset controls when starting game to prevent stuck inputs
+        if (this.controls) {
+            this.controls.reset();
+        }
     }
     
     // Add method to display level information
@@ -137,6 +142,11 @@ class Game {
         document.getElementById('final-score').textContent = this.score;
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('game-over-screen').classList.remove('hidden');
+        
+        // Reset controls when game over
+        if (this.controls) {
+            this.controls.reset();
+        }
     }
     
     update() {
