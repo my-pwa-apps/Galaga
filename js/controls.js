@@ -1,4 +1,4 @@
-// Link splash screen checkbox with in-game auto-shoot toggle
+// Update controls to hide shoot button when auto-shoot is enabled
 
 class Controls {
     constructor(game) {
@@ -88,34 +88,21 @@ class Controls {
                 this.autoShoot = e.target.checked;
                 localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
                 
-                // Update in-game toggle if it exists
-                const autoShootToggle = document.getElementById('auto-shoot-toggle');
-                if (autoShootToggle) {
-                    if (this.autoShoot) {
-                        autoShootToggle.classList.add('active');
-                    } else {
-                        autoShootToggle.classList.remove('active');
-                    }
-                }
+                // Update UI elements
+                this.updateAutoShootUI();
             });
         }
         
         // Setup in-game toggle button
         const autoShootToggle = document.getElementById('auto-shoot-toggle');
         if (autoShootToggle) {
-            // Set initial state
-            if (this.autoShoot) {
-                autoShootToggle.classList.add('active');
-            }
-            
             autoShootToggle.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 
                 this.autoShoot = !this.autoShoot;
-                autoShootToggle.classList.toggle('active');
                 
-                // Sync with checkbox
+                // Update checkbox
                 if (checkbox) {
                     checkbox.checked = this.autoShoot;
                 }
@@ -123,7 +110,10 @@ class Controls {
                 // Save preference
                 localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
                 
-                // Provide feedback
+                // Update UI elements
+                this.updateAutoShootUI();
+                
+                // Feedback
                 if (window.navigator && window.navigator.vibrate) {
                     window.navigator.vibrate(30);
                 }
@@ -132,6 +122,35 @@ class Controls {
                     window.audioManager.play(this.autoShoot ? 'powerUp' : 'bulletHit', 0.3);
                 }
             });
+        }
+        
+        // Initialize UI based on current setting
+        this.updateAutoShootUI();
+    }
+    
+    updateAutoShootUI() {
+        // Update toggle button appearance
+        const autoShootToggle = document.getElementById('auto-shoot-toggle');
+        if (autoShootToggle) {
+            if (this.autoShoot) {
+                autoShootToggle.classList.add('active');
+            } else {
+                autoShootToggle.classList.remove('active');
+            }
+        }
+        
+        // Show/hide shoot button based on auto-shoot setting
+        const shootButton = document.getElementById('shoot');
+        const mobileControls = document.getElementById('mobile-controls');
+        
+        if (shootButton && mobileControls) {
+            if (this.autoShoot) {
+                shootButton.classList.add('hidden');
+                mobileControls.classList.add('auto-shoot-active');
+            } else {
+                shootButton.classList.remove('hidden');
+                mobileControls.classList.remove('auto-shoot-active');
+            }
         }
     }
     

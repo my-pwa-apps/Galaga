@@ -45,13 +45,14 @@
             <!-- Power-up notification -->
             <div id="powerup-notification" class="hidden" aria-live="assertive">POWER-UP!</div>
             
-            <!-- Enhanced Mobile Controls - optimized -->
+            <!-- Enhanced Mobile Controls with cleaner structure -->
             <div id="mobile-controls" class="hidden-on-desktop">
                 <button id="move-left" aria-label="Move Left" type="button"></button>
+                <!-- Shoot button will be hidden when auto-shoot is active -->
                 <button id="shoot" aria-label="Shoot" type="button"></button>
                 <button id="move-right" aria-label="Move Right" type="button"></button>
                 
-                <!-- Auto-shoot toggle for mobile -->
+                <!-- Auto-shoot toggle positioned outside of regular button flow -->
                 <button id="auto-shoot-toggle" class="auto-shoot-toggle" aria-label="Toggle Auto-Shoot" type="button">AUTO</button>
             </div>
         </div>
