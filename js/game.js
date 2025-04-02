@@ -382,7 +382,7 @@ class Game {
     }
 }
 
-// Start the game when the page loads
+// Make game instance globally available for debugging
 window.addEventListener('load', () => {
-    const game = new Game();
+    window.game = new Game();
 });
