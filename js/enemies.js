@@ -89,16 +89,14 @@ class Enemy {
     
     tryToShoot() {
         if (Math.random() < this.fireRate) {
-            // Create bullet
-            const bullet = new Projectile({
+            // Create bullet using the projectile pool
+            this.game.projectilePool.get({
                 game: this.game,
                 x: this.x,
                 y: this.y + 20,
                 speed: 5,
                 type: 'enemy'
             });
-            
-            this.game.projectiles.push(bullet);
             
             // Play enemy shooting sound
             if (window.audioManager) {
@@ -136,6 +134,20 @@ class Enemy {
         } else {
             sprites.basicEnemy.draw(this.game.ctx, this.x, this.y + yOffset, this.subType, this.hitFlash);
         }
+    }
+    
+    hit() {
+        this.health--;
+        
+        // Visual feedback when hit
+        this.hitFlash = true;
+        
+        // Reset hit flash after a short delay
+        setTimeout(() => {
+            this.hitFlash = false;
+        }, 100);
+        
+        return this.health <= 0;
     }
 }
 

@@ -236,8 +236,8 @@ class Player {
         const bulletSpeedY = -8;
         
         if (this.doubleShot) {
-            // Create two bullets side by side
-            const bullet1 = new Projectile({
+            // Create two bullets side by side using the projectile pool
+            this.game.projectilePool.get({
                 game: this.game,
                 x: this.x - 10,
                 y: this.y - 20,
@@ -245,21 +245,16 @@ class Player {
                 type: 'player'
             });
             
-            const bullet2 = new Projectile({
+            this.game.projectilePool.get({
                 game: this.game,
                 x: this.x + 10,
                 y: this.y - 20,
                 speed: bulletSpeedY,
                 type: 'player'
             });
-            
-            this.game.projectiles.push(bullet1, bullet2);
         } else if (this.multiShot) {
-            // Multi-shot implementation if it exists
-            // ...
-        } else {
-            // Normal single shot
-            const bullet = new Projectile({
+            // Multi-shot implementation with three projectiles in different angles
+            this.game.projectilePool.get({
                 game: this.game,
                 x: this.x,
                 y: this.y - 20,
@@ -267,7 +262,30 @@ class Player {
                 type: 'player'
             });
             
-            this.game.projectiles.push(bullet);
+            this.game.projectilePool.get({
+                game: this.game,
+                x: this.x - 5,
+                y: this.y - 15,
+                speed: bulletSpeedY * 0.9,
+                type: 'player'
+            });
+            
+            this.game.projectilePool.get({
+                game: this.game,
+                x: this.x + 5,
+                y: this.y - 15,
+                speed: bulletSpeedY * 0.9,
+                type: 'player'
+            });
+        } else {
+            // Normal single shot using the projectile pool
+            this.game.projectilePool.get({
+                game: this.game,
+                x: this.x,
+                y: this.y - 20,
+                speed: bulletSpeedY,
+                type: 'player'
+            });
         }
         
         // Play shooting sound
