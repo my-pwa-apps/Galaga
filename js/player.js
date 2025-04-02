@@ -1,4 +1,4 @@
-// Optimize power-up timer handling
+// Update player to handle auto-shooting better
 
 class Player {
     constructor(game) {
@@ -22,6 +22,9 @@ class Player {
         this.shield = false;
         this.shieldHealth = 0;
         this.thrusterAnimation = 0;
+        
+        this.lastAutoShotTime = 0;
+        this.autoShootInterval = 15; // Frames between auto shots
     }
     
     update() {
@@ -35,10 +38,16 @@ class Player {
             this.x += this.speed;
         }
         
-        // Shooting
+        // Shooting - add special handling for auto-shooting
         if (controls.fire && this.shootCooldown <= 0) {
-            this.shoot();
-            this.shootCooldown = this.maxShootCooldown;
+            // For auto-shooting, use a regular interval rather than continuous fire
+            const isAuto = this.game.controls.autoShoot;
+            
+            if (!isAuto || (isAuto && this.game.frameCount - this.lastAutoShotTime >= this.autoShootInterval)) {
+                this.shoot();
+                this.shootCooldown = isAuto ? 5 : this.maxShootCooldown;
+                this.lastAutoShotTime = this.game.frameCount;
+            }
         }
         
         if (this.shootCooldown > 0) {

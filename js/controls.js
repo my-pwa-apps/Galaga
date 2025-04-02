@@ -1,4 +1,4 @@
-// Enhanced mobile controls implementation with better touch handling
+// Add auto-shooting functionality
 
 class Controls {
     constructor(game) {
@@ -10,18 +10,13 @@ class Controls {
         };
         
         this.touches = {}; // Track active touches by ID
-        this.touchThrottled = false; // For optimizing touch handling
-        this.touchStartTime = 0;
-        this.longPressThreshold = 300; // ms
         
-        // Initialize the controls
+        // Add auto-shoot property
+        this.autoShoot = false;
+        
+        // Initialize controls
         this.setupKeyboardControls();
         this.setupMobileControls();
-        
-        // First-time control hint
-        if (this.isTouchDevice() && !localStorage.getItem('controlsHintShown')) {
-            this.showControlsHint();
-        }
     }
     
     setupKeyboardControls() {
@@ -65,8 +60,11 @@ class Controls {
             mobileControls.classList.remove('hidden-on-desktop');
             document.body.classList.add('touch-device');
             
-            // Set up the controls
+            // Set up touch controls
             this.setupTouchControls();
+            
+            // Set up auto-shoot toggle
+            this.setupAutoShootToggle();
             
             // Handle global touch events on the game canvas
             const canvas = document.getElementById('game-canvas');
@@ -76,6 +74,40 @@ class Controls {
                 canvas.addEventListener('touchcancel', this.handleCanvasTouch.bind(this), { passive: false });
             }
         }
+    }
+    
+    setupAutoShootToggle() {
+        const autoShootToggle = document.getElementById('auto-shoot-toggle');
+        if (!autoShootToggle) return;
+        
+        // Check localStorage for previous setting
+        const savedAutoShoot = localStorage.getItem('autoShootEnabled');
+        if (savedAutoShoot === 'true') {
+            this.autoShoot = true;
+            autoShootToggle.classList.add('active');
+        }
+        
+        // Set up toggle button
+        autoShootToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            this.autoShoot = !this.autoShoot;
+            autoShootToggle.classList.toggle('active');
+            
+            // Save preference
+            localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
+            
+            // Provide haptic feedback on toggle
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(30);
+            }
+            
+            // Play sound feedback if available
+            if (window.audioManager) {
+                window.audioManager.play(this.autoShoot ? 'powerUp' : 'bulletHit', 0.3);
+            }
+        });
     }
     
     setupTouchControls() {
@@ -172,34 +204,25 @@ class Controls {
         }
     }
     
-    showControlsHint() {
-        const gameScreen = document.getElementById('game-screen');
-        if (!gameScreen) return;
-        
-        // Create a hint element
-        const hint = document.createElement('div');
-        hint.className = 'controls-hint';
-        hint.textContent = 'Tap sides to move, top to shoot';
-        gameScreen.appendChild(hint);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            hint.remove();
-            localStorage.setItem('controlsHintShown', 'true');
-        }, 5000);
+    update() {
+        // Method to be called each frame from the game loop
+        if (this.autoShoot && this.game.gameState === 'playing') {
+            // Set fire key to true when auto-shoot is enabled
+            this.keys.fire = true;
+        }
+    }
+    
+    reset() {
+        this.keys.left = false;
+        this.keys.right = false;
+        this.keys.fire = false;
+        this.touches = {};
+        // Don't reset autoShoot as it's a persistent setting
     }
     
     isTouchDevice() {
         return (('ontouchstart' in window) || 
                 (navigator.maxTouchPoints > 0) || 
                 (navigator.msMaxTouchPoints > 0));
-    }
-    
-    // Reset controls state - useful when switching screens
-    reset() {
-        this.keys.left = false;
-        this.keys.right = false;
-        this.keys.fire = false;
-        this.touches = {};
     }
 }

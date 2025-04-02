@@ -347,3 +347,42 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
 .audio-controls button.muted {
     color: #ff0000;
 }
+
+/* Auto-shooting toggle styles */
+
+.auto-shoot-toggle {
+    position: absolute !important;
+    top: 10px;
+    right: 10px;
+    width: 60px !important;
+    height: 30px !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 15px !important;
+    color: white !important;
+    font-size: 12px !important;
+    font-family: 'Press Start 2P', monospace !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    flex: none !important;
+    box-shadow: 0 0 5px rgba(0, 0, 255, 0.3);
+    transition: all 0.3s;
+}
+
+.auto-shoot-toggle::after {
+    content: none !important; /* Override the button::after styles */
+}
+
+.auto-shoot-toggle.active {
+    background: rgba(0, 100, 255, 0.8) !important;
+    box-shadow: 0 0 10px rgba(0, 100, 255, 0.8);
+    opacity: 1;
+}
+
+/* Make sure mobile controls layout works with the new button */
+#mobile-controls {
+    position: relative;
+}
