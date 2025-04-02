@@ -1,5 +1,3 @@
-// Fix syntax error at line 3
-
 class Game {
     constructor(options) {
         this.canvas = document.getElementById('game-canvas');
@@ -33,7 +31,39 @@ class Game {
         this.animate();
     }
     
-    // Rest of your game.js code...
+    resize() {
+        const containerWidth = window.innerWidth;
+        const containerHeight = window.innerHeight;
+        const ratio = this.width / this.height;
+        
+        let canvasWidth, canvasHeight;
+        
+        // Calculate dimensions while maintaining aspect ratio
+        if (containerHeight * ratio < containerWidth) {
+            canvasHeight = containerHeight * 0.9;
+            canvasWidth = canvasHeight * ratio;
+        } else {
+            canvasWidth = containerWidth * 0.9;
+            canvasHeight = canvasWidth / ratio;
+        }
+        
+        // Set internal canvas dimensions
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        
+        // Set display size with CSS
+        this.canvas.style.width = `${canvasWidth}px`;
+        this.canvas.style.height = `${canvasHeight}px`;
+        
+        // On mobile, adjust for controls
+        if (window.innerWidth < 768) {
+            const mobileControls = document.getElementById('mobile-controls');
+            if (mobileControls && !mobileControls.classList.contains('hidden-on-desktop')) {
+                const controlsHeight = mobileControls.offsetHeight || window.innerHeight * 0.2;
+                this.canvas.style.height = `${canvasHeight - controlsHeight}px`;
+            }
+        }
+    }
 }
 
 // Initialize the game when the page loads
