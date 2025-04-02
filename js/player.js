@@ -54,11 +54,15 @@ class Player {
             this.shootCooldown--;
         }
         
-        // Handle invulnerability
+        // Handle invulnerability - ensure the timer is properly decremented
         if (this.invulnerable) {
             this.invulnerableTimer--;
+            // Debug output to verify invulnerability is working
+            console.log(`Invulnerable: ${this.invulnerable}, Timer: ${this.invulnerableTimer}`);
+            
             if (this.invulnerableTimer <= 0) {
                 this.invulnerable = false;
+                console.log("Player is now vulnerable!");
             }
         }
         
@@ -295,11 +299,19 @@ class Player {
     }
     
     hit() {
-        if (this.invulnerable) return;
+        // Debug output to verify hit detection
+        console.log(`Hit detected! Invulnerable: ${this.invulnerable}, Shield: ${this.shield}`);
+        
+        // Don't process hit if player is invulnerable
+        if (this.invulnerable) {
+            console.log("Hit ignored - player is invulnerable");
+            return;
+        }
         
         // Check if shield is active
         if (this.shield) {
             this.shieldHealth--;
+            console.log(`Shield hit! Health remaining: ${this.shieldHealth}`);
             if (this.shieldHealth <= 0) {
                 this.shield = false;
                 this.activePower = 'NONE';
@@ -310,16 +322,18 @@ class Player {
         
         this.lives--;
         document.getElementById('lives').textContent = this.lives;
+        console.log(`Player hit! Lives remaining: ${this.lives}`);
         
         if (this.lives <= 0) {
             this.game.gameOver();
         } else {
             this.invulnerable = true;
             this.invulnerableTimer = 120; // 2 seconds at 60fps
+            console.log(`Player now invulnerable for ${this.invulnerableTimer} frames`);
         }
         
         // Play explosion sound
-        if (window.audioManager && !this.invulnerable) {
+        if (window.audioManager) {
             window.audioManager.play('explosion', 0.6);
         }
     }
@@ -329,9 +343,12 @@ class Player {
         this.y = this.game.height - 50;
         this.lives = 3;
         this.invulnerable = true;
-        this.invulnerableTimer = 180;
+        this.invulnerableTimer = 180; // 3 seconds at 60fps
         this.shootCooldown = 0;
         this.resetPowerUps();
         this.shield = false;
+        
+        // Debug output to verify reset state
+        console.log("Player reset! Invulnerable for 3 seconds.");
     }
 }

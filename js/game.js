@@ -287,6 +287,8 @@ class Game {
                 projectile.x, projectile.y, projectile.width, projectile.height,
                 this.player.x, this.player.y, this.player.width, this.player.height
             )) {
+                console.log("Enemy projectile hit player!");
+                
                 // Player hit by enemy projectile
                 this.player.hit();
                 
@@ -303,8 +305,8 @@ class Game {
             }
         }
         
-        // 3. Check enemy ships against player (NEW COLLISION CHECK)
-        if (this.player.active && !this.player.invulnerable) {
+        // 3. Check enemy ships against player
+        if (this.player.active) {
             for (let i = this.enemyManager.enemies.length - 1; i >= 0; i--) {
                 const enemy = this.enemyManager.enemies[i];
                 
@@ -312,6 +314,9 @@ class Game {
                     enemy.x, enemy.y, enemy.width, enemy.height,
                     this.player.x, this.player.y, this.player.width, this.player.height
                 )) {
+                    console.log("Enemy ship collided with player!");
+                    console.log(`Player invulnerable: ${this.player.invulnerable}, Timer: ${this.player.invulnerableTimer}`);
+                    
                     // Player hit by enemy ship
                     this.player.hit();
                     
