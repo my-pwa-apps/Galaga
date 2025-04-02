@@ -10,7 +10,8 @@ class Player {
         this.radius = 15;
         this.speed = 5;
         this.lives = 3;
-        this.invulnerable = false;
+        this.active = true;
+        this.invulnerable = false; // Start NOT invulnerable by default
         this.invulnerableTimer = 0;
         this.shootCooldown = 0;
         this.maxShootCooldown = 15;
@@ -57,11 +58,15 @@ class Player {
         // Handle invulnerability - ensure the timer is properly decremented
         if (this.invulnerable) {
             this.invulnerableTimer--;
-            // Debug output to verify invulnerability is working
-            console.log(`Invulnerable: ${this.invulnerable}, Timer: ${this.invulnerableTimer}`);
+            
+            // Only log occasionally to avoid console spam
+            if (this.invulnerableTimer % 30 === 0) {
+                console.log(`Invulnerable: ${this.invulnerable}, Timer: ${this.invulnerableTimer}`);
+            }
             
             if (this.invulnerableTimer <= 0) {
                 this.invulnerable = false;
+                this.invulnerableTimer = 0;
                 console.log("Player is now vulnerable!");
             }
         }
@@ -342,13 +347,16 @@ class Player {
         this.x = this.game.width / 2;
         this.y = this.game.height - 50;
         this.lives = 3;
+        this.active = true;
+        
+        // Make player briefly invulnerable at game start
         this.invulnerable = true;
-        this.invulnerableTimer = 180; // 3 seconds at 60fps
+        this.invulnerableTimer = 60; // 1 second at 60fps (reduced from 3 seconds)
+        
         this.shootCooldown = 0;
         this.resetPowerUps();
         this.shield = false;
         
-        // Debug output to verify reset state
-        console.log("Player reset! Invulnerable for 3 seconds.");
+        console.log("Player reset! Briefly invulnerable for 1 second.");
     }
 }

@@ -276,37 +276,39 @@ class Game {
         }
         
         // 2. Check enemy projectiles against player
-        for (let i = activeProjectiles.length - 1; i >= 0; i--) {
-            const projectile = activeProjectiles[i];
-            
-            // Skip player projectiles or inactive projectiles
-            if (!projectile.isEnemy || !projectile.active) continue;
-            
-            // Check against player
-            if (this.player.active && this.checkRectCollision(
-                projectile.x, projectile.y, projectile.width, projectile.height,
-                this.player.x, this.player.y, this.player.width, this.player.height
-            )) {
-                console.log("Enemy projectile hit player!");
+        if (this.player.active) {  // Only if player is active
+            for (let i = this.projectilePool.activeProjectiles.length - 1; i >= 0; i--) {
+                const projectile = this.projectilePool.activeProjectiles[i];
                 
-                // Player hit by enemy projectile
-                this.player.hit();
+                // Skip player projectiles or inactive projectiles
+                if (!projectile.isEnemy || !projectile.active) continue;
                 
-                // Create explosion using pool
-                this.explosionPool.get(this.player.x, this.player.y);
-                
-                // Play explosion sound
-                if (window.audioManager) {
-                    window.audioManager.play('explosion', 0.5);
+                // Check against player - explicitly check invulnerable here
+                if (!this.player.invulnerable && this.checkRectCollision(
+                    projectile.x, projectile.y, projectile.width, projectile.height,
+                    this.player.x, this.player.y, this.player.width, this.player.height
+                )) {
+                    console.log("Enemy projectile hit player!");
+                    
+                    // Player hit by enemy projectile
+                    this.player.hit();
+                    
+                    // Create explosion using pool
+                    this.explosionPool.get(this.player.x, this.player.y);
+                    
+                    // Play explosion sound
+                    if (window.audioManager) {
+                        window.audioManager.play('explosion', 0.5);
+                    }
+                    
+                    // Deactivate the projectile
+                    projectile.active = false;
                 }
-                
-                // Deactivate the projectile
-                projectile.active = false;
             }
         }
         
-        // 3. Check enemy ships against player
-        if (this.player.active) {
+        // 3. Check enemy ships against player - explicit check for invulnerability
+        if (this.player.active && !this.player.invulnerable) {
             for (let i = this.enemyManager.enemies.length - 1; i >= 0; i--) {
                 const enemy = this.enemyManager.enemies[i];
                 
@@ -315,7 +317,6 @@ class Game {
                     this.player.x, this.player.y, this.player.width, this.player.height
                 )) {
                     console.log("Enemy ship collided with player!");
-                    console.log(`Player invulnerable: ${this.player.invulnerable}, Timer: ${this.player.invulnerableTimer}`);
                     
                     // Player hit by enemy ship
                     this.player.hit();
