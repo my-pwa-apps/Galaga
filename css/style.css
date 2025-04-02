@@ -89,7 +89,7 @@ button:hover {
     line-height: 1.5;
 }
 
-/* Fix mobile controls layout and remove red backgrounds */
+/* Optimized mobile controls styling */
 
 #mobile-controls {
     position: absolute;
@@ -97,99 +97,93 @@ button:hover {
     left: 0;
     width: 100%;
     height: 20vh;
-    display: flex;
     z-index: 10;
-    background-color: transparent; /* Remove any background */
+    display: flex;
+    flex-direction: column;
+}
+
+.controls-wrapper {
+    display: flex;
+    flex: 1;
+    width: 100%;
 }
 
 #mobile-controls button {
-    flex: 1;
-    border: none;
-    background: transparent !important; /* Force transparent background */
+    background: transparent !important;
+    border: none !important;
     color: transparent;
-    font-size: 0;
+    flex: 1;
     position: relative;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
     outline: none;
 }
 
-/* Make button indicators visible without red backgrounds */
-#mobile-controls button::after {
+/* Simplified button indicators */
+#move-left::after,
+#move-right::after,
+#shoot::after {
     content: '';
     position: absolute;
-    bottom: 30%;
+    bottom: 40%;
     left: 50%;
     transform: translateX(-50%);
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.4) !important; /* Darker transparent background */
-    border: 2px solid rgba(255, 255, 255, 0.5);
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    font-size: 24px;
+    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
-    color: white;
-    text-align: center;
-    line-height: 50px;
 }
 
-/* Individual button styles */
-#move-left::after {
-    content: '←';
-}
+#move-left::after { content: '←'; }
+#move-right::after { content: '→'; }
+#shoot::after { content: '↑'; }
 
-#move-right::after {
-    content: '→';
-}
-
-#shoot::after {
-    content: '↑';
-}
-
-/* Auto-shoot toggle position fix */
+/* Better auto-shoot toggle */
 .auto-shoot-toggle {
     position: absolute !important;
-    top: -40px !important;
+    top: 10px !important;
     right: 10px !important;
     width: 60px !important;
     height: 30px !important;
-    background: rgba(0, 0, 0, 0.7) !important;
-    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    background: rgba(0, 0, 0, 0.6) !important;
     border-radius: 15px !important;
-    color: white !important;
-    font-size: 12px !important;
-    font-family: 'Press Start 2P', monospace !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    opacity: 0.8;
-    flex: none !important;
-    box-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
-    z-index: 20 !important;
+    font-size: 10px !important;
+    z-index: 15;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
 }
 
-.auto-shoot-toggle::after {
-    content: none !important; /* Override the button::after styles */
+/* More efficient animations and transitions */
+@keyframes notification-flash {
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
 }
 
-.auto-shoot-toggle.active {
-    background: rgba(0, 150, 255, 0.9) !important;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 1);
+/* Optimized tooltip */
+.tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(5px);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.game-option:hover .tooltip {
     opacity: 1;
-}
-
-/* Hide shoot button when auto-shoot is enabled */
-#shoot.hidden {
-    display: none !important;
-}
-
-/* Adjust layout when shoot button is hidden */
-#mobile-controls.auto-shoot-active #move-left,
-#mobile-controls.auto-shoot-active #move-right {
-    flex: 1;
+    transform: translateY(0);
 }
 
 /* Ensure game canvas doesn't overlap with controls */

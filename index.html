@@ -15,15 +15,15 @@
             <button id="start-button">START GAME</button>
             <p class="instructions">
                 Desktop: Arrow keys to move, Space to shoot<br>
-                Mobile: Touch left/right to move, tap top to shoot
+                Mobile: Touch sides to move, auto-shoot available
             </p>
             
-            <!-- Auto-shoot option for splash screen -->
+            <!-- Auto-shoot option for splash screen - simplified markup -->
             <div id="options-container" class="options-container">
                 <label class="game-option">
                     <input type="checkbox" id="auto-shoot-checkbox"> 
                     <span>Auto-Shoot</span>
-                    <div class="tooltip">Ship automatically fires when enabled</div>
+                    <span class="tooltip">Ship automatically fires</span>
                 </label>
             </div>
         </div>
@@ -42,17 +42,18 @@
             </div>
             <canvas id="game-canvas" aria-label="Galaga Game Canvas"></canvas>
             
-            <!-- Power-up notification -->
-            <div id="powerup-notification" class="hidden" aria-live="assertive">POWER-UP!</div>
+            <!-- Power-up notification - simplified -->
+            <div id="powerup-notification" class="hidden" aria-live="assertive"></div>
             
-            <!-- Enhanced Mobile Controls with cleaner structure -->
+            <!-- Mobile Controls - optimized structure -->
             <div id="mobile-controls" class="hidden-on-desktop">
-                <button id="move-left" aria-label="Move Left" type="button"></button>
-                <!-- Shoot button will be hidden when auto-shoot is active -->
-                <button id="shoot" aria-label="Shoot" type="button"></button>
-                <button id="move-right" aria-label="Move Right" type="button"></button>
+                <div class="controls-wrapper">
+                    <button id="move-left" aria-label="Move Left" type="button"></button>
+                    <button id="shoot" aria-label="Shoot" type="button"></button>
+                    <button id="move-right" aria-label="Move Right" type="button"></button>
+                </div>
                 
-                <!-- Auto-shoot toggle positioned outside of regular button flow -->
+                <!-- Auto-shoot toggle - better positioning -->
                 <button id="auto-shoot-toggle" class="auto-shoot-toggle" aria-label="Toggle Auto-Shoot" type="button">AUTO</button>
             </div>
         </div>

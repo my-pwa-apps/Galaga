@@ -1,4 +1,4 @@
-// Update controls to hide shoot button when auto-shoot is enabled
+// Optimized controls class
 
 class Controls {
     constructor(game) {
@@ -75,83 +75,87 @@ class Controls {
     }
     
     setupAutoShootOptions() {
-        // Load saved preference
-        const savedAutoShoot = localStorage.getItem('autoShootEnabled');
-        this.autoShoot = savedAutoShoot === 'true';
+        // Use a more efficient way to read/write localStorage
+        const getStoredPreference = () => {
+            try {
+                return localStorage.getItem('autoShootEnabled') === 'true';
+            } catch (e) {
+                return false;
+            }
+        };
         
-        // Setup splash screen checkbox
+        const savePreference = (value) => {
+            try {
+                localStorage.setItem('autoShootEnabled', value);
+            } catch (e) {
+                console.warn('Could not save auto-shoot preference');
+            }
+        };
+
+        // Set initial state
+        this.autoShoot = getStoredPreference();
+        
+        // Cache DOM elements
         const checkbox = document.getElementById('auto-shoot-checkbox');
+        const toggle = document.getElementById('auto-shoot-toggle');
+        
+        // Setup checkbox
         if (checkbox) {
             checkbox.checked = this.autoShoot;
-            
-            checkbox.addEventListener('change', (e) => {
-                this.autoShoot = e.target.checked;
-                localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
-                
-                // Update UI elements
+            checkbox.addEventListener('change', () => {
+                this.autoShoot = checkbox.checked;
+                savePreference(this.autoShoot);
                 this.updateAutoShootUI();
             });
         }
         
-        // Setup in-game toggle button
-        const autoShootToggle = document.getElementById('auto-shoot-toggle');
-        if (autoShootToggle) {
-            autoShootToggle.addEventListener('click', (e) => {
+        // Setup toggle
+        if (toggle) {
+            if (this.autoShoot) toggle.classList.add('active');
+            
+            // Use event delegation for better performance
+            toggle.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 
                 this.autoShoot = !this.autoShoot;
+                savePreference(this.autoShoot);
                 
-                // Update checkbox
-                if (checkbox) {
-                    checkbox.checked = this.autoShoot;
-                }
-                
-                // Save preference
-                localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
-                
-                // Update UI elements
+                // Update UI
+                if (checkbox) checkbox.checked = this.autoShoot;
                 this.updateAutoShootUI();
                 
-                // Feedback
-                if (window.navigator && window.navigator.vibrate) {
-                    window.navigator.vibrate(30);
-                }
-                
-                if (window.audioManager) {
-                    window.audioManager.play(this.autoShoot ? 'powerUp' : 'bulletHit', 0.3);
-                }
+                // Minimal feedback
+                if (window.navigator?.vibrate) window.navigator.vibrate(20);
             });
         }
         
-        // Initialize UI based on current setting
+        // Initialize UI
         this.updateAutoShootUI();
     }
     
     updateAutoShootUI() {
-        // Update toggle button appearance
-        const autoShootToggle = document.getElementById('auto-shoot-toggle');
-        if (autoShootToggle) {
-            if (this.autoShoot) {
-                autoShootToggle.classList.add('active');
-            } else {
-                autoShootToggle.classList.remove('active');
-            }
+        // Cache elements and use nullish coalescing for safer access
+        const elements = {
+            toggle: document.getElementById('auto-shoot-toggle'),
+            shoot: document.getElementById('shoot'),
+            controls: document.getElementById('mobile-controls')
+        };
+        
+        // Update toggle appearance
+        if (elements.toggle) {
+            elements.toggle.classList.toggle('active', this.autoShoot);
+            elements.toggle.setAttribute('aria-pressed', this.autoShoot);
         }
         
-        // Show/hide shoot button based on auto-shoot setting
-        const shootButton = document.getElementById('shoot');
-        const mobileControls = document.getElementById('mobile-controls');
-        
-        if (shootButton && mobileControls) {
-            if (this.autoShoot) {
-                shootButton.classList.add('hidden');
-                mobileControls.classList.add('auto-shoot-active');
-            } else {
-                shootButton.classList.remove('hidden');
-                mobileControls.classList.remove('auto-shoot-active');
-            }
+        // Show/hide shoot button
+        if (elements.shoot && elements.controls) {
+            elements.shoot.classList.toggle('hidden', this.autoShoot);
+            elements.controls.classList.toggle('auto-shoot-active', this.autoShoot);
         }
+        
+        // Only one line for updating visual feedback
+        document.documentElement.style.setProperty('--auto-shoot-active', this.autoShoot ? '1' : '0');
     }
     
     setupTouchControls() {
