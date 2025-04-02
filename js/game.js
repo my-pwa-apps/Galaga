@@ -1,41 +1,42 @@
-// Add controls update to game loop
+// Fix syntax error at line 3
 
-// In the update method of the Game class:
-update() {
-    this.frameCount++;
-    
-    if (this.gameState !== 'playing') return;
-    
-    // Update controls for auto-shooting
-    if (this.controls && typeof this.controls.update === 'function') {
-        this.controls.update();
-    }
-    
-    this.player.update();
-    this.enemyManager.update();
-    this.powerUpManager.update();
-    this.levelManager.update();
-    
-    // Update projectiles
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-        const projectile = this.projectiles[i];
-        const shouldRemove = projectile.update();
+class Game {
+    constructor(options) {
+        this.canvas = document.getElementById('game-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.width = 600;
+        this.height = 800;
+        this.frameCount = 0;
+        this.score = 0;
         
-        if (shouldRemove) {
-            this.projectiles.splice(i, 1);
-        }
+        // Set up the game
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        // Initialize game components
+        this.player = new Player(this);
+        this.controls = new Controls(this);
+        this.projectiles = [];
+        this.enemyManager = new EnemyManager(this);
+        this.powerUpManager = new PowerUpManager(this);
+        this.levelManager = new LevelManager(this);
+        this.explosions = [];
+        
+        // Initial game state
+        this.gameState = 'start';
+        
+        // Initialize UI and audio
+        this.setupAudioControls();
+        this.initUI();
+        
+        // Start animation loop
+        this.animate();
     }
     
-    // Update explosions
-    for (let i = this.explosions.length - 1; i >= 0; i--) {
-        this.explosions[i].timer--;
-        if (this.explosions[i].timer <= 0) {
-            this.explosions.splice(i, 1);
-        }
-    }
-    
-    // Update stars
-    this.updateStars();
-    
-    this.checkCollisions();
+    // Rest of your game.js code...
 }
+
+// Initialize the game when the page loads
+window.addEventListener('load', () => {
+    window.game = new Game();
+});
