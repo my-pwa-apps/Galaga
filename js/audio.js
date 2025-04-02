@@ -158,6 +158,14 @@ class AudioManager {
         return this.muted;
     }
     
+    playBackgroundMusic() {
+        // Play background music with looping
+        if (!this.initialized) return;
+        
+        this.backgroundSource = this.play('background', 0.3);
+        return this.backgroundSource;
+    }
+    
     stopAll() {
         if (!this.initialized) return;
         

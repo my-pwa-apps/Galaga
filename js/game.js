@@ -133,7 +133,7 @@ class Game {
         this.updateExplosions();
         
         // Check level completion
-        this.levelManager.checkLevelCompletion();
+        this.levelManager.update();
     }
     
     render() {
