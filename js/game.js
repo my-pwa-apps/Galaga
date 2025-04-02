@@ -75,6 +75,24 @@ class Game {
             });
         }
     }
+    
+    initUI() {
+        // Set up start button
+        const startButton = document.getElementById('start-button');
+        if (startButton) {
+            startButton.addEventListener('click', () => {
+                this.startGame();
+            });
+        }
+        
+        // Set up restart button
+        const restartButton = document.getElementById('restart-button');
+        if (restartButton) {
+            restartButton.addEventListener('click', () => {
+                this.startGame();
+            });
+        }
+    }
 }
 
 // Initialize the game when the page loads
