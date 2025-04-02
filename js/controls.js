@@ -1,4 +1,4 @@
-// Add auto-shooting functionality
+// Link splash screen checkbox with in-game auto-shoot toggle
 
 class Controls {
     constructor(game) {
@@ -14,9 +14,10 @@ class Controls {
         // Add auto-shoot property
         this.autoShoot = false;
         
-        // Initialize controls
+        // Initialize the controls
         this.setupKeyboardControls();
         this.setupMobileControls();
+        this.setupAutoShootOptions();
     }
     
     setupKeyboardControls() {
@@ -63,9 +64,6 @@ class Controls {
             // Set up touch controls
             this.setupTouchControls();
             
-            // Set up auto-shoot toggle
-            this.setupAutoShootToggle();
-            
             // Handle global touch events on the game canvas
             const canvas = document.getElementById('game-canvas');
             if (canvas) {
@@ -76,38 +74,65 @@ class Controls {
         }
     }
     
-    setupAutoShootToggle() {
-        const autoShootToggle = document.getElementById('auto-shoot-toggle');
-        if (!autoShootToggle) return;
-        
-        // Check localStorage for previous setting
+    setupAutoShootOptions() {
+        // Load saved preference
         const savedAutoShoot = localStorage.getItem('autoShootEnabled');
-        if (savedAutoShoot === 'true') {
-            this.autoShoot = true;
-            autoShootToggle.classList.add('active');
+        this.autoShoot = savedAutoShoot === 'true';
+        
+        // Setup splash screen checkbox
+        const checkbox = document.getElementById('auto-shoot-checkbox');
+        if (checkbox) {
+            checkbox.checked = this.autoShoot;
+            
+            checkbox.addEventListener('change', (e) => {
+                this.autoShoot = e.target.checked;
+                localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
+                
+                // Update in-game toggle if it exists
+                const autoShootToggle = document.getElementById('auto-shoot-toggle');
+                if (autoShootToggle) {
+                    if (this.autoShoot) {
+                        autoShootToggle.classList.add('active');
+                    } else {
+                        autoShootToggle.classList.remove('active');
+                    }
+                }
+            });
         }
         
-        // Set up toggle button
-        autoShootToggle.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            this.autoShoot = !this.autoShoot;
-            autoShootToggle.classList.toggle('active');
-            
-            // Save preference
-            localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
-            
-            // Provide haptic feedback on toggle
-            if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(30);
+        // Setup in-game toggle button
+        const autoShootToggle = document.getElementById('auto-shoot-toggle');
+        if (autoShootToggle) {
+            // Set initial state
+            if (this.autoShoot) {
+                autoShootToggle.classList.add('active');
             }
             
-            // Play sound feedback if available
-            if (window.audioManager) {
-                window.audioManager.play(this.autoShoot ? 'powerUp' : 'bulletHit', 0.3);
-            }
-        });
+            autoShootToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                this.autoShoot = !this.autoShoot;
+                autoShootToggle.classList.toggle('active');
+                
+                // Sync with checkbox
+                if (checkbox) {
+                    checkbox.checked = this.autoShoot;
+                }
+                
+                // Save preference
+                localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
+                
+                // Provide feedback
+                if (window.navigator && window.navigator.vibrate) {
+                    window.navigator.vibrate(30);
+                }
+                
+                if (window.audioManager) {
+                    window.audioManager.play(this.autoShoot ? 'powerUp' : 'bulletHit', 0.3);
+                }
+            });
+        }
     }
     
     setupTouchControls() {
