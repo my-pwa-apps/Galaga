@@ -1,0 +1,274 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Press Start 2P', monospace;
+    background-color: #000;
+    color: white;
+    overflow: hidden;
+    touch-action: none;
+    background: radial-gradient(circle at center, #111 0%, #000 100%);
+}
+
+.game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.screen {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    text-align: center;
+}
+
+.hidden {
+    display: none;
+}
+
+h1 {
+    color: #FF0;
+    font-size: 3rem;
+    margin-bottom: 2rem;
+    text-shadow: 0 0 10px #F00, 0 0 20px #F00, 0 0 30px #F00;
+    animation: glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+    from {
+        text-shadow: 0 0 5px #F00, 0 0 10px #F00, 0 0 15px #F00;
+    }
+    to {
+        text-shadow: 0 0 10px #F00, 0 0 20px #F00, 0 0 30px #F00, 0 0 40px #F00;
+    }
+}
+
+h2 {
+    color: #F00;
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    text-shadow: 0 0 10px #FF0, 0 0 20px #FF0;
+}
+
+button {
+    background-color: #F00;
+    color: white;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 1rem;
+    padding: 1rem;
+    margin: 1rem;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+}
+
+button:hover {
+    background-color: #F55;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+}
+
+.instructions {
+    margin-top: 2rem;
+    color: #AAA;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+#game-canvas {
+    background-color: black;
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: 0 0 20px rgba(0, 100, 255, 0.3);
+}
+
+.hud {
+    position: absolute;
+    top: 10px;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    font-size: 0.8rem;
+    z-index: 5;
+    text-shadow: 0 0 5px #0AF;
+}
+
+.power-up-indicator {
+    color: #0F0;
+    animation: power-pulse 2s infinite;
+    font-weight: bold;
+    text-shadow: 0 0 8px #0F0;
+}
+
+@keyframes power-pulse {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; text-shadow: 0 0 12px #0F0; }
+    100% { opacity: 0.7; }
+}
+
+#powerup-notification {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: #FF0;
+    font-size: 2rem;
+    padding: 1rem 2rem;
+    border-radius: 1rem;
+    border: 3px solid #0F0;
+    animation: notification-pulse 0.5s infinite alternate;
+    z-index: 100;
+}
+
+@keyframes notification-pulse {
+    from { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px #0F0; }
+    to { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 30px #0F0; }
+}
+
+#mobile-controls {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 20vh;
+    display: flex;
+    z-index: 5;
+}
+
+#move-left, #move-right, #shoot {
+    flex: 1;
+    touch-action: manipulation;
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}
+
+#move-left:active, #move-right:active, #shoot:active {
+    background-color: rgba(255, 255, 255, 0.3);
+    opacity: 0.6;
+}
+
+@media (min-width: 768px) {
+    .hidden-on-desktop {
+        display: none;
+    }
+}
+
+@media (max-width: 767px) {
+    h1 {
+        font-size: 2rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+    
+    .instructions {
+        font-size: 0.6rem;
+    }
+    
+    .hud {
+        font-size: 0.6rem;
+    }
+}
+
+/* Optimized power-up timer styles */
+
+#power-timer-container {
+    width: 100px;
+    height: 6px;
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    margin-top: 4px;
+    position: relative;
+    overflow: hidden;
+    /* Add transition for smooth appearance */
+    transition: opacity 0.3s ease;
+}
+
+#power-timer-bar {
+    height: 100%;
+    width: 100%;
+    background-color: #0F0;
+    border-radius: 3px;
+    /* Make width transitions smoother */
+    transition: width 0.5s linear;
+    transform-origin: left;
+}
+
+.power-timer-flash {
+    animation: timer-flash 0.5s infinite alternate;
+}
+
+/* Optimize animations by using transform instead of background-color */
+@keyframes timer-flash {
+    from { opacity: 1; }
+    to { opacity: 0.6; }
+}
+
+/* Mobile optimization for controls */
+#mobile-controls button {
+    border: none;
+    background: transparent;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Focus styles for accessibility */
+button:focus, 
+#mobile-controls button:focus {
+    outline: 2px solid #FFF;
+    outline-offset: 2px;
+}
+
+/* Hide focus outlines when using mouse */
+body:not(.keyboard-navigation) button:focus,
+body:not(.keyboard-navigation) #mobile-controls button:focus {
+    outline: none;
+}
+
+/* Audio controls */
+.audio-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 100;
+}
+
+.audio-controls button {
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: 1px solid #444;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.audio-controls button:hover {
+    background: rgba(50, 50, 50, 0.7);
+}
+
+.audio-controls button.muted {
+    color: #ff0000;
+}

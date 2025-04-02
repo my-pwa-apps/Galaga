@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaga Clone</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen">
+            <h1>GALAGA</h1>
+            <button id="start-button">START GAME</button>
+            <p class="instructions">
+                Desktop: Arrow keys to move, Space to shoot<br>
+                Mobile: Touch left/right to move, tap top to shoot
+            </p>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen hidden">
+            <div class="hud" aria-live="polite">
+                <div>SCORE: <span id="score">0</span></div>
+                <div>LEVEL: <span id="level">1</span></div>
+                <div>LIVES: <span id="lives">3</span></div>
+                <div class="power-up-indicator">POWER: <span id="active-power">NONE</span>
+                    <div id="power-timer-container" class="hidden" aria-hidden="true">
+                        <div id="power-timer-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div>
+                    </div>
+                </div>
+            </div>
+            <canvas id="game-canvas" aria-label="Galaga Game Canvas"></canvas>
+            
+            <!-- Power-up notification -->
+            <div id="powerup-notification" class="hidden" aria-live="assertive">POWER-UP!</div>
+            
+            <!-- Mobile Controls -->
+            <div id="mobile-controls" class="hidden-on-desktop">
+                <button id="move-left" aria-label="Move Left"></button>
+                <button id="shoot" aria-label="Shoot"></button>
+                <button id="move-right" aria-label="Move Right"></button>
+            </div>
+        </div>
+        
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="screen hidden">
+            <h2>GAME OVER</h2>
+            <p>Final Score: <span id="final-score">0</span></p>
+            <button id="restart-button">PLAY AGAIN</button>
+        </div>
+        
+        <!-- Audio Controls -->
+        <div class="audio-controls">
+            <button id="mute-button" aria-label="Mute Sound">🔊</button>
+        </div>
+    </div>
+    
+    <!-- Scripts - Load with defer for better performance -->
+    <script src="js/utils.js" defer></script>
+    <script src="js/audio.js" defer></script>
+    <script src="js/sprites.js" defer></script>
+    <script src="js/controls.js" defer></script>
+    <script src="js/player.js" defer></script>
+    <script src="js/enemies.js" defer></script>
+    <script src="js/projectiles.js" defer></script>
+    <script src="js/powerups.js" defer></script>
+    <script src="js/levels.js" defer></script>
+    <script src="js/game.js" defer></script>
+</body>
+</html>
