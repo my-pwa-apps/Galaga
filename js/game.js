@@ -18,13 +18,14 @@ class Game {
         
         // Initialize game components with object pooling
         this.projectilePool = new ProjectilePool(this);
+        this.explosionPool = new ExplosionPool(this);
         this.player = new Player(this);
         this.controls = new Controls(this);
         this.projectiles = []; // Keep for backwards compatibility
         this.enemyManager = new EnemyManager(this);
         this.powerUpManager = new PowerUpManager(this);
         this.levelManager = new LevelManager(this);
-        this.explosions = [];
+        this.explosions = []; // Keep for backwards compatibility
         
         // Initial game state
         this.gameState = 'start';
@@ -189,6 +190,31 @@ class Game {
         this.projectilePool.draw();
     }
     
+    updateExplosions() {
+        // Support both the old array-based system and the new pool-based system
+        
+        // Update the explosion pool if it exists
+        if (this.explosionPool) {
+            this.explosionPool.update();
+        }
+        
+        // Also update any explosions in the legacy array for backward compatibility
+        for (let i = this.explosions.length - 1; i >= 0; i--) {
+            const explosion = this.explosions[i];
+            explosion.update();
+            
+            // Remove finished explosions
+            if (explosion.finished) {
+                this.explosions.splice(i, 1);
+            }
+        }
+    }
+    
+    drawExplosions() {
+        // Use explosion pool for drawing
+        this.explosionPool.draw();
+    }
+    
     checkCollisions() {
         // 1. Check player projectiles against enemies
         const activeProjectiles = this.projectilePool.activeProjectiles;
@@ -217,8 +243,8 @@ class Game {
                         this.score += enemy.points;
                         this.updateUI();
                         
-                        // Create explosion
-                        this.explosions.push(new Explosion(this, enemy.x, enemy.y));
+                        // Create explosion using pool
+                        this.explosionPool.get(enemy.x, enemy.y);
                         
                         // Play explosion sound
                         if (window.audioManager) {
@@ -261,8 +287,8 @@ class Game {
                 // Player hit by enemy projectile
                 this.player.hit();
                 
-                // Create explosion
-                this.explosions.push(new Explosion(this, this.player.x, this.player.y));
+                // Create explosion using pool
+                this.explosionPool.get(this.player.x, this.player.y);
                 
                 // Play explosion sound
                 if (window.audioManager) {
@@ -365,9 +391,11 @@ class Game {
         this.score = 0;
         this.updateUI();
         
-        // Clear projectiles
+        // Clear projectiles and explosions
         this.projectilePool.clear();
+        this.explosionPool.clear();
         this.projectiles = []; // Clear legacy array too
+        this.explosions = []; // Clear legacy array too
         
         // Initialize level
         this.levelManager.startLevel(1);
