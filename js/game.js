@@ -64,6 +64,17 @@ class Game {
             }
         }
     }
+    
+    setupAudioControls() {
+        const muteButton = document.getElementById('mute-button');
+        if (muteButton) {
+            muteButton.addEventListener('click', () => {
+                const isMuted = window.audioManager?.toggleMute();
+                muteButton.textContent = isMuted ? '🔇' : '🔊';
+                muteButton.classList.toggle('muted', isMuted);
+            });
+        }
+    }
 }
 
 // Initialize the game when the page loads
