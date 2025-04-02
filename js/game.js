@@ -7,14 +7,20 @@ class Game {
         this.frameCount = 0;
         this.score = 0;
         
+        // Performance optimization - time tracking
+        this.lastTime = 0;
+        this.targetFPS = 60;
+        this.frameInterval = 1000 / this.targetFPS;
+        
         // Set up the game
         this.resize();
         window.addEventListener('resize', () => this.resize());
         
-        // Initialize game components
+        // Initialize game components with object pooling
+        this.projectilePool = new ProjectilePool(this);
         this.player = new Player(this);
         this.controls = new Controls(this);
-        this.projectiles = [];
+        this.projectiles = []; // Keep for backwards compatibility
         this.enemyManager = new EnemyManager(this);
         this.powerUpManager = new PowerUpManager(this);
         this.levelManager = new LevelManager(this);
@@ -28,7 +34,7 @@ class Game {
         this.initUI();
         
         // Start animation loop
-        this.animate();
+        this.animate(0);
     }
     
     resize() {
@@ -94,9 +100,18 @@ class Game {
         }
     }
     
-    animate() {
+    animate(timestamp) {
         // Request the next frame
-        requestAnimationFrame(() => this.animate());
+        requestAnimationFrame((time) => this.animate(time));
+        
+        // Calculate elapsed time since last frame
+        const deltaTime = timestamp - this.lastTime;
+        
+        // Control frame rate to improve performance
+        if (deltaTime < this.frameInterval) return;
+        
+        // Adjust last time for consistent frame rate
+        this.lastTime = timestamp - (deltaTime % this.frameInterval);
         
         // Clear the canvas
         this.ctx.clearRect(0, 0, this.width, this.height);
@@ -165,60 +180,160 @@ class Game {
     }
     
     updateProjectiles() {
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const projectile = this.projectiles[i];
-            projectile.update();
-            
-            // Remove projectiles that are off screen
-            if (projectile.y < 0 || projectile.y > this.height) {
-                this.projectiles.splice(i, 1);
-            }
-        }
+        // Use the projectile pool system for better performance
+        this.projectilePool.update();
     }
     
     drawProjectiles() {
-        this.projectiles.forEach(projectile => projectile.draw());
+        // Use the projectile pool system for drawing
+        this.projectilePool.draw();
     }
     
-    updateExplosions() {
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const explosion = this.explosions[i];
-            explosion.update();
+    checkCollisions() {
+        // 1. Check player projectiles against enemies
+        const activeProjectiles = this.projectilePool.activeProjectiles;
+        
+        for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+            const projectile = activeProjectiles[i];
             
-            // Remove finished explosions
-            if (explosion.finished) {
-                this.explosions.splice(i, 1);
+            // Skip enemy projectiles
+            if (projectile.isEnemy) continue;
+            
+            // Check against all enemies
+            for (let j = this.enemyManager.enemies.length - 1; j >= 0; j--) {
+                const enemy = this.enemyManager.enemies[j];
+                
+                // Simple rectangular collision detection
+                if (this.checkRectCollision(
+                    projectile.x, projectile.y, projectile.width, projectile.height,
+                    enemy.x, enemy.y, enemy.width, enemy.height
+                )) {
+                    // Enemy hit by player projectile
+                    enemy.hit();
+                    
+                    // If enemy is destroyed
+                    if (enemy.health <= 0) {
+                        // Add score
+                        this.score += enemy.points;
+                        this.updateUI();
+                        
+                        // Create explosion
+                        this.explosions.push(new Explosion(this, enemy.x, enemy.y));
+                        
+                        // Play explosion sound
+                        if (window.audioManager) {
+                            window.audioManager.play('explosion', 0.3);
+                        }
+                        
+                        // Chance to drop power-up
+                        if (Math.random() < 0.1) {
+                            this.powerUpManager.createPowerUp(enemy.x, enemy.y);
+                        }
+                        
+                        // Remove the enemy
+                        this.enemyManager.enemies.splice(j, 1);
+                    } else {
+                        // Play hit sound
+                        if (window.audioManager) {
+                            window.audioManager.play('bulletHit', 0.2);
+                        }
+                    }
+                    
+                    // Deactivate the projectile
+                    projectile.active = false;
+                    break;
+                }
+            }
+        }
+        
+        // 2. Check enemy projectiles against player
+        for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+            const projectile = activeProjectiles[i];
+            
+            // Skip player projectiles or inactive projectiles
+            if (!projectile.isEnemy || !projectile.active) continue;
+            
+            // Check against player
+            if (this.player.active && this.checkRectCollision(
+                projectile.x, projectile.y, projectile.width, projectile.height,
+                this.player.x, this.player.y, this.player.width, this.player.height
+            )) {
+                // Player hit by enemy projectile
+                this.player.hit();
+                
+                // Create explosion
+                this.explosions.push(new Explosion(this, this.player.x, this.player.y));
+                
+                // Play explosion sound
+                if (window.audioManager) {
+                    window.audioManager.play('explosion', 0.5);
+                }
+                
+                // Deactivate the projectile
+                projectile.active = false;
+            }
+        }
+        
+        // 3. Check power-ups against player
+        for (let i = this.powerUpManager.powerUps.length - 1; i >= 0; i--) {
+            const powerUp = this.powerUpManager.powerUps[i];
+            
+            if (this.checkRectCollision(
+                powerUp.x, powerUp.y, powerUp.width, powerUp.height,
+                this.player.x, this.player.y, this.player.width, this.player.height
+            )) {
+                // Apply power-up
+                this.player.applyPowerUp(powerUp.type);
+                
+                // Show notification
+                this.showPowerUpNotification(powerUp.type);
+                
+                // Play power-up sound
+                if (window.audioManager) {
+                    window.audioManager.play('powerUp', 0.4);
+                }
+                
+                // Remove the power-up
+                this.powerUpManager.powerUps.splice(i, 1);
             }
         }
     }
     
-    drawExplosions() {
-        this.explosions.forEach(explosion => explosion.draw());
+    // Helper method for rectangle collision detection
+    checkRectCollision(x1, y1, w1, h1, x2, y2, w2, h2) {
+        return x1 < x2 + w2 && 
+               x1 + w1 > x2 && 
+               y1 < y2 + h2 && 
+               y1 + h1 > y2;
     }
     
-    startGame() {
-        // Hide start screen and show game screen
-        document.getElementById('start-screen').classList.add('hidden');
-        document.getElementById('game-screen').classList.remove('hidden');
-        document.getElementById('game-over-screen').classList.add('hidden');
+    // Display power-up notification
+    showPowerUpNotification(type) {
+        const notification = document.getElementById('powerup-notification');
+        let message = 'POWER-UP: ';
         
-        // Reset game state
-        this.gameState = 'playing';
-        this.score = 0;
-        this.updateUI();
-        
-        // Initialize level
-        this.levelManager.startLevel(1);
-        
-        // Play background music
-        if (window.audioManager) {
-            window.audioManager.playBackgroundMusic();
+        switch(type) {
+            case 'rapidFire': message += 'RAPID FIRE'; break;
+            case 'multiShot': message += 'MULTI SHOT'; break;
+            case 'shield': message += 'SHIELD'; break;
+            case 'extraLife': message += 'EXTRA LIFE'; break;
+            default: message += type.toUpperCase();
         }
-    }
-    
-    checkCollisions() {
-        // Implement collision detection logic here
-        // This would check collisions between projectiles, enemies, player, and power-ups
+        
+        notification.textContent = message;
+        notification.classList.remove('hidden');
+        
+        // Update active power display
+        if (type !== 'extraLife') {
+            document.getElementById('active-power').textContent = type.toUpperCase();
+            document.getElementById('power-timer-container').classList.remove('hidden');
+            document.getElementById('power-timer-bar').style.width = '100%';
+        }
+        
+        // Hide notification after 2 seconds
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, 2000);
     }
     
     updateUI() {
@@ -233,9 +348,33 @@ class Game {
         document.getElementById('game-over-screen').classList.remove('hidden');
         document.getElementById('final-score').textContent = this.score;
         
-        // Play game over sound
+        // Play game over sound - fixed method name to match the API
         if (window.audioManager) {
-            window.audioManager.playSound('gameOver');
+            window.audioManager.play('gameOver', 0.7);
+        }
+    }
+    
+    startGame() {
+        // Hide start screen and show game screen
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        
+        // Reset game state
+        this.gameState = 'playing';
+        this.score = 0;
+        this.updateUI();
+        
+        // Clear projectiles
+        this.projectilePool.clear();
+        this.projectiles = []; // Clear legacy array too
+        
+        // Initialize level
+        this.levelManager.startLevel(1);
+        
+        // Play background music
+        if (window.audioManager) {
+            window.audioManager.playBackgroundMusic();
         }
     }
 }

@@ -112,35 +112,43 @@ class AudioManager {
     }
     
     play(name, volume = 1.0) {
-        if (!this.initialized || this.muted) return;
+        if (!this.initialized) return null;
+        
+        // Don't try to play sounds if audio is muted
+        if (this.muted) return null;
         
         // Auto-resume audio context if it's suspended (browser policy)
         if (this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
+            this.audioContext.resume().catch(e => console.warn('Could not resume audio context:', e));
         }
         
         const sound = this.sounds[name];
         if (!sound) {
             console.warn(`Sound not found: ${name}`);
-            return;
+            return null;
         }
         
-        // Create audio source
-        const source = this.audioContext.createBufferSource();
-        source.buffer = sound.buffer;
-        source.loop = sound.isLoop;
-        
-        // Create gain node for this sound
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = volume * this.masterVolume;
-        
-        // Connect nodes
-        source.connect(gainNode);
-        gainNode.connect(this.masterGain);
-        
-        // Play the sound
-        source.start();
-        return source; // Return source to allow stopping loops
+        try {
+            // Create audio source
+            const source = this.audioContext.createBufferSource();
+            source.buffer = sound.buffer;
+            source.loop = sound.isLoop;
+            
+            // Create gain node for this sound
+            const gainNode = this.audioContext.createGain();
+            gainNode.gain.value = volume * this.masterVolume;
+            
+            // Connect nodes
+            source.connect(gainNode);
+            gainNode.connect(this.masterGain);
+            
+            // Play the sound
+            source.start();
+            return source; // Return source to allow stopping loops
+        } catch (e) {
+            console.error('Error playing sound:', e);
+            return null;
+        }
     }
     
     setVolume(volume) {
@@ -159,11 +167,31 @@ class AudioManager {
     }
     
     playBackgroundMusic() {
+        // Stop any existing background music first
+        if (this.backgroundSource) {
+            try {
+                this.backgroundSource.stop();
+            } catch (e) {
+                console.warn('Error stopping background music:', e);
+            }
+        }
+        
         // Play background music with looping
-        if (!this.initialized) return;
+        if (!this.initialized) return null;
         
         this.backgroundSource = this.play('background', 0.3);
         return this.backgroundSource;
+    }
+    
+    stopBackgroundMusic() {
+        if (this.backgroundSource) {
+            try {
+                this.backgroundSource.stop();
+                this.backgroundSource = null;
+            } catch (e) {
+                console.warn('Error stopping background music:', e);
+            }
+        }
     }
     
     stopAll() {
