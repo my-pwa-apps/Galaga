@@ -130,6 +130,9 @@ class Game {
     }
     
     update() {
+        // Update controls state for auto-shoot
+        this.controls.update();
+        
         // Update player
         this.player.update();
         
@@ -300,7 +303,38 @@ class Game {
             }
         }
         
-        // 3. Check power-ups against player
+        // 3. Check enemy ships against player (NEW COLLISION CHECK)
+        if (this.player.active && !this.player.invulnerable) {
+            for (let i = this.enemyManager.enemies.length - 1; i >= 0; i--) {
+                const enemy = this.enemyManager.enemies[i];
+                
+                if (this.checkRectCollision(
+                    enemy.x, enemy.y, enemy.width, enemy.height,
+                    this.player.x, this.player.y, this.player.width, this.player.height
+                )) {
+                    // Player hit by enemy ship
+                    this.player.hit();
+                    
+                    // Create explosions for both player and enemy
+                    this.explosionPool.get(this.player.x, this.player.y);
+                    this.explosionPool.get(enemy.x, enemy.y);
+                    
+                    // Play explosion sound
+                    if (window.audioManager) {
+                        window.audioManager.play('explosion', 0.7);
+                    }
+                    
+                    // Destroy the enemy that collided with the player
+                    this.score += enemy.points;
+                    this.updateUI();
+                    this.enemyManager.enemies.splice(i, 1);
+                    
+                    break; // Exit the loop after the first collision
+                }
+            }
+        }
+        
+        // 4. Check power-ups against player
         for (let i = this.powerUpManager.powerUps.length - 1; i >= 0; i--) {
             const powerUp = this.powerUpManager.powerUps[i];
             
