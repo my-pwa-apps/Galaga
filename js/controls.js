@@ -30,25 +30,32 @@ class Controls {
         });
     }
     
-    handleKeyAction(key, isDown) {
-        switch(key) {
-            case 'ArrowLeft':
-            case 'a':
-            case 'A':
-                this.keys.left = isDown;
-                break;
-            case 'ArrowRight':
-            case 'd':
-            case 'D':
-                this.keys.right = isDown;
-                break;
-            case ' ':
-            case 'ArrowUp':
-            case 'w':
-            case 'W':
-                this.keys.fire = isDown;
-                break;
+    update() {
+        // Method to be called each frame from the game loop
+        // Only set fire key when auto-shoot is enabled
+        if (this.autoShoot && this.game && this.game.gameState === 'playing') {
+            this.keys.fire = true;
         }
+        // Important: when auto-shoot is disabled, reset the fire key to allow manual control
+        else if (!this.autoShoot && this.keys.fire && !this.isFireKeyPressed) {
+            // Reset fire key to false when auto-shoot is turned off
+            // and there's no actual fire button being pressed
+            this.keys.fire = false;
+        }
+    }
+    
+    reset() {
+        this.keys.left = false;
+        this.keys.right = false;
+        this.keys.fire = false;
+        this.touches = {};
+        // Don't reset autoShoot as it's a persistent setting
+    }
+    
+    isTouchDevice() {
+        return (('ontouchstart' in window) || 
+                (navigator.maxTouchPoints > 0) || 
+                (navigator.msMaxTouchPoints > 0));
     }
     
     setupMobileControls() {
@@ -254,25 +261,26 @@ class Controls {
         }
     }
     
-    update() {
-        // Method to be called each frame from the game loop
-        if (this.autoShoot && this.game && this.game.gameState === 'playing') {
-            // Set fire key to true when auto-shoot is enabled
-            this.keys.fire = true;
+    // Track if fire key is pressed
+    handleKeyAction(key, isDown) {
+        switch(key) {
+            case 'ArrowLeft':
+            case 'a':
+            case 'A':
+                this.keys.left = isDown;
+                break;
+            case 'ArrowRight':
+            case 'd':
+            case 'D':
+                this.keys.right = isDown;
+                break;
+            case ' ':
+            case 'ArrowUp':
+            case 'w':
+            case 'W':
+                this.keys.fire = isDown;
+                this.isFireKeyPressed = isDown; // Track actual key press state
+                break;
         }
-    }
-    
-    reset() {
-        this.keys.left = false;
-        this.keys.right = false;
-        this.keys.fire = false;
-        this.touches = {};
-        // Don't reset autoShoot as it's a persistent setting
-    }
-    
-    isTouchDevice() {
-        return (('ontouchstart' in window) || 
-                (navigator.maxTouchPoints > 0) || 
-                (navigator.msMaxTouchPoints > 0));
     }
 }

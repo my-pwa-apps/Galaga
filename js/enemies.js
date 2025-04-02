@@ -89,13 +89,14 @@ class Enemy {
     
     tryToShoot() {
         if (Math.random() < this.fireRate) {
-            // Create bullet using the projectile pool
+            // Create bullet using the projectile pool with proper parameters
             this.game.projectilePool.get({
                 game: this.game,
                 x: this.x,
                 y: this.y + 20,
-                speed: 5,
-                type: 'enemy'
+                speed: 5, // Positive speed for downward movement
+                type: 'enemy',
+                isEnemy: true // Explicitly set isEnemy flag
             });
             
             // Play enemy shooting sound

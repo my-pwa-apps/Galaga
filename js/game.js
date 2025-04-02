@@ -254,10 +254,8 @@ class Game {
                             window.audioManager.play('explosion', 0.3);
                         }
                         
-                        // Chance to drop power-up
-                        if (Math.random() < 0.1) {
-                            this.powerUpManager.createPowerUp(enemy.x, enemy.y);
-                        }
+                        // Chance to drop power-up - Fixed: Use powerUpManager's method
+                        this.powerUpManager.trySpawnPowerUp(enemy.x, enemy.y);
                         
                         // Remove the enemy
                         this.enemyManager.enemies.splice(j, 1);

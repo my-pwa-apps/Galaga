@@ -376,12 +376,12 @@ class PowerUpManager {
     constructor(game) {
         this.game = game;
         this.powerUps = [];
-        this.dropChance = 0.02; // Reduced from 0.08 to 0.02 (2% chance)
+        this.dropChance = 0.1; // Increased from 0.02 to 0.1 (10% chance)
         this.lastDropTime = 0;
-        this.minDropInterval = 300; // Increased from 120 to 300
-        this.guaranteedDropKillCount = 20; // Increased from 10 to 20
+        this.minDropInterval = 120; // Decreased from 300 to 120
+        this.guaranteedDropKillCount = 15; // Decreased from 20 to 15
         this.enemiesDestroyedSinceDrop = 0;
-        this.levelStartPowerUp = false; // Disabled automatic level-start power-up
+        this.levelStartPowerUp = true; // Enable automatic level-start power-up
     }
     
     update() {
@@ -396,7 +396,7 @@ class PowerUpManager {
         // Check for collision with the player
         for (let i = this.powerUps.length - 1; i >= 0; i--) {
             const powerUp = this.powerUps[i];
-            if (detectCollision(powerUp, this.game.player)) {
+            if (this.checkCollision(powerUp, this.game.player)) {
                 powerUp.apply(this.game.player);
                 powerUp.active = false;
                 this.powerUps.splice(i, 1);
@@ -406,18 +406,21 @@ class PowerUpManager {
         
         // Force a power-up drop if none have appeared for a very long time
         const currentTime = this.game.frameCount;
-        if (this.powerUps.length === 0 && currentTime - this.lastDropTime > 3600) { // Increased from 1200 to 3600 (60 seconds)
+        if (this.powerUps.length === 0 && currentTime - this.lastDropTime > 1800) { // Decreased from 3600 to 1800 (30 seconds)
             this.forcePowerUpDrop();
         }
     }
     
-    draw() {
-        this.powerUps.forEach(powerUp => {
-            powerUp.draw();
-        });
+    // Helper function to check collisions
+    checkCollision(powerUp, player) {
+        return powerUp.x < player.x + player.width &&
+               powerUp.x + powerUp.width > player.x &&
+               powerUp.y < player.y + player.height &&
+               powerUp.y + powerUp.height > player.y;
     }
     
     trySpawnPowerUp(x, y) {
+        console.log("Trying to spawn power-up");
         const currentTime = this.game.frameCount;
         
         // Always increment kill counter
@@ -426,14 +429,7 @@ class PowerUpManager {
         // Force drop after killing enough enemies
         if (this.enemiesDestroyedSinceDrop >= this.guaranteedDropKillCount) {
             console.log("Guaranteed power-up drop after " + this.guaranteedDropKillCount + " kills");
-            this.powerUps.push(new PowerUp({
-                game: this.game,
-                x: x,
-                y: y
-            }));
-            
-            this.lastDropTime = currentTime;
-            this.enemiesDestroyedSinceDrop = 0;
+            this.createPowerUp(x, y);
             return;
         }
         
@@ -444,70 +440,41 @@ class PowerUpManager {
         
         if (Math.random() < this.dropChance) {
             console.log("Random power-up spawned!");
-            this.powerUps.push(new PowerUp({
-                game: this.game,
-                x: x,
-                y: y
-            }));
-            
-            this.lastDropTime = currentTime;
-            this.enemiesDestroyedSinceDrop = 0;
+            this.createPowerUp(x, y);
         }
+    }
+    
+    createPowerUp(x, y) {
+        const powerUp = new PowerUp({
+            game: this.game,
+            x: x,
+            y: y
+        });
+        this.powerUps.push(powerUp);
+        this.lastDropTime = this.game.frameCount;
+        this.enemiesDestroyedSinceDrop = 0;
+        console.log("Power-up created at", x, y, "Type:", powerUp.type);
     }
     
     forcePowerUpDrop() {
         // Drop a power-up from a random position at top of screen
         const x = Math.random() * (this.game.width - 100) + 50;
-        this.powerUps.push(new PowerUp({
-            game: this.game,
-            x: x,
-            y: 0
-        }));
-        this.lastDropTime = this.game.frameCount;
-        this.enemiesDestroyedSinceDrop = 0;
+        this.createPowerUp(x, 0);
+        console.log("Forced power-up drop");
     }
     
     spawnLevelStartPowerUp() {
-        // Spawn a power-up in the middle of the screen
-        setTimeout(() => {
-            const x = this.game.width / 2;
-            const y = this.game.height / 2;
-            
-            // Create special visual effect for this power-up
-            const flash = document.createElement('div');
-            flash.style.position = 'absolute';
-            flash.style.top = '50%';
-            flash.style.left = '50%';
-            flash.style.width = '100px';
-            flash.style.height = '100px';
-            flash.style.backgroundColor = '#FFFF00';
-            flash.style.borderRadius = '50%';
-            flash.style.transform = 'translate(-50%, -50%)';
-            flash.style.opacity = '0.8';
-            flash.style.zIndex = '90';
-            flash.style.boxShadow = '0 0 50px #FFFF00';
-            
-            document.querySelector('.game-container').appendChild(flash);
-            
-            // Fade out and remove
+        if (this.levelStartPowerUp) {
+            // Spawn a power-up in the middle of the screen
             setTimeout(() => {
-                flash.style.transition = 'all 1s';
-                flash.style.opacity = '0';
-                flash.style.width = '200px';
-                flash.style.height = '200px';
-                setTimeout(() => flash.remove(), 1000);
-            }, 50);
-            
-            // Create the power-up
-            this.powerUps.push(new PowerUp({
-                game: this.game,
-                x: x,
-                y: y
-            }));
-            
-            console.log("Level start power-up spawned!");
-            
-        }, 2000); // Delay to let the level start first
+                const x = this.game.width / 2;
+                const y = this.game.height / 2;
+                
+                // Create the power-up
+                this.createPowerUp(x, y);
+                console.log("Level start power-up spawned!");
+            }, 2000); // Delay to let the level start first
+        }
     }
     
     reset() {
@@ -515,5 +482,11 @@ class PowerUpManager {
         this.lastDropTime = 0;
         this.enemiesDestroyedSinceDrop = 0;
         this.levelStartPowerUp = true;
+    }
+    
+    draw() {
+        this.powerUps.forEach(powerUp => {
+            powerUp.draw();
+        });
     }
 }
