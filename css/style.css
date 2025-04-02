@@ -35,7 +35,7 @@ body {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 h1 {
@@ -347,6 +347,49 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     background: rgba(0, 150, 255, 0.9) !important;
     box-shadow: 0 0 10px rgba(0, 255, 255, 1);
     opacity: 1;
+}
+
+/* Add CSS for hidden elements and auto-shoot controls */
+
+/* Hidden elements */
+.hidden {
+    display: none !important;
+}
+
+/* Auto-shoot toggle styles */
+.auto-shoot-toggle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 60px;
+    height: 30px;
+    background-color: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 15px;
+    color: white;
+    font-size: 12px;
+    font-family: 'Press Start 2P', monospace;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    z-index: 20;
+}
+
+.auto-shoot-toggle.active {
+    background-color: rgba(0, 150, 255, 0.9);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 1);
+    opacity: 1;
+}
+
+/* Mobile controls layout for auto-shoot mode */
+#mobile-controls.auto-shoot-active .controls-wrapper {
+    justify-content: space-between;
+}
+
+#mobile-controls.auto-shoot-active #shoot {
+    display: none;
 }
 
 /* Add styles for splash screen auto-shoot option */.options-container {    margin-top: 20px;    display: flex;    flex-direction: column;    gap: 10px;}.game-option {    display: flex;    align-items: center;    gap: 10px;    color: #AAA;    cursor: pointer;    position: relative;    padding: 5px;    border-radius: 4px;    font-size: 0.8rem;}.game-option:hover {    background-color: rgba(255, 255, 255, 0.1);}.game-option:hover .tooltip {    display: block;}.game-option input[type="checkbox"] {    width: 20px;    height: 20px;    cursor: pointer;}.game-option .tooltip {    position: absolute;

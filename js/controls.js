@@ -1,4 +1,4 @@
-// Optimized controls class
+// Fix syntax errors in the auto-shoot implementation
 
 class Controls {
     constructor(game) {
@@ -9,12 +9,12 @@ class Controls {
             fire: false
         };
         
-        this.touches = {}; // Track active touches by ID
+        this.touches = {};
         
         // Add auto-shoot property
         this.autoShoot = false;
         
-        // Initialize the controls
+        // Initialize controls
         this.setupKeyboardControls();
         this.setupMobileControls();
         this.setupAutoShootOptions();
@@ -75,87 +75,89 @@ class Controls {
     }
     
     setupAutoShootOptions() {
-        // Use a more efficient way to read/write localStorage
-        const getStoredPreference = () => {
-            try {
-                return localStorage.getItem('autoShootEnabled') === 'true';
-            } catch (e) {
-                return false;
-            }
-        };
+        // Safely read from localStorage with error handling
+        try {
+            const savedAutoShoot = localStorage.getItem('autoShootEnabled');
+            this.autoShoot = savedAutoShoot === 'true';
+        } catch (e) {
+            this.autoShoot = false;
+        }
         
-        const savePreference = (value) => {
-            try {
-                localStorage.setItem('autoShootEnabled', value);
-            } catch (e) {
-                console.warn('Could not save auto-shoot preference');
-            }
-        };
-
-        // Set initial state
-        this.autoShoot = getStoredPreference();
-        
-        // Cache DOM elements
+        // Setup splash screen checkbox
         const checkbox = document.getElementById('auto-shoot-checkbox');
-        const toggle = document.getElementById('auto-shoot-toggle');
-        
-        // Setup checkbox
         if (checkbox) {
             checkbox.checked = this.autoShoot;
-            checkbox.addEventListener('change', () => {
-                this.autoShoot = checkbox.checked;
-                savePreference(this.autoShoot);
+            
+            checkbox.addEventListener('change', (e) => {
+                this.autoShoot = e.target.checked;
+                try {
+                    localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
+                } catch (e) {
+                    console.warn('Could not save auto-shoot preference');
+                }
+                
                 this.updateAutoShootUI();
             });
         }
         
-        // Setup toggle
-        if (toggle) {
-            if (this.autoShoot) toggle.classList.add('active');
+        // Setup in-game toggle button
+        const autoShootToggle = document.getElementById('auto-shoot-toggle');
+        if (autoShootToggle) {
+            // Set initial state
+            if (this.autoShoot) {
+                autoShootToggle.classList.add('active');
+            }
             
-            // Use event delegation for better performance
-            toggle.addEventListener('click', (e) => {
+            autoShootToggle.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 
                 this.autoShoot = !this.autoShoot;
-                savePreference(this.autoShoot);
+                autoShootToggle.classList.toggle('active');
                 
-                // Update UI
-                if (checkbox) checkbox.checked = this.autoShoot;
+                // Sync with checkbox
+                if (checkbox) {
+                    checkbox.checked = this.autoShoot;
+                }
+                
+                // Save preference
+                try {
+                    localStorage.setItem('autoShootEnabled', this.autoShoot.toString());
+                } catch (e) {
+                    console.warn('Could not save auto-shoot preference');
+                }
+                
                 this.updateAutoShootUI();
                 
-                // Minimal feedback
-                if (window.navigator?.vibrate) window.navigator.vibrate(20);
+                // Provide feedback
+                if (window.navigator && window.navigator.vibrate) {
+                    window.navigator.vibrate(30);
+                }
+                
+                if (window.audioManager) {
+                    window.audioManager.play(this.autoShoot ? 'powerUp' : 'bulletHit', 0.3);
+                }
             });
         }
         
-        // Initialize UI
+        // Initialize UI based on current setting
         this.updateAutoShootUI();
     }
     
     updateAutoShootUI() {
-        // Cache elements and use nullish coalescing for safer access
-        const elements = {
-            toggle: document.getElementById('auto-shoot-toggle'),
-            shoot: document.getElementById('shoot'),
-            controls: document.getElementById('mobile-controls')
-        };
+        // Show/hide shoot button based on auto-shoot setting
+        const shootButton = document.getElementById('shoot');
+        const mobileControls = document.getElementById('mobile-controls');
         
-        // Update toggle appearance
-        if (elements.toggle) {
-            elements.toggle.classList.toggle('active', this.autoShoot);
-            elements.toggle.setAttribute('aria-pressed', this.autoShoot);
+        if (shootButton && mobileControls) {
+            if (this.autoShoot) {
+                shootButton.classList.add('hidden');
+                mobileControls.classList.add('auto-shoot-active');
+            } else {
+                shootButton.classList.remove('hidden');
+                mobileControls.classList.remove('auto-shoot-active');
+            }
         }
-        
-        // Show/hide shoot button
-        if (elements.shoot && elements.controls) {
-            elements.shoot.classList.toggle('hidden', this.autoShoot);
-            elements.controls.classList.toggle('auto-shoot-active', this.autoShoot);
-        }
-        
-        // Only one line for updating visual feedback
-        document.documentElement.style.setProperty('--auto-shoot-active', this.autoShoot ? '1' : '0');
     }
     
     setupTouchControls() {
@@ -254,7 +256,7 @@ class Controls {
     
     update() {
         // Method to be called each frame from the game loop
-        if (this.autoShoot && this.game.gameState === 'playing') {
+        if (this.autoShoot && this.game && this.game.gameState === 'playing') {
             // Set fire key to true when auto-shoot is enabled
             this.keys.fire = true;
         }

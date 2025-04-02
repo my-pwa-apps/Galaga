@@ -1,12 +1,13 @@
-// Update game loop to handle auto-shooting
+// Add controls update to game loop
 
+// In the update method of the Game class:
 update() {
     this.frameCount++;
     
     if (this.gameState !== 'playing') return;
     
     // Update controls for auto-shooting
-    if (this.controls) {
+    if (this.controls && typeof this.controls.update === 'function') {
         this.controls.update();
     }
     

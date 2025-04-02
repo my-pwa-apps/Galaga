@@ -1,4 +1,4 @@
-// Update player to handle auto-shooting better
+// Fix syntax errors and update player for auto-shooting
 
 class Player {
     constructor(game) {
@@ -40,8 +40,8 @@ class Player {
         
         // Shooting - add special handling for auto-shooting
         if (controls.fire && this.shootCooldown <= 0) {
-            // For auto-shooting, use a regular interval rather than continuous fire
-            const isAuto = this.game.controls.autoShoot;
+            // Check if auto-shooting is enabled
+            const isAuto = this.game.controls && this.game.controls.autoShoot;
             
             if (!isAuto || (isAuto && this.game.frameCount - this.lastAutoShotTime >= this.autoShootInterval)) {
                 this.shoot();
