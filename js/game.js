@@ -93,6 +93,151 @@ class Game {
             });
         }
     }
+    
+    animate() {
+        // Request the next frame
+        requestAnimationFrame(() => this.animate());
+        
+        // Clear the canvas
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        
+        // Update game state based on current game state
+        if (this.gameState === 'playing') {
+            this.update();
+        }
+        
+        // Render the game
+        this.render();
+        
+        // Increment frame counter
+        this.frameCount++;
+    }
+    
+    update() {
+        // Update player
+        this.player.update();
+        
+        // Update enemies
+        this.enemyManager.update();
+        
+        // Update projectiles
+        this.updateProjectiles();
+        
+        // Update power-ups
+        this.powerUpManager.update();
+        
+        // Check collisions
+        this.checkCollisions();
+        
+        // Update explosions
+        this.updateExplosions();
+        
+        // Check level completion
+        this.levelManager.checkLevelCompletion();
+    }
+    
+    render() {
+        // Draw background
+        this.drawBackground();
+        
+        // Render game elements based on game state
+        if (this.gameState === 'playing') {
+            // Draw player
+            this.player.draw();
+            
+            // Draw enemies
+            this.enemyManager.draw();
+            
+            // Draw projectiles
+            this.drawProjectiles();
+            
+            // Draw power-ups
+            this.powerUpManager.draw();
+            
+            // Draw explosions
+            this.drawExplosions();
+        }
+    }
+    
+    drawBackground() {
+        this.ctx.fillStyle = 'black';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+    }
+    
+    updateProjectiles() {
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const projectile = this.projectiles[i];
+            projectile.update();
+            
+            // Remove projectiles that are off screen
+            if (projectile.y < 0 || projectile.y > this.height) {
+                this.projectiles.splice(i, 1);
+            }
+        }
+    }
+    
+    drawProjectiles() {
+        this.projectiles.forEach(projectile => projectile.draw());
+    }
+    
+    updateExplosions() {
+        for (let i = this.explosions.length - 1; i >= 0; i--) {
+            const explosion = this.explosions[i];
+            explosion.update();
+            
+            // Remove finished explosions
+            if (explosion.finished) {
+                this.explosions.splice(i, 1);
+            }
+        }
+    }
+    
+    drawExplosions() {
+        this.explosions.forEach(explosion => explosion.draw());
+    }
+    
+    startGame() {
+        // Hide start screen and show game screen
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        
+        // Reset game state
+        this.gameState = 'playing';
+        this.score = 0;
+        this.updateUI();
+        
+        // Initialize level
+        this.levelManager.startLevel(1);
+        
+        // Play background music
+        if (window.audioManager) {
+            window.audioManager.playBackgroundMusic();
+        }
+    }
+    
+    checkCollisions() {
+        // Implement collision detection logic here
+        // This would check collisions between projectiles, enemies, player, and power-ups
+    }
+    
+    updateUI() {
+        document.getElementById('score').textContent = this.score;
+        document.getElementById('level').textContent = this.levelManager.currentLevel;
+        document.getElementById('lives').textContent = this.player.lives;
+    }
+    
+    gameOver() {
+        this.gameState = 'gameOver';
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        document.getElementById('final-score').textContent = this.score;
+        
+        // Play game over sound
+        if (window.audioManager) {
+            window.audioManager.playSound('gameOver');
+        }
+    }
 }
 
 // Initialize the game when the page loads
