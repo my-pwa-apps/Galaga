@@ -466,13 +466,31 @@ class Game {
     
     gameOver() {
         this.gameState = 'gameOver';
+        
+        // Update screens
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('game-over-screen').classList.remove('hidden');
         document.getElementById('final-score').textContent = this.score;
         
-        // Play game over sound - fixed method name to match the API
+        // Play game over sound
         if (window.audioManager) {
             window.audioManager.play('gameOver', 0.7);
+        }
+        
+        // Check if this is a high score and show the appropriate form
+        if (window.highScoreManager) {
+            window.highScoreManager.checkHighScore(this.score)
+                .then(isHighScore => {
+                    window.highScoreManager.showHighScoreForm(isHighScore);
+                })
+                .catch(error => {
+                    console.error("Error checking high score:", error);
+                    // Show a generic message if there's an error
+                    const highScoreMessage = document.getElementById('highscore-message');
+                    if (highScoreMessage) {
+                        highScoreMessage.textContent = "Game over! Final score: " + this.score;
+                    }
+                });
         }
     }
     

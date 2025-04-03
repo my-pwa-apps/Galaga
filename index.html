@@ -6,6 +6,10 @@
     <title>Galaga Clone</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
     <div class="game-container">
@@ -25,6 +29,14 @@
                     <span>Auto-Shoot</span>
                     <span class="tooltip">Ship automatically fires</span>
                 </label>
+            </div>
+            
+            <!-- High Scores Section -->
+            <div class="highscores-container">
+                <h2>HIGH SCORES</h2>
+                <div id="highscores-list">
+                    <p>Loading high scores...</p>
+                </div>
             </div>
         </div>
         
@@ -62,6 +74,17 @@
         <div id="game-over-screen" class="screen hidden">
             <h2>GAME OVER</h2>
             <p>Final Score: <span id="final-score">0</span></p>
+            
+            <!-- High Score submission form -->
+            <div id="highscore-submission">
+                <p id="highscore-message"></p>
+                <div id="name-input-container">
+                    <label for="player-name">Enter your name:</label>
+                    <input type="text" id="player-name" maxlength="10" placeholder="AAA">
+                    <button id="submit-score">SUBMIT</button>
+                </div>
+            </div>
+            
             <button id="restart-button">PLAY AGAIN</button>
         </div>
         
@@ -82,6 +105,7 @@
     <script src="js/projectiles.js" defer></script>
     <script src="js/powerups.js" defer></script>
     <script src="js/levels.js" defer></script>
+    <script src="js/highscores.js" defer></script>
     <script src="js/game.js" defer></script>
 </body>
 </html>
