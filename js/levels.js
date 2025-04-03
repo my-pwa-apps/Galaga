@@ -112,18 +112,18 @@ class LevelManager {
             this.renderTransition();
             
             if (this.transitionOpacity >= 1) {
-                // When fully faded in, increment level and prepare the next one
+                // When fully faded in, increment level ONLY ONCE
                 this.currentLevel++;
+                console.log(`Advanced to level ${this.currentLevel}`);
                 
                 // Small delay at full opacity
                 setTimeout(() => {
                     // Start fading out
-                    this.transitionOpacity = 1;
                     this.fadeOutTransition();
                 }, 500);
             }
-            return;
         }
+        // Remove the else part to prevent additional executions
     }
     
     fadeOutTransition() {
@@ -135,6 +135,7 @@ class LevelManager {
                 // When fully faded out, start the new level
                 this.isTransitioning = false;
                 this.startLevel();
+                return; // Exit the function to prevent further recursion
             } else {
                 // Continue fading out
                 requestAnimationFrame(() => this.fadeOutTransition());
