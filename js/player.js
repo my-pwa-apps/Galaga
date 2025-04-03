@@ -145,13 +145,36 @@ class Player {
         }
     }
     
-    resetPowerUps() {
+    resetPowerUps(forceClear = false) {
         // Reset power-up effects
         this.maxShootCooldown = 15;
         this.doubleShot = false;
         this.multiShot = false;
         this.speed = 5;
         
+        // When force clearing (between levels), clear all powerups including shield
+        if (forceClear) {
+            this.shield = false;
+            this.shieldHealth = 0;
+            this.activePower = 'NONE';
+            this.powerUpTimer = 0;
+            this.initialPowerUpTimer = 0;
+            
+            // Update UI immediately
+            document.getElementById('active-power').textContent = this.activePower;
+            
+            // Hide the timer bar
+            const timerContainer = document.getElementById('power-timer-container');
+            if (timerContainer) {
+                timerContainer.classList.add('hidden');
+                timerContainer.setAttribute('aria-hidden', 'true');
+            }
+            
+            console.log("All powerups force cleared between levels");
+            return;
+        }
+        
+        // Regular timer-based expiration logic (not between levels)
         // Also reset shield if timer has expired
         if (this.powerUpTimer <= 0) {
             this.shield = false;

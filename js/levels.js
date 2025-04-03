@@ -116,8 +116,11 @@ class LevelManager {
         if (this.game.enemyManager.enemies.length === 0 && !this.completionTimer) {
             this.completionTimer = this.levelCompletionDelay;
             
-            // Reset all time-based powerups when level is completed
-            this.game.player.resetPowerUps();
+            // Force reset all time-based powerups when level is completed
+            if (this.game.player && typeof this.game.player.resetPowerUps === 'function') {
+                this.game.player.resetPowerUps(true); // Force clear all powerups
+                console.log("Level completed - forced powerup clear");
+            }
         }
         
         // Handle level completion timer
