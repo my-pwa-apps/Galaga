@@ -376,4 +376,96 @@ class Player {
         
         console.log("Player reset! Briefly invulnerable for 1 second.");
     }
+
+    applyPowerUp(type) {
+        console.log(`Applying power-up: ${type}`);
+        
+        // Set default duration
+        let duration = 600; // 10 seconds at 60fps
+        
+        // Apply appropriate power-up effect
+        switch(type) {
+            case 'rapid-fire':
+                this.maxShootCooldown = 5; // Faster shooting
+                this.activePower = 'RAPID FIRE';
+                break;
+                
+            case 'shield':
+                this.shield = true;
+                this.shieldHealth = 3; // Shield can absorb 3 hits
+                this.activePower = 'SHIELD';
+                duration = 900; // 15 seconds at 60fps - longer than other power-ups
+                break;
+                
+            case 'extra-life': 
+                this.lives++;
+                document.getElementById('lives').textContent = this.lives;
+                this.activePower = '+1 LIFE';
+                duration = 0; // Extra life is instant, no timer needed
+                break;
+                
+            case 'double-shot':
+                this.doubleShot = true;
+                this.activePower = 'DOUBLE SHOT';
+                break;
+                
+            case 'speed-boost':
+                this.speed = 8; // Increased from 5
+                this.activePower = 'SPEED BOOST';
+                break;
+                
+            case 'bomb':
+                // Clear all enemies on screen
+                if (this.game.powerUpManager && typeof this.game.powerUpManager.detonateScreenBomb === 'function') {
+                    this.game.powerUpManager.detonateScreenBomb();
+                }
+                this.activePower = 'SCREEN BOMB';
+                
+                // Reset power-up display after a brief moment for bombs
+                setTimeout(() => {
+                    if (this.activePower === 'SCREEN BOMB') {
+                        this.activePower = 'NONE';
+                        document.getElementById('active-power').textContent = 'NONE';
+                    }
+                }, 2000);
+                duration = 0;
+                break;
+                
+            case 'multi-shot':
+                this.multiShot = true;
+                this.activePower = 'MULTI SHOT';
+                break;
+                
+            default:
+                console.log(`Unknown power-up type: ${type}`);
+                return;
+        }
+        
+        // Update the UI
+        document.getElementById('active-power').textContent = this.activePower;
+        
+        // Set the timer for timed power-ups
+        if (duration > 0) {
+            this.powerUpTimer = duration;
+            this.initialPowerUpTimer = duration;
+            
+            // Show timer bar
+            const timerContainer = document.getElementById('power-timer-container');
+            if (timerContainer) {
+                timerContainer.classList.remove('hidden');
+                timerContainer.setAttribute('aria-hidden', 'false');
+                
+                // Reset timer bar width
+                const timerBar = document.getElementById('power-timer-bar');
+                if (timerBar) {
+                    timerBar.style.width = '100%';
+                }
+            }
+        }
+        
+        // Play power-up sound
+        if (window.audioManager) {
+            window.audioManager.play('powerUp', 0.7);
+        }
+    }
 }

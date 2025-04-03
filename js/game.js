@@ -506,6 +506,40 @@ class Game {
             window.audioManager.playBackgroundMusic();
         }
     }
+
+    // Create a powerup from enemy destruction or other sources
+    createPowerup(options) {
+        if (this.powerUpManager) {
+            this.powerUpManager.createPowerUp(options.x, options.y, options.type);
+        }
+    }
+    
+    // Count active enemies - used to determine if level is complete
+    countActiveEnemies() {
+        return this.enemyManager ? this.enemyManager.enemies.length : 0;
+    }
+    
+    // Clear timed powerups - called during level transitions
+    clearTimedPowerups() {
+        if (this.player) {
+            this.player.resetPowerUps();
+        }
+    }
+    
+    // Clear all powerups - called when last enemy is destroyed
+    clearAllPowerups() {
+        // Return all projectiles to pool
+        if (this.projectilePool) {
+            this.projectilePool.clearNonPersistentPowerups();
+        }
+    }
+    
+    // Clear non-persistent powerups - called during level transitions
+    clearNonPersistentPowerups() {
+        if (this.projectilePool) {
+            this.projectilePool.clearNonPersistentPowerups();
+        }
+    }
 }
 
 // Initialize the game when the page loads

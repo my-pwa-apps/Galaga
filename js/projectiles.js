@@ -26,6 +26,8 @@ class Projectile {
         this.hyperspeedVisible = this.isHyperspeed;
         this.originalY = this.y; // Store the original Y position for hyperspeed visibility calculation
         this.fromTimedPowerup = options.fromTimedPowerup || false;
+        // Whether this powerup should persist between levels (only extra life does)
+        this.persistBetweenLevels = options.powerupType === 'extraLife';
         return this;
     }
 
@@ -53,53 +55,43 @@ class Projectile {
 
     draw() {
         if (!this.active) return;
-        
         // If it's a hyperspeed projectile that shouldn't be visible, don't draw it
         if (this.isHyperspeed && !this.hyperspeedVisible) return;
-        
         if (this.type === 'player') {
             if (this.powerupType === 'rapid') {
                 // Draw rapid shot bullet - with a much more distinct appearance
                 this.game.ctx.save();
-                
                 // Pulsing effect for rapid bullets
                 const pulseSize = this.radius + Math.sin(this.game.frameCount * 0.3) * 2;
-                
                 // Outer glow (larger, animated)
                 this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
                 this.game.ctx.beginPath();
                 this.game.ctx.arc(this.x, this.y, pulseSize + 5, 0, Math.PI * 2);
                 this.game.ctx.fill();
-                
                 // Middle layer
                 this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
                 this.game.ctx.beginPath();
                 this.game.ctx.arc(this.x, this.y, pulseSize, 0, Math.PI * 2);
                 this.game.ctx.fill();
-                
                 // Inner bright core
                 this.game.ctx.fillStyle = '#FFFFFF';
                 this.game.ctx.beginPath();
                 this.game.ctx.arc(this.x, this.y, pulseSize - 3, 0, Math.PI * 2);
                 this.game.ctx.fill();
-                
                 // Add particle trail effect
                 for (let i = 1; i <= 5; i++) {
                     const trailY = this.y + (i * 5);
                     const trailSize = pulseSize - (i * 1.5);
                     if (trailSize <= 0) continue;
-                    
                     this.game.ctx.fillStyle = `rgba(0, 255, 255, ${0.3 - (i * 0.05)})`;
                     this.game.ctx.beginPath();
                     this.game.ctx.arc(this.x, trailY, trailSize, 0, Math.PI * 2);
                     this.game.ctx.fill();
                 }
-                
                 this.game.ctx.restore();
             } else if (this.powerupType === 'hyperspeed') {
                 // Draw hyperspeed projectile with a streaking effect
                 this.game.ctx.save();
-                
                 // Create a gradient streak effect
                 const gradient = this.game.ctx.createLinearGradient(
                     this.x, this.y, 
@@ -108,17 +100,14 @@ class Projectile {
                 gradient.addColorStop(0, '#FFFFFF');
                 gradient.addColorStop(0.5, '#00FFFF');
                 gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
-                
                 // Draw the streak
                 this.game.ctx.fillStyle = gradient;
                 this.game.ctx.fillRect(this.x - 2, this.y, 4, 30);
-                
                 // Draw the bullet head
                 this.game.ctx.fillStyle = '#FFFFFF';
                 this.game.ctx.beginPath();
                 this.game.ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
                 this.game.ctx.fill();
-                
                 this.game.ctx.restore();
             } else {
                 sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
@@ -127,7 +116,7 @@ class Projectile {
             sprites.enemyBullet.draw(this.game.ctx, this.x, this.y);
         }
     }
-    
+
     // Method to handle powerup generation on enemy hit
     checkPowerupDrop(enemyType) {
         // Different enemy types have different chances to drop specific powerups
@@ -137,15 +126,12 @@ class Projectile {
             'bee': { type: 'extraLife', chance: 0.08 }    // Reduced from 0.1 for more gradual difficulty
             // Add more enemy types and powerups as needed
         };
-        
         const enemyPowerup = powerupMappings[enemyType];
         if (!enemyPowerup) return null;
-        
         // Check if powerup should be dropped based on chance
         if (Math.random() <= enemyPowerup.chance) {
             return enemyPowerup.type;
         }
-        
         return null;
     }
 }
@@ -156,7 +142,6 @@ class ProjectilePool {
         this.game = game;
         this.pool = [];
         this.activeProjectiles = [];
-        
         // Pre-initialize pool with objects
         for (let i = 0; i < initialSize; i++) {
             this.pool.push(new Projectile({ game }));
@@ -261,7 +246,6 @@ class ProjectilePool {
     handleEnemyCollision(projectile, enemy) {
         // Only create powerups on the exact position of destroyed enemy ships
         if (!enemy || !enemy.active) return; // Safety check
-        
         const powerupType = projectile.checkPowerupDrop(enemy.type);
         
         if (powerupType) {
@@ -275,34 +259,49 @@ class ProjectilePool {
             });
         }
     }
-    
+
     // Handle level transitions with powerups
     handleLevelTransition() {
-        // Reset any projectiles that came from time-based powerups
+        // Reset any projectiles that came from time-based powerups or
         for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
             const projectile = this.activeProjectiles[i];
-            if (projectile.fromTimedPowerup) {
+            if (projectile.fromTimedPowerup || (projectile.powerupType !== 'normal' && !projectile.persistBetweenLevels)) {
                 projectile.active = false;
                 this.activeProjectiles.splice(i, 1);
                 this.pool.push(projectile);
             }
         }
-        
-        // Signal the game to clear any active time-based powerups
+        // Signal the game to clear any active time-based powerups except extraLife
         if (this.game.clearTimedPowerups) {
             this.game.clearTimedPowerups();
         }
+        if (this.game.clearNonPersistentPowerups) {
+            this.game.clearNonPersistentPowerups();
+        }
     }
-    
+
     // Remove all powerups when last enemy is destroyed
     clearPowerupsOnLastEnemy() {
         // Check if all enemies are destroyed before clearing powerups
         const enemiesRemaining = this.game.countActiveEnemies ? this.game.countActiveEnemies() : 0;
-        
         if (enemiesRemaining <= 0) {
             // This should be called from the game class when the last enemy is destroyed
             if (this.game.clearAllPowerups) {
                 this.game.clearAllPowerups();
+            }
+        }
+    }
+
+    // New method to clear all non-persistent powerups
+    clearNonPersistentPowerups() {
+        // This should be called during level transitions
+        for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
+            const projectile = this.activeProjectiles[i];
+            // If it's not a normal shot and not an extraLife powerup, remove it
+            if (projectile.powerupType !== 'normal' && !projectile.persistBetweenLevels) {
+                projectile.active = false;
+                this.activeProjectiles.splice(i, 1);
+                this.pool.push(projectile);
             }
         }
     }

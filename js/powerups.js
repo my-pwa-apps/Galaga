@@ -523,4 +523,37 @@ class PowerUpManager {
             powerUp.draw();
         });
     }
+
+    detonateScreenBomb() {
+        // Create explosion at each enemy position
+        for (let enemy of this.game.enemyManager.enemies) {
+            this.game.explosionPool.get(enemy.x, enemy.y);
+        }
+        
+        // Add score for each enemy
+        if (this.game.enemyManager.enemies.length > 0) {
+            const totalScore = this.game.enemyManager.enemies.reduce((sum, enemy) => sum + enemy.points, 0);
+            this.game.score += Math.round(totalScore);
+            document.getElementById('score').textContent = this.game.score;
+        }
+        
+        // Clear all enemies
+        this.game.enemyManager.enemies = [];
+        
+        // Create a big explosion in center of screen
+        this.game.explosionPool.get(this.game.width / 2, this.game.height / 2, 2.0);
+        
+        // Play explosion sound
+        if (window.audioManager) {
+            window.audioManager.play('explosion', 0.8);
+        }
+        
+        // Screen shake effect
+        if (this.game.canvas) {
+            this.game.canvas.classList.add('shake');
+            setTimeout(() => {
+                this.game.canvas.classList.remove('shake');
+            }, 500);
+        }
+    }
 }
