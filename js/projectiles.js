@@ -45,7 +45,6 @@ class Projectile {
                 this.game.ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 this.game.ctx.fill();
                 this.game.ctx.restore();
-                // Alternative: sprites.rapidBullet.draw(this.game.ctx, this.x, this.y);
             } else {
                 sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
             }
@@ -76,10 +75,48 @@ class ProjectilePool {
         return projectile;
     }
     
+    // New method for creating rapid fire shot patterns
+    createRapidShot(x, y, options = {}) {
+        // Create a spread of 3 bullets for rapid fire
+        const baseOptions = {
+            ...options,
+            x,
+            y,
+            type: 'player',
+            powerupType: 'rapid',
+            damage: options.damage || 2,
+            speed: options.speed || -10
+        };
+        
+        // Center bullet
+        this.get({...baseOptions});
+        
+        // Side bullets with slight angle
+        this.get({
+            ...baseOptions,
+            x: x - 5,
+            speed: baseOptions.speed * 0.9, // Slightly slower
+            velocityX: -1 // Add horizontal movement
+        });
+        
+        this.get({
+            ...baseOptions,
+            x: x + 5,
+            speed: baseOptions.speed * 0.9,
+            velocityX: 1
+        });
+    }
+    
     update() {
         // Update all active projectiles
         for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
             const projectile = this.activeProjectiles[i];
+            
+            // Add support for horizontal movement (for spread shots)
+            if (projectile.velocityX) {
+                projectile.x += projectile.velocityX;
+            }
+            
             projectile.update();
             
             // If projectile is no longer active, return to the pool
