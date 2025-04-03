@@ -20,7 +20,7 @@ class SplashAnimation {
         // Add canvas to container
         this.container.appendChild(this.canvas);
         
-        // Initialize animation entities
+        // Initialize animation entities with enhanced properties
         this.player = {
             x: -50,
             y: this.canvas.height * 0.5,
@@ -28,7 +28,8 @@ class SplashAnimation {
             height: 40,
             speed: 3,
             direction: 1, // 1 = right, -1 = left
-            lastX: -50 // For smooth interpolation
+            lastX: -50, // For smooth interpolation
+            enginePulse: 0 // For engine animation effect
         };
         
         this.enemy = {
@@ -41,8 +42,13 @@ class SplashAnimation {
             shootCooldown: 60,
             shootTimer: 0,
             lastX: -150, // For smooth interpolation
-            lastY: this.canvas.height * 0.3 // For smooth interpolation
+            lastY: this.canvas.height * 0.3, // For smooth interpolation
+            engineGlow: 0 // For enemy engine glow effect
         };
+        
+        // Background stars for depth effect
+        this.stars = [];
+        this.initStars();
         
         // Object pool for projectiles
         this.projectilePool = [];
@@ -62,14 +68,17 @@ class SplashAnimation {
             });
         }
         
-        // Pre-calculate gradients and cache them
-        this.createCachedGradients();
+        // Pre-calculate gradients and cache ship models
+        this.createCachedAssets();
         
         // Animation properties
         this.animationId = null;
         this.thrusterAnimation = 0;
         this.lastFrameTime = 0;
         this.targetDeltaTime = 1000 / 60; // Target 60fps
+        
+        // Visual effects
+        this.explosionParticles = [];
         
         // Debounce resize timing
         this.resizeTimeout = null;
@@ -82,8 +91,22 @@ class SplashAnimation {
         window.addEventListener('resize', () => this.debouncedResize());
     }
     
-    // Create cached gradient patterns for better performance
-    createCachedGradients() {
+    // Initialize star field
+    initStars() {
+        const starCount = Math.floor(this.canvas.width / 15); // Appropriate number of stars based on width
+        
+        for (let i = 0; i < starCount; i++) {
+            this.stars.push({
+                x: Math.random() * this.canvas.width,
+                y: Math.random() * this.canvas.height,
+                size: Math.random() * 2 + 0.5,
+                speed: Math.random() * 0.3 + 0.1
+            });
+        }
+    }
+    
+    // Create cached gradient patterns and pre-rendered ships for better performance
+    createCachedAssets() {
         // Cache thruster gradient
         const thrusterCanvas = document.createElement('canvas');
         thrusterCanvas.width = 10;
@@ -92,13 +115,190 @@ class SplashAnimation {
         
         const flameGradient = thrusterCtx.createLinearGradient(0, 0, 0, 25);
         flameGradient.addColorStop(0, '#FFFFFF');
-        flameGradient.addColorStop(0.3, '#0080FF');
+        flameGradient.addColorStop(0.2, '#88CCFF');
+        flameGradient.addColorStop(0.4, '#0080FF');
         flameGradient.addColorStop(0.8, 'rgba(0,50,255,0.5)');
         flameGradient.addColorStop(1, 'rgba(0,0,255,0)');
         
         thrusterCtx.fillStyle = flameGradient;
         thrusterCtx.fillRect(0, 0, 10, 25);
         this.thrusterPattern = thrusterCanvas;
+        
+        // Pre-render player ship facing right
+        const shipSize = 60; // Larger size for more detail
+        this.playerShipRight = document.createElement('canvas');
+        this.playerShipRight.width = shipSize;
+        this.playerShipRight.height = shipSize;
+        const shipCtx = this.playerShipRight.getContext('2d');
+        
+        // Center point
+        const centerX = shipSize / 2;
+        const centerY = shipSize / 2;
+        
+        // Ship dimensions
+        const width = 40;
+        const height = 40;
+        
+        // Draw with high quality
+        shipCtx.save();
+        shipCtx.translate(centerX, centerY);
+        
+        // Draw body
+        shipCtx.fillStyle = '#1E90FF';
+        shipCtx.shadowBlur = 10;
+        shipCtx.shadowColor = '#0080FF';
+        shipCtx.beginPath();
+        shipCtx.moveTo(0, -height/2);
+        shipCtx.lineTo(width/2, height/2);
+        shipCtx.lineTo(-width/2, height/2);
+        shipCtx.closePath();
+        shipCtx.fill();
+        
+        // Draw details - wing edges
+        shipCtx.strokeStyle = '#ADD8E6';
+        shipCtx.lineWidth = 2;
+        shipCtx.beginPath();
+        shipCtx.moveTo(0, -height/2);
+        shipCtx.lineTo(width/2, height/2);
+        shipCtx.lineTo(-width/2, height/2);
+        shipCtx.closePath();
+        shipCtx.stroke();
+        
+        // Draw cockpit
+        shipCtx.fillStyle = '#FFFFFF';
+        shipCtx.shadowBlur = 5;
+        shipCtx.shadowColor = '#FFFFFF';
+        shipCtx.beginPath();
+        shipCtx.arc(0, 0, width/4, 0, Math.PI * 2);
+        shipCtx.fill();
+        
+        // Add inner cockpit detail
+        shipCtx.fillStyle = '#B0E2FF';
+        shipCtx.beginPath();
+        shipCtx.arc(0, 0, width/8, 0, Math.PI * 2);
+        shipCtx.fill();
+        
+        shipCtx.restore();
+        
+        // Create left-facing ship by flipping the right-facing one
+        this.playerShipLeft = document.createElement('canvas');
+        this.playerShipLeft.width = shipSize;
+        this.playerShipLeft.height = shipSize;
+        const leftShipCtx = this.playerShipLeft.getContext('2d');
+        
+        // Flip horizontally
+        leftShipCtx.translate(shipSize, 0);
+        leftShipCtx.scale(-1, 1);
+        leftShipCtx.drawImage(this.playerShipRight, 0, 0);
+        
+        // Pre-render enemy ship
+        const enemySize = 60;
+        this.enemyShip = document.createElement('canvas');
+        this.enemyShip.width = enemySize;
+        this.enemyShip.height = enemySize;
+        const enemyCtx = this.enemyShip.getContext('2d');
+        
+        // Center point
+        const eCenterX = enemySize / 2;
+        const eCenterY = enemySize / 2;
+        
+        enemyCtx.save();
+        enemyCtx.translate(eCenterX, eCenterY);
+        
+        // Draw main body
+        enemyCtx.fillStyle = '#FF0000';
+        enemyCtx.shadowBlur = 10;
+        enemyCtx.shadowColor = '#FF0000';
+        
+        // Enhanced body shape for Galaga-style enemy
+        const eWidth = 36;
+        const eHeight = 36;
+        
+        // Alien body
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(0, -eHeight/2); // Top center
+        enemyCtx.lineTo(eWidth/2, -eHeight/4); // Upper right
+        enemyCtx.lineTo(eWidth/2.2, eHeight/3); // Right wing
+        enemyCtx.lineTo(eWidth/3, eHeight/2); // Bottom right
+        enemyCtx.lineTo(-eWidth/3, eHeight/2); // Bottom left
+        enemyCtx.lineTo(-eWidth/2.2, eHeight/3); // Left wing
+        enemyCtx.lineTo(-eWidth/2, -eHeight/4); // Upper left
+        enemyCtx.closePath();
+        enemyCtx.fill();
+        
+        // Body details
+        enemyCtx.strokeStyle = '#FFDD00';
+        enemyCtx.lineWidth = 1;
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(-eWidth/3, eHeight/6);
+        enemyCtx.lineTo(eWidth/3, eHeight/6);
+        enemyCtx.stroke();
+        
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(-eWidth/4, -eHeight/6);
+        enemyCtx.lineTo(eWidth/4, -eHeight/6);
+        enemyCtx.stroke();
+        
+        // Eyes (white with red pupils)
+        enemyCtx.fillStyle = '#FFFFFF';
+        enemyCtx.shadowBlur = 5;
+        enemyCtx.shadowColor = '#FFFFFF';
+        
+        // Left eye
+        enemyCtx.beginPath();
+        enemyCtx.arc(-eWidth/5, eHeight/5, eWidth/8, 0, Math.PI * 2);
+        enemyCtx.fill();
+        
+        // Right eye
+        enemyCtx.beginPath();
+        enemyCtx.arc(eWidth/5, eHeight/5, eWidth/8, 0, Math.PI * 2);
+        enemyCtx.fill();
+        
+        // Red pupils
+        enemyCtx.fillStyle = '#FF0000';
+        enemyCtx.shadowBlur = 3;
+        enemyCtx.shadowColor = '#FF0000';
+        
+        enemyCtx.beginPath();
+        enemyCtx.arc(-eWidth/5, eHeight/5, eWidth/16, 0, Math.PI * 2);
+        enemyCtx.fill();
+        
+        enemyCtx.beginPath();
+        enemyCtx.arc(eWidth/5, eHeight/5, eWidth/16, 0, Math.PI * 2);
+        enemyCtx.fill();
+        
+        enemyCtx.restore();
+        
+        // Create projectile effects
+        this.projectileGlow = document.createElement('canvas');
+        this.projectileGlow.width = 16;
+        this.projectileGlow.height = 16;
+        const glowCtx = this.projectileGlow.getContext('2d');
+        
+        // Enemy projectile (red)
+        const enemyGradient = glowCtx.createRadialGradient(8, 8, 1, 8, 8, 8);
+        enemyGradient.addColorStop(0, '#FF3300');
+        enemyGradient.addColorStop(0.3, 'rgba(255, 51, 0, 0.8)');
+        enemyGradient.addColorStop(1, 'rgba(255, 51, 0, 0)');
+        
+        glowCtx.fillStyle = enemyGradient;
+        glowCtx.fillRect(0, 0, 16, 16);
+        
+        this.enemyProjectileGlow = this.projectileGlow;
+        
+        // Player projectile (blue) - create another canvas
+        this.playerProjectileGlow = document.createElement('canvas');
+        this.playerProjectileGlow.width = 12;
+        this.playerProjectileGlow.height = 12;
+        const playerGlowCtx = this.playerProjectileGlow.getContext('2d');
+        
+        const playerGradient = playerGlowCtx.createRadialGradient(6, 6, 1, 6, 6, 6);
+        playerGradient.addColorStop(0, '#00FFFF');
+        playerGradient.addColorStop(0.3, 'rgba(0, 255, 255, 0.8)');
+        playerGradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        
+        playerGlowCtx.fillStyle = playerGradient;
+        playerGlowCtx.fillRect(0, 0, 12, 12);
     }
     
     debouncedResize() {
@@ -138,6 +338,9 @@ class SplashAnimation {
         this.ctx.fillStyle = '#000000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Draw starfield background
+        this.drawStars(timeMultiplier);
+        
         // Update positions
         this.updatePositions(timeMultiplier);
         
@@ -149,6 +352,39 @@ class SplashAnimation {
         
         // Continue animation loop
         this.animationId = requestAnimationFrame((time) => this.animate(time));
+    }
+    
+    // Draw starfield for depth effect
+    drawStars(timeMultiplier) {
+        this.ctx.save();
+        
+        // Update and draw stars with parallax effect
+        for (let i = 0; i < this.stars.length; i++) {
+            const star = this.stars[i];
+            
+            // Move stars in opposite direction of player for parallax effect
+            star.x -= star.speed * this.player.direction * timeMultiplier;
+            
+            // If star moves off-screen, wrap around
+            if (star.x < 0) {
+                star.x = this.canvas.width;
+            } else if (star.x > this.canvas.width) {
+                star.x = 0;
+            }
+            
+            // Draw star with slight twinkle effect
+            const twinkle = 0.7 + (Math.sin(this.thrusterAnimation * 2 + i) * 0.3);
+            const size = star.size * twinkle;
+            
+            const brightness = Math.floor(150 + Math.random() * 105); // Random brightness
+            this.ctx.fillStyle = `rgb(${brightness},${brightness},${brightness})`;
+            
+            this.ctx.beginPath();
+            this.ctx.arc(star.x, star.y, size, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        this.ctx.restore();
     }
     
     updatePositions(timeMultiplier) {
@@ -282,10 +518,7 @@ class SplashAnimation {
     }
     
     updateProjectiles(timeMultiplier) {
-        // Batch processing of projectiles for better performance
-        let enemyProjectiles = [];
-        let playerProjectiles = [];
-        
+        // Update all projectile positions
         for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
             const projectile = this.activeProjectiles[i];
             
@@ -304,45 +537,39 @@ class SplashAnimation {
                 this.activeProjectiles.splice(i, 1);
                 continue;
             }
+        }
+        
+        // Draw all projectiles using cached glow patterns for better performance
+        for (let i = 0; i < this.activeProjectiles.length; i++) {
+            const projectile = this.activeProjectiles[i];
             
-            // Sort projectiles by type for batch rendering
-            if (projectile.type === 'player') {
-                playerProjectiles.push(projectile);
+            if (projectile.type === 'enemy') {
+                // Use pre-rendered glow pattern for enemy projectile
+                this.ctx.drawImage(
+                    this.enemyProjectileGlow,
+                    projectile.x - 8,
+                    projectile.y - 8
+                );
+                
+                // Add bright center
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.beginPath();
+                this.ctx.arc(projectile.x, projectile.y, 2, 0, Math.PI * 2);
+                this.ctx.fill();
             } else {
-                enemyProjectiles.push(projectile);
-            }
-        }
-        
-        // Draw enemy projectiles in batch
-        if (enemyProjectiles.length > 0) {
-            this.ctx.save();
-            this.ctx.fillStyle = '#FF3300';
-            this.ctx.shadowBlur = 8;
-            this.ctx.shadowColor = '#FF3300';
-            
-            for (const projectile of enemyProjectiles) {
+                // Use pre-rendered glow pattern for player projectile
+                this.ctx.drawImage(
+                    this.playerProjectileGlow,
+                    projectile.x - 6,
+                    projectile.y - 6
+                );
+                
+                // Add bright center
+                this.ctx.fillStyle = '#FFFFFF';
                 this.ctx.beginPath();
-                this.ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+                this.ctx.arc(projectile.x, projectile.y, 1.5, 0, Math.PI * 2);
                 this.ctx.fill();
             }
-            
-            this.ctx.restore();
-        }
-        
-        // Draw player projectiles in batch
-        if (playerProjectiles.length > 0) {
-            this.ctx.save();
-            this.ctx.fillStyle = '#00FFFF';
-            this.ctx.shadowBlur = 8;
-            this.ctx.shadowColor = '#00FFFF';
-            
-            for (const projectile of playerProjectiles) {
-                this.ctx.beginPath();
-                this.ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
-                this.ctx.fill();
-            }
-            
-            this.ctx.restore();
         }
     }
     
@@ -352,6 +579,7 @@ class SplashAnimation {
         this.drawEnemy();
     }
     
+    // Draw player ship with improved thruster effect
     drawPlayer() {
         const ctx = this.ctx;
         const x = this.player.x;
@@ -363,7 +591,7 @@ class SplashAnimation {
         ctx.save();
         ctx.translate(x, y);
         
-        // Rotate 90 degrees to make the ship face horizontally, then adjust based on direction
+        // Rotate based on direction
         if (direction > 0) {
             // Moving right - face right (90 degrees rotation)
             ctx.rotate(Math.PI / 2);
@@ -372,75 +600,97 @@ class SplashAnimation {
             ctx.rotate(-Math.PI / 2);
         }
         
-        // Draw thruster flame (behind the ship) using cached pattern for better performance
-        const flameHeight = 15 + 5 * Math.sin(this.thrusterAnimation);
+        // Draw dynamic thruster flame
+        const thrusterBaseWidth = 10;
+        const thrusterLength = 15 + 5 * Math.sin(this.thrusterAnimation);
         
-        ctx.save();
-        ctx.translate(-5, height/2);
-        ctx.scale(1, flameHeight/25);
-        ctx.drawImage(this.thrusterPattern, 0, 0);
-        ctx.restore();
+        // Thruster position
+        const thrusterX = 0;
+        const thrusterY = height/2;
         
-        // Draw ship body (blue triangle)
-        ctx.fillStyle = '#1E90FF';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#0080FF';
+        // Create gradient for thruster effect
+        const gradient = ctx.createLinearGradient(
+            thrusterX, thrusterY,
+            thrusterX, thrusterY + thrusterLength
+        );
+        
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+        gradient.addColorStop(0.2, 'rgba(50, 150, 255, 0.8)');
+        gradient.addColorStop(0.5, 'rgba(0, 100, 255, 0.6)');
+        gradient.addColorStop(1, 'rgba(0, 50, 255, 0)');
+        
+        ctx.fillStyle = gradient;
+        
+        // Draw flame
         ctx.beginPath();
-        ctx.moveTo(0, -height/2);
-        ctx.lineTo(width/2, height/2);
-        ctx.lineTo(-width/2, height/2);
+        ctx.moveTo(thrusterX - thrusterBaseWidth/2, thrusterY);
+        ctx.lineTo(thrusterX, thrusterY + thrusterLength);
+        ctx.lineTo(thrusterX + thrusterBaseWidth/2, thrusterY);
         ctx.closePath();
         ctx.fill();
         
-        // Draw cockpit (white circle)
-        ctx.fillStyle = '#FFFFFF';
-        ctx.shadowBlur = 5;
-        ctx.shadowColor = '#FFFFFF';
+        // Add glow effect
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#0080FF';
         ctx.beginPath();
-        ctx.arc(0, 0, width/4, 0, Math.PI * 2);
+        ctx.arc(thrusterX, thrusterY + thrusterLength/3, thrusterLength/4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(50, 150, 255, 0.3)';
         ctx.fill();
+        
+        ctx.shadowBlur = 0; // Reset shadow for ship drawing
+        
+        // Draw pre-rendered ship - based on direction
+        const shipSize = 60; // Size of pre-rendered ship
+        const drawWidth = width * 1.1; // Slightly larger than original
+        const drawHeight = height * 1.1;
+        
+        // Draw ship centered on position
+        ctx.drawImage(
+            direction > 0 ? this.playerShipRight : this.playerShipLeft,
+            -drawWidth/2,
+            -drawHeight/2,
+            drawWidth,
+            drawHeight
+        );
         
         ctx.restore();
     }
     
+    // Draw enemy with glow effects
     drawEnemy() {
         const ctx = this.ctx;
         const x = this.enemy.x;
         const y = this.enemy.y;
-        const width = this.enemy.width;
-        const height = this.enemy.height;
+        const width = this.enemy.width * 1.2; // Slightly larger for better visibility
+        const height = this.enemy.height * 1.2;
+        
+        // Update enemy engine glow
+        this.enemy.engineGlow = (this.enemy.engineGlow + 0.05) % (Math.PI * 2);
+        const glowIntensity = 5 + Math.sin(this.enemy.engineGlow) * 3;
         
         ctx.save();
         
-        // Main body (red)
-        ctx.fillStyle = '#FF0000';
-        ctx.shadowBlur = 10;
+        // Add engine glow effect
+        ctx.shadowBlur = glowIntensity;
         ctx.shadowColor = '#FF0000';
         
-        // Body
-        ctx.beginPath();
-        ctx.moveTo(x, y);  // Top center
-        ctx.lineTo(x + width/2, y + height/3); // Right wing
-        ctx.lineTo(x + width/3, y + height); // Bottom right
-        ctx.lineTo(x - width/3, y + height); // Bottom left
-        ctx.lineTo(x - width/2, y + height/3);  // Left wing
-        ctx.closePath();
-        ctx.fill();
+        // Draw pre-rendered enemy ship
+        ctx.drawImage(
+            this.enemyShip,
+            x - width/2,
+            y - height/2,
+            width,
+            height
+        );
         
-        // Add minor pulsing glow effect to enemy ship
-        const pulseIntensity = 5 + Math.sin(this.thrusterAnimation) * 3;
-        ctx.shadowBlur = pulseIntensity;
-        
-        // Eyes (white)
-        ctx.fillStyle = '#FFFFFF';
-        ctx.shadowBlur = 5;
-        ctx.shadowColor = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(x - width/5, y + height/2, width/8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(x + width/5, y + height/2, width/8, 0, Math.PI * 2);
-        ctx.fill();
+        // Add additional glow effects based on shooting state
+        if (this.enemy.shootTimer < 10) {
+            const alpha = 0.7 - (this.enemy.shootTimer / 10);
+            ctx.fillStyle = `rgba(255, 50, 0, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(x, y + height/3, width/4, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
         ctx.restore();
     }
