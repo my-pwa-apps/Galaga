@@ -451,10 +451,12 @@ class PowerUpManager {
     }
     
     createPowerUp(x, y) {
+        // Use the exact position of the destroyed enemy
         const powerUp = new PowerUp({
             game: this.game,
             x: x,
-            y: y
+            y: y,
+            type: this.getRandomPowerUpType()
         });
         this.powerUps.push(powerUp);
         this.lastDropTime = this.game.frameCount;
@@ -462,11 +464,27 @@ class PowerUpManager {
         console.log("Power-up created at", x, y, "Type:", powerUp.type);
     }
     
+    // Helper method to get a random powerup type
+    getRandomPowerUpType() {
+        const types = ['rapid-fire', 'shield', 'extra-life', 'double-shot', 'speed-boost', 'bomb'];
+        return types[Math.floor(Math.random() * types.length)];
+    }
+    
     forcePowerUpDrop() {
-        // Drop a power-up from a random position at top of screen
-        const x = Math.random() * (this.game.width - 100) + 50;
-        this.createPowerUp(x, 0);
-        console.log("Forced power-up drop");
+        // Instead of dropping from the top of the screen, find a random enemy and spawn at their position
+        if (this.game.enemyManager.enemies.length > 0) {
+            // Pick a random enemy
+            const randomIndex = Math.floor(Math.random() * this.game.enemyManager.enemies.length);
+            const enemy = this.game.enemyManager.enemies[randomIndex];
+            this.createPowerUp(enemy.x, enemy.y);
+            console.log("Forced power-up drop at enemy position");
+        } else {
+            // Fallback if no enemies are available - spawn in middle of visible area
+            const x = Math.random() * (this.game.width - 100) + 50;
+            const y = this.game.height / 3; // Spawn in the top third of the screen
+            this.createPowerUp(x, y);
+            console.log("Forced power-up drop (no enemies available)");
+        }
     }
     
     spawnLevelStartPowerUp() {

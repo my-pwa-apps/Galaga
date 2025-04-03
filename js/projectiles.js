@@ -46,21 +46,41 @@ class Projectile {
         
         if (this.type === 'player') {
             if (this.powerupType === 'rapid') {
-                // Draw rapid shot bullet - with a more distinct appearance
+                // Draw rapid shot bullet - with a much more distinct appearance
                 this.game.ctx.save();
                 
-                // Create a more distinctive rapid fire bullet
-                // Outer glow
-                this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+                // Pulsing effect for rapid bullets
+                const pulseSize = this.radius + Math.sin(this.game.frameCount * 0.3) * 2;
+                
+                // Outer glow (larger, animated)
+                this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
                 this.game.ctx.beginPath();
-                this.game.ctx.arc(this.x, this.y, this.radius + 3, 0, Math.PI * 2);
+                this.game.ctx.arc(this.x, this.y, pulseSize + 5, 0, Math.PI * 2);
+                this.game.ctx.fill();
+                
+                // Middle layer
+                this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                this.game.ctx.beginPath();
+                this.game.ctx.arc(this.x, this.y, pulseSize, 0, Math.PI * 2);
                 this.game.ctx.fill();
                 
                 // Inner bright core
-                this.game.ctx.fillStyle = '#00FFFF';
+                this.game.ctx.fillStyle = '#FFFFFF';
                 this.game.ctx.beginPath();
-                this.game.ctx.arc(this.x, this.y, this.radius - 2, 0, Math.PI * 2);
+                this.game.ctx.arc(this.x, this.y, pulseSize - 3, 0, Math.PI * 2);
                 this.game.ctx.fill();
+                
+                // Add particle trail effect
+                for (let i = 1; i <= 5; i++) {
+                    const trailY = this.y + (i * 5);
+                    const trailSize = pulseSize - (i * 1.5);
+                    if (trailSize <= 0) continue;
+                    
+                    this.game.ctx.fillStyle = `rgba(0, 255, 255, ${0.3 - (i * 0.05)})`;
+                    this.game.ctx.beginPath();
+                    this.game.ctx.arc(this.x, trailY, trailSize, 0, Math.PI * 2);
+                    this.game.ctx.fill();
+                }
                 
                 this.game.ctx.restore();
             } else {
