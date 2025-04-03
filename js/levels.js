@@ -18,6 +18,8 @@ class LevelManager {
         
         // Level transition effects
         this.transitionOpacity = 0;
+        this.transitionPhase = 'none'; // 'none', 'fade-in', 'delay', 'fade-out'
+        this.nextLevelPrepared = false;
     }
     
     startLevel(level = null) {
@@ -27,6 +29,8 @@ class LevelManager {
         
         // Reset transition state
         this.isTransitioning = false;
+        this.transitionPhase = 'none';
+        this.nextLevelPrepared = false;
         
         // Clear any remaining enemies and projectiles
         this.game.enemyManager.reset();
@@ -45,6 +49,8 @@ class LevelManager {
         if (window.audioManager && this.currentLevel > 1) {
             window.audioManager.play('levelUp', 0.6);
         }
+        
+        console.log(`Level ${this.currentLevel} started`);
     }
     
     // Add a method to display the current level
@@ -80,7 +86,7 @@ class LevelManager {
     update() {
         // Check if we're in a level transition
         if (this.isTransitioning) {
-            this.updateTransition();
+            this.handleTransition();
             return;
         }
         
@@ -101,46 +107,54 @@ class LevelManager {
     
     startLevelTransition() {
         this.isTransitioning = true;
+        this.transitionPhase = 'fade-in';
         this.transitionOpacity = 0;
         this.completionTimer = 0;
+        this.nextLevelPrepared = false;
+        console.log(`Starting transition from level ${this.currentLevel}`);
     }
     
-    updateTransition() {
-        // Fade in
-        if (this.transitionOpacity < 1) {
-            this.transitionOpacity += 0.05;
-            this.renderTransition();
-            
-            if (this.transitionOpacity >= 1) {
-                // When fully faded in, increment level ONLY ONCE
-                this.currentLevel++;
-                console.log(`Advanced to level ${this.currentLevel}`);
+    handleTransition() {
+        switch (this.transitionPhase) {
+            case 'fade-in':
+                // Fade in black overlay
+                this.transitionOpacity += 0.05;
+                if (this.transitionOpacity >= 1) {
+                    // Move to delay phase when fully black
+                    this.transitionPhase = 'delay';
+                    
+                    // Prepare for next level ONLY ONCE
+                    if (!this.nextLevelPrepared) {
+                        this.currentLevel += 1;
+                        this.nextLevelPrepared = true;
+                        console.log(`Prepared next level: ${this.currentLevel}`);
+                        
+                        // Set a timeout to move to fade-out phase
+                        setTimeout(() => {
+                            this.transitionPhase = 'fade-out';
+                        }, 500);
+                    }
+                }
+                break;
                 
-                // Small delay at full opacity
-                setTimeout(() => {
-                    // Start fading out
-                    this.fadeOutTransition();
-                }, 500);
-            }
+            case 'delay':
+                // Just waiting for the timeout to complete
+                break;
+                
+            case 'fade-out':
+                // Fade out black overlay
+                this.transitionOpacity -= 0.05;
+                if (this.transitionOpacity <= 0) {
+                    // Finish transition and start the new level
+                    this.isTransitioning = false;
+                    this.transitionPhase = 'none';
+                    this.startLevel();
+                }
+                break;
         }
-        // Remove the else part to prevent additional executions
-    }
-    
-    fadeOutTransition() {
-        if (this.transitionOpacity > 0) {
-            this.transitionOpacity -= 0.05;
-            this.renderTransition();
-            
-            if (this.transitionOpacity <= 0) {
-                // When fully faded out, start the new level
-                this.isTransitioning = false;
-                this.startLevel();
-                return; // Exit the function to prevent further recursion
-            } else {
-                // Continue fading out
-                requestAnimationFrame(() => this.fadeOutTransition());
-            }
-        }
+        
+        // Always render the transition effect
+        this.renderTransition();
     }
     
     renderTransition() {
@@ -149,8 +163,8 @@ class LevelManager {
         ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionOpacity})`;
         ctx.fillRect(0, 0, this.game.width, this.game.height);
         
-        if (this.transitionOpacity > 0.7) {
-            // Show level text when mostly faded in
+        // Show level text when mostly faded in
+        if (this.transitionOpacity > 0.7 && (this.transitionPhase === 'delay' || this.transitionPhase === 'fade-out')) {
             ctx.fillStyle = 'white';
             ctx.font = '36px "Press Start 2P", monospace';
             ctx.textAlign = 'center';
@@ -162,5 +176,7 @@ class LevelManager {
         this.currentLevel = 1;
         this.completionTimer = 0;
         this.isTransitioning = false;
+        this.transitionPhase = 'none';
+        this.nextLevelPrepared = false;
     }
 }
