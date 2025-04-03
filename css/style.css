@@ -666,3 +666,22 @@ body.touch-device #mobile-controls.hidden-on-desktop {
 .highlight-score {
     animation: highlight-row 1.5s infinite;
 }
+
+/* Game over high scores styling */
+.gameover-highscores {
+    margin-top: 20px;
+    max-width: 400px;
+}
+
+.gameover-highscores h3 {
+    font-size: 1.2rem;
+    color: #0ff;
+    margin-bottom: 10px;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
+}
+
+#game-over-screen .highscores-table {
+    font-size: 0.6rem;
+    max-height: 200px;
+    overflow-y: auto;
+}

@@ -27,6 +27,7 @@ class HighScoreManager {
         
         // DOM elements
         this.highScoresList = document.getElementById('highscores-list');
+        this.gameOverHighScoresList = document.getElementById('gameover-highscores-list');
         this.highScoreMessage = document.getElementById('highscore-message');
         this.nameInputContainer = document.getElementById('name-input-container');
         this.playerNameInput = document.getElementById('player-name');
@@ -60,67 +61,78 @@ class HighScoreManager {
     loadHighScores() {
         // Get data from Firebase
         this.highScoresRef.orderByChild('score').limitToLast(this.maxHighScores).once('value', (snapshot) => {
-            if (this.highScoresList) {
-                // Clear the current list
-                this.highScoresList.innerHTML = '';
-                
-                // If no high scores exist yet
-                if (!snapshot.exists()) {
-                    this.highScoresList.innerHTML = '<p>No high scores yet. Be the first!</p>';
-                    return;
-                }
-                
-                // Create a table for high scores
-                const table = document.createElement('table');
-                table.classList.add('highscores-table');
-                
-                // Table header
-                const headerRow = document.createElement('tr');
-                const rankHeader = document.createElement('th');
-                rankHeader.textContent = 'Rank';
-                const nameHeader = document.createElement('th');
-                nameHeader.textContent = 'Name';
-                const scoreHeader = document.createElement('th');
-                scoreHeader.textContent = 'Score';
-                headerRow.appendChild(rankHeader);
-                headerRow.appendChild(nameHeader);
-                headerRow.appendChild(scoreHeader);
-                table.appendChild(headerRow);
-                
-                // Convert to array for sorting
-                const highScores = [];
-                snapshot.forEach((childSnapshot) => {
-                    highScores.push({
-                        id: childSnapshot.key,
-                        ...childSnapshot.val()
-                    });
-                });
-                
-                // Sort by score (highest first)
-                highScores.sort((a, b) => b.score - a.score);
-                
-                // Add each score to the table
-                highScores.forEach((score, index) => {
-                    const row = document.createElement('tr');
-                    
-                    const rankCell = document.createElement('td');
-                    rankCell.textContent = index + 1;
-                    
-                    const nameCell = document.createElement('td');
-                    nameCell.textContent = score.name;
-                    
-                    const scoreCell = document.createElement('td');
-                    scoreCell.textContent = score.score;
-                    
-                    row.appendChild(rankCell);
-                    row.appendChild(nameCell);
-                    row.appendChild(scoreCell);
-                    table.appendChild(row);
-                });
-                
-                this.highScoresList.appendChild(table);
-            }
+            // Update both high score lists (main menu and game over screen)
+            this.updateHighScoreList(this.highScoresList, snapshot);
+            this.updateHighScoreList(this.gameOverHighScoresList, snapshot);
         });
+    }
+    
+    updateHighScoreList(listElement, snapshot) {
+        if (!listElement) return;
+        
+        // Clear the current list
+        listElement.innerHTML = '';
+        
+        // If no high scores exist yet
+        if (!snapshot.exists()) {
+            listElement.innerHTML = '<p>No high scores yet. Be the first!</p>';
+            return;
+        }
+        
+        // Create a table for high scores
+        const table = document.createElement('table');
+        table.classList.add('highscores-table');
+        
+        // Table header
+        const headerRow = document.createElement('tr');
+        const rankHeader = document.createElement('th');
+        rankHeader.textContent = 'Rank';
+        const nameHeader = document.createElement('th');
+        nameHeader.textContent = 'Name';
+        const scoreHeader = document.createElement('th');
+        scoreHeader.textContent = 'Score';
+        headerRow.appendChild(rankHeader);
+        headerRow.appendChild(nameHeader);
+        headerRow.appendChild(scoreHeader);
+        table.appendChild(headerRow);
+        
+        // Convert to array for sorting
+        const highScores = [];
+        snapshot.forEach((childSnapshot) => {
+            highScores.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+        
+        // Sort by score (highest first)
+        highScores.sort((a, b) => b.score - a.score);
+        
+        // Add each score to the table
+        highScores.forEach((score, index) => {
+            const row = document.createElement('tr');
+            
+            // Highlight the current player's score if it's in the list
+            if (score.score === this.currentGameScore && this.isHighScore) {
+                row.classList.add('highlight-score');
+            }
+            
+            const rankCell = document.createElement('td');
+            rankCell.textContent = index + 1;
+            
+            const nameCell = document.createElement('td');
+            nameCell.textContent = score.name;
+            
+            const scoreCell = document.createElement('td');
+            scoreCell.textContent = score.score;
+            
+            row.appendChild(rankCell);
+            row.appendChild(nameCell);
+            row.appendChild(scoreCell);
+            table.appendChild(row);
+        });
+        
+        listElement.appendChild(table);
     }
     
     checkHighScore(score) {
@@ -150,6 +162,9 @@ class HighScoreManager {
     }
     
     showHighScoreForm(isHighScore) {
+        // Always update both high score tables regardless of high score status
+        this.loadHighScores();
+        
         if (!this.highScoreMessage || !this.nameInputContainer) return;
         
         if (isHighScore) {

@@ -153,7 +153,9 @@ class Player {
         this.speed = 5;
         
         // When force clearing (between levels), clear all powerups including shield
+        // NOTE: Extra lives should NOT be reset between levels
         if (forceClear) {
+            // Only reset powerup effects, not the lives count
             this.shield = false;
             this.shieldHealth = 0;
             this.activePower = 'NONE';
@@ -170,7 +172,7 @@ class Player {
                 timerContainer.setAttribute('aria-hidden', 'true');
             }
             
-            console.log("All powerups force cleared between levels");
+            console.log("All powerups force cleared between levels (lives preserved)");
             return;
         }
         

@@ -144,6 +144,25 @@ class LevelManager {
         // Store the player's current position for hyperspace animation
         this.playerYPosition = this.game.player.y;
         
+        // Force clear all powerups immediately when transitioning
+        if (this.game.player && typeof this.game.player.resetPowerUps === 'function') {
+            this.game.player.resetPowerUps(true);
+            console.log("Level transition started - forced powerup clear");
+        }
+        
+        // Also make sure to clear any powerup visuals and UI elements
+        const activePowerElement = document.getElementById('active-power');
+        if (activePowerElement) {
+            activePowerElement.textContent = 'NONE';
+        }
+        
+        // Hide power timer
+        const powerTimerContainer = document.getElementById('power-timer-container');
+        if (powerTimerContainer) {
+            powerTimerContainer.classList.add('hidden');
+            powerTimerContainer.setAttribute('aria-hidden', 'true');
+        }
+        
         // Start hyperspace effect in starfield
         this.game.starfield.startHyperspace();
         
