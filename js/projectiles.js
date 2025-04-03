@@ -14,6 +14,8 @@ class Projectile {
         this.height = options.height || 15;
         this.radius = 8; // Increased from 5 to 8 for better hit detection
         this.type = options.type || 'player'; // 'player' or 'enemy'
+        this.powerupType = options.powerupType || 'normal'; // 'normal', 'rapid', etc.
+        this.damage = options.damage || 1; // Default damage is 1
         this.isEnemy = this.type === 'enemy';
         this.active = true;
         return this;
@@ -35,7 +37,18 @@ class Projectile {
         if (!this.active) return;
         
         if (this.type === 'player') {
-            sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
+            if (this.powerupType === 'rapid') {
+                // Draw rapid shot bullet - either a different sprite or a modified version
+                this.game.ctx.save();
+                this.game.ctx.fillStyle = '#00FFFF'; // Cyan color for rapid shots
+                this.game.ctx.beginPath();
+                this.game.ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                this.game.ctx.fill();
+                this.game.ctx.restore();
+                // Alternative: sprites.rapidBullet.draw(this.game.ctx, this.x, this.y);
+            } else {
+                sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
+            }
         } else {
             sprites.enemyBullet.draw(this.game.ctx, this.x, this.y);
         }
