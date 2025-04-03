@@ -242,8 +242,8 @@ class Game {
                     
                     // If enemy is destroyed
                     if (enemy.health <= 0) {
-                        // Add score
-                        this.score += enemy.points;
+                        // Add score - using Math.round() to ensure whole numbers
+                        this.score += Math.round(enemy.points);
                         this.updateUI();
                         
                         // Create explosion using pool
@@ -254,7 +254,7 @@ class Game {
                             window.audioManager.play('explosion', 0.3);
                         }
                         
-                        // Chance to drop power-up - Fixed: Use powerUpManager's method
+                        // Chance to drop power-up
                         this.powerUpManager.trySpawnPowerUp(enemy.x, enemy.y);
                         
                         // Remove the enemy
@@ -272,7 +272,7 @@ class Game {
                 }
             }
         }
-        
+
         // 2. Check enemy projectiles against player
         if (this.player.active) {  // Only if player is active
             for (let i = this.projectilePool.activeProjectiles.length - 1; i >= 0; i--) {
@@ -329,7 +329,8 @@ class Game {
                     }
                     
                     // Destroy the enemy that collided with the player
-                    this.score += enemy.points;
+                    // Using Math.round() to ensure whole numbers
+                    this.score += Math.round(enemy.points);
                     this.updateUI();
                     this.enemyManager.enemies.splice(i, 1);
                     
