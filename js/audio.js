@@ -116,6 +116,11 @@ class AudioManager {
             endFreq: 110, 
             duration: 1.2
         });
+        
+        // Add hyperspeed sound for level transitions
+        this.createSound('hyperspeed', 'hyperspeed', { 
+            duration: 2.0
+        });
     }
     
     createSound(name, type, options) {
@@ -145,6 +150,9 @@ class AudioManager {
                 break;
             case 'dramaticSweep':
                 this.generateDramaticSweep(dataL, dataR, options);
+                break;
+            case 'hyperspeed':
+                this.generateHyperspeedSound(dataL, dataR, options);
                 break;
             default:
                 this.generateTone(dataL, dataR, 440, duration);
@@ -358,6 +366,66 @@ class AudioManager {
                 valueR += Math.sin(2 * Math.PI * (freq * 1.08) * t + 0.3) * 0.15 * (normalizedTime - 0.4) / 0.6;
             }
             
+            dataL[i] = valueL * amplitude * 0.5;
+            dataR[i] = valueR * amplitude * 0.5;
+        }
+    }
+    
+    generateHyperspeedSound(dataL, dataR, options) {
+        const { duration = 2.0 } = options;
+        const sampleRate = this.audioContext.sampleRate;
+        
+        // Create a futuristic "warp" sound with multiple layers
+        for (let i = 0; i < dataL.length; i++) {
+            const t = i / sampleRate;
+            const normalizedTime = t / duration;
+            
+            // Base warp sound - increasing pitch with wobbly modulation
+            const baseFreq = 150 + normalizedTime * 300;
+            const wobbleRate = 7 + normalizedTime * 20;
+            const wobbleDepth = 30 + normalizedTime * 100;
+            
+            // Amplitude envelope with gradual build-up
+            let amplitude;
+            if (normalizedTime < 0.2) {
+                // Initial build-up
+                amplitude = normalizedTime * 5; // Fast ramp up
+            } else if (normalizedTime > 0.85) {
+                // Tail off
+                amplitude = (1.0 - normalizedTime) * 6.67; // Fast tail off
+            } else {
+                // Sustain with slight pulsing
+                amplitude = 1.0 + Math.sin(normalizedTime * 50) * 0.1;
+            }
+            
+            // Create wobble effect for main engine sound
+            const wobble = Math.sin(wobbleRate * t * Math.PI * 2) * wobbleDepth;
+            
+            // Main engine tone with wobble
+            let valueL = Math.sin(2 * Math.PI * (baseFreq + wobble) * t) * 0.35;
+            let valueR = Math.sin(2 * Math.PI * (baseFreq + wobble + 2) * t + 0.2) * 0.35;
+            
+            // Add higher frequency "whoosh" layer
+            const whooshFreq = 800 + Math.sin(t * 12) * 300 + normalizedTime * 1000;
+            valueL += Math.sin(2 * Math.PI * whooshFreq * t) * 0.15 * normalizedTime;
+            valueR += Math.sin(2 * Math.PI * whooshFreq * t + 0.3) * 0.15 * normalizedTime;
+            
+            // Add rumble at start
+            if (normalizedTime < 0.4) {
+                const rumbleAmp = (0.4 - normalizedTime) * 2.5;
+                valueL += (Math.random() * 2 - 1) * 0.3 * rumbleAmp;
+                valueR += (Math.random() * 2 - 1) * 0.3 * rumbleAmp;
+            }
+            
+            // Add high-frequency harmonic sweeping layer
+            if (normalizedTime > 0.2) {
+                const sweepFreq = 1200 + (normalizedTime - 0.2) * 8000;
+                const sweepAmp = Math.min(0.25, (normalizedTime - 0.2) / 2);
+                valueL += Math.sin(2 * Math.PI * sweepFreq * t) * sweepAmp;
+                valueR += Math.sin(2 * Math.PI * sweepFreq * t + 0.5) * sweepAmp;
+            }
+            
+            // Final amplitude adjustment
             dataL[i] = valueL * amplitude * 0.5;
             dataR[i] = valueR * amplitude * 0.5;
         }

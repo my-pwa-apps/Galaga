@@ -144,6 +144,11 @@ class LevelManager {
         // Start hyperspace effect in starfield
         this.game.starfield.startHyperspace();
         
+        // Play the hyperspeed sound effect
+        if (window.audioManager) {
+            window.audioManager.play('hyperspeed', 0.7);
+        }
+        
         console.log(`Starting transition from level ${this.currentLevel}`);
     }
     
