@@ -73,20 +73,34 @@ class LevelManager {
         }, 2000);
     }
     
-    // Calculate difficulty parameters based on current level with improved scaling
+    // Calculate difficulty parameters based on current level with more gradual scaling
     getDifficultyParams() {
-        // Apply non-linear scaling for higher levels to maintain challenge
-        const levelFactor = this.currentLevel <= 5 ? 
-            this.currentLevel : 
-            5 + Math.sqrt(this.currentLevel - 5);
+        // Use a logarithmic curve for more gradual scaling instead of the previous square root approach
+        // This ensures levels 6-8 don't have such a sharp difficulty increase
+        
+        // Create a more gradual curve that flattens out for higher levels
+        const levelFactor = this.currentLevel <= 3 ? 
+            this.currentLevel : // Linear for first few levels
+            3 + Math.log(this.currentLevel - 2) / Math.log(1.6); // Logarithmic scaling after level 3
+        
+        console.log(`Level ${this.currentLevel}, Difficulty factor: ${levelFactor.toFixed(2)}`);
         
         return {
-            enemySpeed: this.baseEnemySpeed + (levelFactor * 0.2),
-            enemyHealth: this.baseEnemyHealth + Math.floor(levelFactor / 3),
-            bossHealth: this.baseBossHealth + Math.floor(levelFactor / 2),
-            fireRate: this.baseFireRate * (1 + levelFactor * 0.15),
-            bossFireRate: this.baseBossFireRate * (1 + levelFactor * 0.1),
-            attackChance: 0.001 * (1 + levelFactor * 0.1),
+            // More gradual speed increase
+            enemySpeed: this.baseEnemySpeed + (levelFactor * 0.15),
+            
+            // Health increases at specific level thresholds instead of continuously
+            enemyHealth: this.baseEnemyHealth + Math.floor(levelFactor / 4),
+            bossHealth: this.baseBossHealth + Math.floor(levelFactor / 3),
+            
+            // More gradual fire rate increases
+            fireRate: this.baseFireRate * (1 + levelFactor * 0.12),
+            bossFireRate: this.baseBossFireRate * (1 + levelFactor * 0.08),
+            
+            // More gradual attack chance increases
+            attackChance: 0.001 * (1 + levelFactor * 0.08),
+            
+            // Points increase steadily
             pointMultiplier: 1 + (levelFactor * 0.1)
         };
     }
@@ -141,12 +155,25 @@ class LevelManager {
                 
                 // Move player gradually to top of screen during hyperspace
                 if (this.game.player && this.game.player.active) {
-                    // Move player towards the top of the screen
-                    this.game.player.y -= 3;
+                    // Calculate movement path towards top of screen
+                    // Start slow, accelerate in the middle, then slow down again
+                    const progress = this.hyperspaceTimer / this.hyperspaceDuration;
+                    const speedFactor = Math.sin(progress * Math.PI); // Creates an acceleration curve
                     
-                    // Apply subtle side-to-side motion for a more dynamic effect
-                    const wobbleAmount = Math.sin(this.hyperspaceTimer * 0.2) * 5;
-                    this.game.player.x += wobbleAmount * 0.1;
+                    // Target Y is top of screen with a little padding
+                    const targetY = 20;
+                    const startY = this.playerYPosition;
+                    const totalDistance = startY - targetY;
+                    
+                    // Create an easing effect for the movement
+                    const easedPosition = startY - (totalDistance * Math.pow(progress, 1.5));
+                    
+                    // Move player's Y position - ensure it reaches the top
+                    this.game.player.y = Math.max(targetY, easedPosition);
+                    
+                    // Apply more dynamic side-to-side motion that increases with speed
+                    const wobbleAmount = Math.sin(this.hyperspaceTimer * 0.3) * 8 * speedFactor;
+                    this.game.player.x += wobbleAmount * 0.2;
                     
                     // Keep player within screen bounds
                     this.game.player.x = Math.max(this.game.player.radius, 
