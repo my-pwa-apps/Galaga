@@ -113,7 +113,12 @@ class Projectile {
                 sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
             }
         } else {
+            // Add a subtle glow to enemy bullets to make them more visible targets
+            this.game.ctx.save();
+            this.game.ctx.shadowBlur = 8;
+            this.game.ctx.shadowColor = '#FF6600';
             sprites.enemyBullet.draw(this.game.ctx, this.x, this.y);
+            this.game.ctx.restore();
         }
     }
 

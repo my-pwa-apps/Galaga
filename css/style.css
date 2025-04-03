@@ -794,3 +794,31 @@ body.touch-device #mobile-controls.hidden-on-desktop {
     text-shadow: 0 0 5px #0ff;
     animation: highlight-row 1.5s infinite;
 }
+
+/* Points popup styling */
+.points-popup {
+    position: absolute;
+    color: #FFDD00;
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 0 0 5px #FF6600;
+    z-index: 100;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: points-popup 1s ease-out forwards;
+}
+
+@keyframes points-popup {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -100%) scale(1.2);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -150%) scale(1);
+    }
+}

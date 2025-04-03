@@ -311,9 +311,14 @@ class Game {
                         // Create small explosion
                         this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
                         
-                        // Add a small score bonus
-                        this.score += 10;
+                        // Add a score bonus for destroying an enemy bullet
+                        // Add more points for higher-damage projectiles
+                        const bulletPoints = 25 * (projectile.damage || 1);
+                        this.score += bulletPoints;
                         this.updateUI();
+                        
+                        // Show small score popup at the collision point
+                        this.showPointsPopup(enemyProjectile.x, enemyProjectile.y, bulletPoints);
                         
                         // Play hit sound
                         if (window.audioManager) {
@@ -585,6 +590,31 @@ class Game {
                 .catch(error => {
                     console.error('Error submitting high score:', error);
                 });
+        }
+    }
+
+    // Add a new method to show points popup
+    showPointsPopup(x, y, points) {
+        // Create a points popup element
+        const popup = document.createElement('div');
+        popup.className = 'points-popup';
+        popup.textContent = `+${points}`;
+        
+        // Position it at the point of collision
+        popup.style.left = `${x}px`;
+        popup.style.top = `${y}px`;
+        
+        // Add it to the game container
+        const gameScreen = document.getElementById('game-screen');
+        if (gameScreen) {
+            gameScreen.appendChild(popup);
+            
+            // Animate and remove after animation completes
+            setTimeout(() => {
+                if (popup.parentNode) {
+                    popup.parentNode.removeChild(popup);
+                }
+            }, 1000);
         }
     }
 }
