@@ -266,32 +266,42 @@ class PowerUp {
         
         switch(this.type) {
             case 'rapid-fire':
+                // Keep maxShootCooldown setting for manual shooting
                 player.maxShootCooldown = 5;
+                
+                // The rapid fire status is now checked in the player update method
+                // No need to modify autoShootInterval directly
                 duration = 600; // 10 seconds at 60fps
                 player.activePower = 'RAPID FIRE';
                 break;
+            
+            // Other powerup cases remain unchanged
             case 'shield':
                 player.shield = true;
                 player.shieldHealth = 3;
                 player.activePower = 'SHIELD';
                 duration = 900; // 15 seconds at 60fps - longer than other power-ups
                 break;
+                
             case 'extra-life':
                 player.lives++;
                 document.getElementById('lives').textContent = player.lives;
                 player.activePower = '+1 LIFE';
                 // Extra life is instant, no timer needed
                 break;
+                
             case 'double-shot':
                 player.doubleShot = true;
                 duration = 600; // 10 seconds at 60fps
                 player.activePower = 'DOUBLE SHOT';
                 break;
+                
             case 'speed-boost':
                 player.speed = 8;
                 duration = 600; // 10 seconds at 60fps
                 player.activePower = 'SPEED BOOST';
                 break;
+                
             case 'bomb':
                 // Clear all enemies on screen
                 this.detonateScreenBomb();

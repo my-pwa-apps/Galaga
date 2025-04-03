@@ -26,6 +26,7 @@ class Player {
         
         this.lastAutoShotTime = 0;
         this.autoShootInterval = 15; // Frames between auto shots
+        this.rapidFireAutoShootInterval = 5; // Faster interval for rapid fire when autoshoot is on
     }
     
     update() {
@@ -44,10 +45,21 @@ class Player {
             // Check if auto-shooting is enabled
             const isAuto = this.game.controls && this.game.controls.autoShoot;
             
-            if (!isAuto || (isAuto && this.game.frameCount - this.lastAutoShotTime >= this.autoShootInterval)) {
+            if (!isAuto) {
+                // Regular manual shooting - respects maxShootCooldown
                 this.shoot();
-                this.shootCooldown = isAuto ? 5 : this.maxShootCooldown;
-                this.lastAutoShotTime = this.game.frameCount;
+                this.shootCooldown = this.maxShootCooldown;
+            } else {
+                // Auto-shooting logic
+                const currentInterval = this.activePower === 'RAPID FIRE' 
+                    ? this.rapidFireAutoShootInterval 
+                    : this.autoShootInterval;
+                
+                if (this.game.frameCount - this.lastAutoShotTime >= currentInterval) {
+                    this.shoot();
+                    this.shootCooldown = 2; // Small cooldown for auto-shooting
+                    this.lastAutoShotTime = this.game.frameCount;
+                }
             }
         }
         
