@@ -39,41 +39,78 @@ const drawPlayerShip = (ctx, x, y, width, height, color) => {
     // Ship body
     ctx.save();
     
-    // Glow effect
-    ctx.shadowBlur = 10;
+    // Enhanced glow effect
+    ctx.shadowBlur = 15;
     ctx.shadowColor = '#0080FF';
     
-    // Main body
-    ctx.fillStyle = '#3090FF';
+    // Main body with gradient for more visual appeal
+    const bodyGradient = ctx.createLinearGradient(x, y - height/2, x, y + height/2);
+    bodyGradient.addColorStop(0, '#60A0FF'); // Lighter blue at top
+    bodyGradient.addColorStop(0.5, '#3090FF'); // Medium blue in middle
+    bodyGradient.addColorStop(1, '#0060DD'); // Darker blue at bottom
+    
+    ctx.fillStyle = bodyGradient;
+    
+    // Improved ship shape with curves
     ctx.beginPath();
-    ctx.moveTo(x, y - height/2);
-    ctx.lineTo(x + width/2, y + height/2);
-    ctx.lineTo(x - width/2, y + height/2);
+    ctx.moveTo(x, y - height/2); // Top point
+    ctx.quadraticCurveTo(x + width/4, y - height/4, x + width/2, y + height/3); // Right wing curve
+    ctx.lineTo(x + width/3, y + height/2); // Right bottom corner
+    ctx.lineTo(x - width/3, y + height/2); // Left bottom corner
+    ctx.lineTo(x - width/2, y + height/3); // Left wing edge
+    ctx.quadraticCurveTo(x - width/4, y - height/4, x, y - height/2); // Left wing curve
     ctx.closePath();
     ctx.fill();
     
-    // Engine glow
+    // Wing details/highlights
+    const detailGradient = ctx.createLinearGradient(x - width/2, y, x + width/2, y);
+    detailGradient.addColorStop(0, 'rgba(180, 220, 255, 0.8)');
+    detailGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
+    detailGradient.addColorStop(1, 'rgba(180, 220, 255, 0.8)');
+    
+    ctx.fillStyle = detailGradient;
+    ctx.beginPath();
+    ctx.moveTo(x, y - height/4);
+    ctx.lineTo(x + width/3, y + height/6);
+    ctx.lineTo(x - width/3, y + height/6);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Enhanced engine glow
     const engineGlowColor = ctx.createRadialGradient(
         x, y + height/2, 0,
         x, y + height/2, width/2
     );
     engineGlowColor.addColorStop(0, '#FFFFFF');
-    engineGlowColor.addColorStop(0.5, '#0080FF');
+    engineGlowColor.addColorStop(0.3, '#80C0FF');
+    engineGlowColor.addColorStop(0.6, '#0080FF');
     engineGlowColor.addColorStop(1, 'rgba(0,128,255,0)');
     
     ctx.fillStyle = engineGlowColor;
     ctx.beginPath();
-    ctx.arc(x, y + height/2.5, width/4, 0, Math.PI * 2);
+    ctx.arc(x, y + height/2.5, width/3.5, 0, Math.PI * 2);
     ctx.fill();
     
-    // Cockpit
-    ctx.fillStyle = '#FFFFFF';
+    // Cockpit with gradient
+    const cockpitGradient = ctx.createRadialGradient(
+        x, y, width/12,
+        x, y, width/6
+    );
+    cockpitGradient.addColorStop(0, '#FFFFFF');
+    cockpitGradient.addColorStop(0.7, '#B0E0FF');
+    cockpitGradient.addColorStop(1, '#80C0FF');
+    
+    ctx.fillStyle = cockpitGradient;
     ctx.beginPath();
     ctx.ellipse(x, y, width/6, height/6, 0, 0, Math.PI * 2);
     ctx.fill();
     
-    // Wing details
-    ctx.fillStyle = '#60A0FF';
+    // Wing details - enhanced with gradients
+    const wingGradient = ctx.createLinearGradient(x - width/4, y, x, y);
+    wingGradient.addColorStop(0, '#60A0FF');
+    wingGradient.addColorStop(1, '#B0D0FF');
+    
+    ctx.fillStyle = wingGradient;
     ctx.beginPath();
     ctx.moveTo(x + width/4, y);
     ctx.lineTo(x + width/3, y + height/3);
@@ -87,6 +124,22 @@ const drawPlayerShip = (ctx, x, y, width, height, color) => {
     ctx.lineTo(x, y);
     ctx.closePath();
     ctx.fill();
+    
+    // Add some tech details/lines on the wings
+    ctx.strokeStyle = 'rgba(200, 230, 255, 0.7)';
+    ctx.lineWidth = 1;
+    
+    // Right wing detail
+    ctx.beginPath();
+    ctx.moveTo(x + width/6, y);
+    ctx.lineTo(x + width/4, y + height/4);
+    ctx.stroke();
+    
+    // Left wing detail
+    ctx.beginPath();
+    ctx.moveTo(x - width/6, y);
+    ctx.lineTo(x - width/4, y + height/4);
+    ctx.stroke();
     
     ctx.restore();
 };

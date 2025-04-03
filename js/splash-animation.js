@@ -124,7 +124,7 @@ class SplashAnimation {
         thrusterCtx.fillRect(0, 0, 10, 25);
         this.thrusterPattern = thrusterCanvas;
         
-        // Pre-render player ship facing right
+        // Pre-render player ship facing right with enhanced details
         const shipSize = 60; // Larger size for more detail
         this.playerShipRight = document.createElement('canvas');
         this.playerShipRight.width = shipSize;
@@ -143,39 +143,60 @@ class SplashAnimation {
         shipCtx.save();
         shipCtx.translate(centerX, centerY);
         
-        // Draw body
-        shipCtx.fillStyle = '#1E90FF';
-        shipCtx.shadowBlur = 10;
-        shipCtx.shadowColor = '#0080FF';
+        // Draw enhanced player ship body
+        shipCtx.fillStyle = '#2266FF'; // Brighter blue
+        shipCtx.shadowBlur = 15; // Increased glow
+        shipCtx.shadowColor = '#60A0FF';
+        
+        // Main hull - slightly modified shape for more appeal
         shipCtx.beginPath();
-        shipCtx.moveTo(0, -height/2);
-        shipCtx.lineTo(width/2, height/2);
-        shipCtx.lineTo(-width/2, height/2);
+        shipCtx.moveTo(0, -height/2);  // Top point
+        shipCtx.quadraticCurveTo(width/4, -height/4, width/2, height/3); // Right curved wing
+        shipCtx.lineTo(width/3, height/2);  // Right bottom
+        shipCtx.lineTo(-width/3, height/2); // Left bottom
+        shipCtx.lineTo(-width/2, height/3); // Left wing tip
+        shipCtx.quadraticCurveTo(-width/4, -height/4, 0, -height/2); // Left curved wing
         shipCtx.closePath();
         shipCtx.fill();
         
-        // Draw details - wing edges
-        shipCtx.strokeStyle = '#ADD8E6';
+        // Wing details - additional highlights
+        shipCtx.strokeStyle = '#99CCFF';
         shipCtx.lineWidth = 2;
         shipCtx.beginPath();
         shipCtx.moveTo(0, -height/2);
-        shipCtx.lineTo(width/2, height/2);
-        shipCtx.lineTo(-width/2, height/2);
+        shipCtx.lineTo(width/3, height/3);
+        shipCtx.lineTo(-width/3, height/3);
         shipCtx.closePath();
         shipCtx.stroke();
         
-        // Draw cockpit
-        shipCtx.fillStyle = '#FFFFFF';
-        shipCtx.shadowBlur = 5;
-        shipCtx.shadowColor = '#FFFFFF';
+        // Engine highlights
+        shipCtx.fillStyle = '#80C0FF';
         shipCtx.beginPath();
-        shipCtx.arc(0, 0, width/4, 0, Math.PI * 2);
+        shipCtx.moveTo(-width/4, height/3);
+        shipCtx.lineTo(-width/6, height/2);
+        shipCtx.lineTo(-width/3, height/2);
+        shipCtx.closePath();
         shipCtx.fill();
         
-        // Add inner cockpit detail
-        shipCtx.fillStyle = '#B0E2FF';
         shipCtx.beginPath();
-        shipCtx.arc(0, 0, width/8, 0, Math.PI * 2);
+        shipCtx.moveTo(width/4, height/3);
+        shipCtx.lineTo(width/6, height/2);
+        shipCtx.lineTo(width/3, height/2);
+        shipCtx.closePath();
+        shipCtx.fill();
+        
+        // Cockpit with enhanced glow
+        shipCtx.fillStyle = '#FFFFFF';
+        shipCtx.shadowBlur = 8;
+        shipCtx.shadowColor = '#FFFFFF';
+        shipCtx.beginPath();
+        shipCtx.arc(0, -height/6, width/5, 0, Math.PI * 2);
+        shipCtx.fill();
+        
+        // Inner cockpit detail
+        shipCtx.fillStyle = '#E0F0FF';
+        shipCtx.beginPath();
+        shipCtx.arc(0, -height/6, width/8, 0, Math.PI * 2);
         shipCtx.fill();
         
         shipCtx.restore();
@@ -191,7 +212,7 @@ class SplashAnimation {
         leftShipCtx.scale(-1, 1);
         leftShipCtx.drawImage(this.playerShipRight, 0, 0);
         
-        // Pre-render enemy ship
+        // Pre-render enemy ship with enhanced visuals
         const enemySize = 60;
         this.enemyShip = document.createElement('canvas');
         this.enemyShip.width = enemySize;
@@ -205,43 +226,55 @@ class SplashAnimation {
         enemyCtx.save();
         enemyCtx.translate(eCenterX, eCenterY);
         
-        // Draw main body
-        enemyCtx.fillStyle = '#FF0000';
-        enemyCtx.shadowBlur = 10;
-        enemyCtx.shadowColor = '#FF0000';
+        // Draw main body with improved colors and effects
+        enemyCtx.fillStyle = '#FF3300'; // Brighter red
+        enemyCtx.shadowBlur = 15;
+        enemyCtx.shadowColor = '#FF6600';
         
         // Enhanced body shape for Galaga-style enemy
         const eWidth = 36;
         const eHeight = 36;
         
-        // Alien body
+        // Improved alien body shape
         enemyCtx.beginPath();
         enemyCtx.moveTo(0, -eHeight/2); // Top center
-        enemyCtx.lineTo(eWidth/2, -eHeight/4); // Upper right
-        enemyCtx.lineTo(eWidth/2.2, eHeight/3); // Right wing
-        enemyCtx.lineTo(eWidth/3, eHeight/2); // Bottom right
-        enemyCtx.lineTo(-eWidth/3, eHeight/2); // Bottom left
-        enemyCtx.lineTo(-eWidth/2.2, eHeight/3); // Left wing
-        enemyCtx.lineTo(-eWidth/2, -eHeight/4); // Upper left
+        enemyCtx.bezierCurveTo(
+            eWidth/3, -eHeight/2,
+            eWidth/2, -eHeight/3,
+            eWidth/2, -eHeight/4
+        ); // Upper right curve
+        enemyCtx.lineTo(eWidth/2, eHeight/4); // Right side
+        enemyCtx.quadraticCurveTo(eWidth/2, eHeight/3, eWidth/3, eHeight/2); // Bottom right curve
+        enemyCtx.lineTo(-eWidth/3, eHeight/2); // Bottom
+        enemyCtx.quadraticCurveTo(-eWidth/2, eHeight/3, -eWidth/2, eHeight/4); // Bottom left curve
+        enemyCtx.lineTo(-eWidth/2, -eHeight/4); // Left side
+        enemyCtx.bezierCurveTo(
+            -eWidth/2, -eHeight/3,
+            -eWidth/3, -eHeight/2,
+            0, -eHeight/2
+        ); // Upper left curve
         enemyCtx.closePath();
         enemyCtx.fill();
         
-        // Body details
+        // Enhanced body details
         enemyCtx.strokeStyle = '#FFDD00';
-        enemyCtx.lineWidth = 1;
+        enemyCtx.lineWidth = 2;
         enemyCtx.beginPath();
         enemyCtx.moveTo(-eWidth/3, eHeight/6);
         enemyCtx.lineTo(eWidth/3, eHeight/6);
         enemyCtx.stroke();
         
+        // Animated patterns
+        enemyCtx.strokeStyle = '#FFAA00';
+        enemyCtx.lineWidth = 1.5;
         enemyCtx.beginPath();
         enemyCtx.moveTo(-eWidth/4, -eHeight/6);
         enemyCtx.lineTo(eWidth/4, -eHeight/6);
         enemyCtx.stroke();
         
-        // Eyes (white with red pupils)
+        // Eyes with better glow effects
         enemyCtx.fillStyle = '#FFFFFF';
-        enemyCtx.shadowBlur = 5;
+        enemyCtx.shadowBlur = 10;
         enemyCtx.shadowColor = '#FFFFFF';
         
         // Left eye
@@ -254,9 +287,9 @@ class SplashAnimation {
         enemyCtx.arc(eWidth/5, eHeight/5, eWidth/8, 0, Math.PI * 2);
         enemyCtx.fill();
         
-        // Red pupils
+        // Red pupils with pulsing effect
         enemyCtx.fillStyle = '#FF0000';
-        enemyCtx.shadowBlur = 3;
+        enemyCtx.shadowBlur = 5;
         enemyCtx.shadowColor = '#FF0000';
         
         enemyCtx.beginPath();
@@ -265,6 +298,32 @@ class SplashAnimation {
         
         enemyCtx.beginPath();
         enemyCtx.arc(eWidth/5, eHeight/5, eWidth/16, 0, Math.PI * 2);
+        enemyCtx.fill();
+        
+        // Add antenna/sensors
+        enemyCtx.strokeStyle = '#FF9900';
+        enemyCtx.lineWidth = 1.5;
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(-eWidth/4, -eHeight/2);
+        enemyCtx.lineTo(-eWidth/6, -eHeight/2 - eHeight/4);
+        enemyCtx.stroke();
+        
+        enemyCtx.beginPath();
+        enemyCtx.moveTo(eWidth/4, -eHeight/2);
+        enemyCtx.lineTo(eWidth/6, -eHeight/2 - eHeight/4);
+        enemyCtx.stroke();
+        
+        // Antenna tips glow
+        enemyCtx.fillStyle = '#FFDD00';
+        enemyCtx.shadowBlur = 5;
+        enemyCtx.shadowColor = '#FFDD00';
+        
+        enemyCtx.beginPath();
+        enemyCtx.arc(-eWidth/6, -eHeight/2 - eHeight/4, 2, 0, Math.PI * 2);
+        enemyCtx.fill();
+        
+        enemyCtx.beginPath();
+        enemyCtx.arc(eWidth/6, -eHeight/2 - eHeight/4, 2, 0, Math.PI * 2);
         enemyCtx.fill();
         
         enemyCtx.restore();
@@ -608,33 +667,49 @@ class SplashAnimation {
         const thrusterX = 0;
         const thrusterY = height/2;
         
-        // Create gradient for thruster effect
+        // Create gradient for enhanced thruster effect
         const gradient = ctx.createLinearGradient(
             thrusterX, thrusterY,
             thrusterX, thrusterY + thrusterLength
         );
         
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-        gradient.addColorStop(0.2, 'rgba(50, 150, 255, 0.8)');
-        gradient.addColorStop(0.5, 'rgba(0, 100, 255, 0.6)');
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+        gradient.addColorStop(0.2, 'rgba(80, 180, 255, 0.9)');
+        gradient.addColorStop(0.5, 'rgba(0, 120, 255, 0.7)');
+        gradient.addColorStop(0.8, 'rgba(0, 80, 255, 0.4)');
         gradient.addColorStop(1, 'rgba(0, 50, 255, 0)');
         
         ctx.fillStyle = gradient;
         
-        // Draw flame
+        // Draw enhanced flame
         ctx.beginPath();
+        const waveOffset = Math.sin(this.thrusterAnimation * 2) * 2;
         ctx.moveTo(thrusterX - thrusterBaseWidth/2, thrusterY);
-        ctx.lineTo(thrusterX, thrusterY + thrusterLength);
-        ctx.lineTo(thrusterX + thrusterBaseWidth/2, thrusterY);
+        ctx.quadraticCurveTo(
+            thrusterX - thrusterBaseWidth/2 - waveOffset, 
+            thrusterY + thrusterLength/2,
+            thrusterX, thrusterY + thrusterLength
+        );
+        ctx.quadraticCurveTo(
+            thrusterX + thrusterBaseWidth/2 + waveOffset, 
+            thrusterY + thrusterLength/2,
+            thrusterX + thrusterBaseWidth/2, thrusterY
+        );
         ctx.closePath();
         ctx.fill();
         
-        // Add glow effect
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#0080FF';
+        // Add inner glow effect
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#60A0FF';
         ctx.beginPath();
         ctx.arc(thrusterX, thrusterY + thrusterLength/3, thrusterLength/4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(50, 150, 255, 0.3)';
+        ctx.fillStyle = 'rgba(100, 180, 255, 0.5)';
+        ctx.fill();
+        
+        // Add second smaller glow
+        ctx.beginPath();
+        ctx.arc(thrusterX, thrusterY + thrusterLength/2, thrusterLength/8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.fill();
         
         ctx.shadowBlur = 0; // Reset shadow for ship drawing
@@ -656,7 +731,7 @@ class SplashAnimation {
         ctx.restore();
     }
     
-    // Draw enemy with glow effects
+    // Draw enemy with enhanced glow effects
     drawEnemy() {
         const ctx = this.ctx;
         const x = this.enemy.x;
@@ -664,15 +739,15 @@ class SplashAnimation {
         const width = this.enemy.width * 1.2; // Slightly larger for better visibility
         const height = this.enemy.height * 1.2;
         
-        // Update enemy engine glow
+        // Update enemy engine glow with better pulsing effect
         this.enemy.engineGlow = (this.enemy.engineGlow + 0.05) % (Math.PI * 2);
-        const glowIntensity = 5 + Math.sin(this.enemy.engineGlow) * 3;
+        const glowIntensity = 8 + Math.sin(this.enemy.engineGlow) * 4;
         
         ctx.save();
         
-        // Add engine glow effect
+        // Add engine glow effect with enhanced colors
         ctx.shadowBlur = glowIntensity;
-        ctx.shadowColor = '#FF0000';
+        ctx.shadowColor = '#FF6600';
         
         // Draw pre-rendered enemy ship
         ctx.drawImage(
@@ -683,13 +758,66 @@ class SplashAnimation {
             height
         );
         
+        // Add additional particle effects based on movement
+        // When enemy moves quickly, show particle trail
+        const dx = this.enemy.x - this.enemy.lastX;
+        if (Math.abs(dx) > 1) {
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#FF6600';
+            
+            // Multiple particles with different sizes
+            for (let i = 1; i <= 3; i++) {
+                const offset = i * 8;
+                const particleSize = 3 - (i * 0.8);
+                const particleX = dx > 0 ? x - offset : x + offset;
+                
+                ctx.beginPath();
+                ctx.arc(particleX, y, particleSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+        }
+        
         // Add additional glow effects based on shooting state
         if (this.enemy.shootTimer < 10) {
             const alpha = 0.7 - (this.enemy.shootTimer / 10);
-            ctx.fillStyle = `rgba(255, 50, 0, ${alpha})`;
+            
+            // Create a charging weapon effect
+            const chargeGradient = ctx.createRadialGradient(
+                x, y + height/3, 0,
+                x, y + height/3, width/3
+            );
+            chargeGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+            chargeGradient.addColorStop(0.3, `rgba(255, 120, 0, ${alpha * 0.8})`);
+            chargeGradient.addColorStop(1, `rgba(255, 0, 0, 0)`);
+            
+            ctx.fillStyle = chargeGradient;
             ctx.beginPath();
-            ctx.arc(x, y + height/3, width/4, 0, Math.PI * 2);
+            ctx.arc(x, y + height/3, width/3, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Add lightning-like energy effect
+            ctx.strokeStyle = `rgba(255, 255, 0, ${alpha})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let i = 0; i < 3; i++) {
+                const angle = (Math.PI / 4) + (i * Math.PI / 6);
+                const length = width/3 + Math.random() * width/6;
+                const startX = x;
+                const startY = y + height/3;
+                let currentX = startX;
+                let currentY = startY;
+                
+                ctx.moveTo(startX, startY);
+                for (let j = 0; j < 3; j++) {
+                    const newX = currentX + Math.cos(angle) * (length/3) + (Math.random() - 0.5) * 5;
+                    const newY = currentY + Math.sin(angle) * (length/3) + (Math.random() - 0.5) * 5;
+                    ctx.lineTo(newX, newY);
+                    currentX = newX;
+                    currentY = newY;
+                }
+            }
+            ctx.stroke();
         }
         
         ctx.restore();
