@@ -165,10 +165,18 @@ class SplashAnimation {
             // Moving right and went off screen, change to coming from left
             this.player.x = -50;
             this.player.lastX = -50;
+            
+            // Also reposition enemy to continue the chase pattern
+            this.enemy.x = -150;
+            this.enemy.lastX = -150;
         } else if (this.player.x < -50 && this.player.direction < 0) {
             // Moving left and went off screen, change to coming from right
             this.player.x = this.canvas.width + 50;
             this.player.lastX = this.canvas.width + 50;
+            
+            // Also reposition enemy to continue the chase pattern
+            this.enemy.x = this.canvas.width + 150;
+            this.enemy.lastX = this.canvas.width + 150;
         }
         
         // Randomly change direction sometimes (reduced probability for smoother experience)
@@ -177,31 +185,39 @@ class SplashAnimation {
         }
         
         // Update enemy position with smooth following and easing
-        const targetX = this.player.x - 120; // Target position relative to player
+        // Always follow behind the player based on player's direction
+        const followDistance = 120; // Distance to maintain behind player
+        let targetX;
+        
+        if (this.player.direction > 0) {
+            // Player moving right, enemy should follow from left
+            targetX = this.player.x - followDistance;
+        } else {
+            // Player moving left, enemy should follow from right
+            targetX = this.player.x + followDistance;
+        }
+        
         const dx = targetX - this.enemy.x;
         this.enemy.x += dx * 0.03 * timeMultiplier; // Easing factor
         
-        // Constrain enemy position
-        if (this.enemy.x > this.canvas.width + 100) {
-            this.enemy.x = -100;
-            this.enemy.lastX = -100;
-        } else if (this.enemy.x < -100) {
-            this.enemy.x = this.canvas.width + 100;
-            this.enemy.lastX = this.canvas.width + 100;
-        }
+        // Don't wrap enemy around edges independently
+        // (Removed the enemy edge constraints that were here before)
         
         // Add wobble motion to enemy with consistent speed
         this.enemy.wobble += 0.1 * timeMultiplier;
         this.enemy.y = (this.canvas.height * 0.3) + Math.sin(this.enemy.wobble) * 15;
         
-        // Update enemy shooting
+        // Update enemy shooting - only shoot when enemy is behind player
         this.enemy.shootTimer += timeMultiplier;
         if (this.enemy.shootTimer > this.enemy.shootCooldown) {
-            // Enemy shoots at the player's position, but always misses slightly
-            if (Math.abs(this.enemy.x - this.player.x) < 300 && this.enemy.x < this.player.x) {
+            // Check if enemy is in a position to shoot (based on relative direction)
+            const canShoot = (this.player.direction > 0 && this.enemy.x < this.player.x) || 
+                            (this.player.direction < 0 && this.enemy.x > this.player.x);
+                            
+            if (canShoot && Math.abs(this.enemy.x - this.player.x) < 300) {
                 // Aim ahead of player (but miss on purpose)
                 const targetPos = {
-                    x: this.player.x + (Math.random() * 30 - 15), // random offset to miss
+                    x: this.player.x + (this.player.direction * 20) + (Math.random() * 30 - 15), // random offset to miss
                     y: this.player.y + (Math.random() * 30 - 15)  // random offset to miss
                 };
                 
@@ -347,9 +363,13 @@ class SplashAnimation {
         ctx.save();
         ctx.translate(x, y);
         
-        // Rotate based on direction
-        if (direction < 0) {
-            ctx.rotate(Math.PI);
+        // Rotate 90 degrees to make the ship face horizontally, then adjust based on direction
+        if (direction > 0) {
+            // Moving right - face right (90 degrees rotation)
+            ctx.rotate(Math.PI / 2);
+        } else {
+            // Moving left - face left (270 degrees rotation)
+            ctx.rotate(-Math.PI / 2);
         }
         
         // Draw thruster flame (behind the ship) using cached pattern for better performance
