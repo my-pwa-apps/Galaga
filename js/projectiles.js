@@ -14,13 +14,17 @@ class Projectile {
         this.height = options.height || 15;
         this.radius = 8; // Increased from 5 to 8 for better hit detection
         this.type = options.type || 'player'; // 'player' or 'enemy'
-        this.powerupType = options.powerupType || 'normal'; // 'normal', 'rapid', etc.
+        this.powerupType = options.powerupType || 'normal'; // 'normal', 'rapid', 'hyperspeed' etc.
         this.damage = options.damage || 1; // Default damage is 1
         this.velocityX = options.velocityX || 0; // Support for horizontal movement
         this.isEnemy = this.type === 'enemy';
         this.active = true;
         // Track the source of player projectiles (for powerup attribution)
         this.sourceEnemyType = options.sourceEnemyType || null;
+        // For hyperspeed projectile visibility tracking
+        this.isHyperspeed = options.powerupType === 'hyperspeed';
+        this.hyperspeedVisible = this.isHyperspeed;
+        this.originalY = this.y; // Store the original Y position for hyperspeed visibility calculation
         return this;
     }
     
@@ -30,6 +34,14 @@ class Projectile {
         // Apply horizontal velocity if any
         if (this.velocityX) {
             this.x += this.velocityX;
+        }
+        
+        // For hyperspeed projectiles - check if we need to hide them
+        if (this.isHyperspeed && this.hyperspeedVisible) {
+            // Hide hyperspeed projectile once it reaches the top quarter of the screen
+            if (this.y <= this.game.height * 0.25) {
+                this.hyperspeedVisible = false;
+            }
         }
         
         // Check if out of screen
@@ -43,6 +55,9 @@ class Projectile {
     
     draw() {
         if (!this.active) return;
+        
+        // If it's a hyperspeed projectile that shouldn't be visible, don't draw it
+        if (this.isHyperspeed && !this.hyperspeedVisible) return;
         
         if (this.type === 'player') {
             if (this.powerupType === 'rapid') {
@@ -83,6 +98,30 @@ class Projectile {
                 }
                 
                 this.game.ctx.restore();
+            } else if (this.powerupType === 'hyperspeed') {
+                // Draw hyperspeed projectile with a streaking effect
+                this.game.ctx.save();
+                
+                // Create a gradient streak effect
+                const gradient = this.game.ctx.createLinearGradient(
+                    this.x, this.y, 
+                    this.x, this.y + 30
+                );
+                gradient.addColorStop(0, '#FFFFFF');
+                gradient.addColorStop(0.5, '#00FFFF');
+                gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                
+                // Draw the streak
+                this.game.ctx.fillStyle = gradient;
+                this.game.ctx.fillRect(this.x - 2, this.y, 4, 30);
+                
+                // Draw the bullet head
+                this.game.ctx.fillStyle = '#FFFFFF';
+                this.game.ctx.beginPath();
+                this.game.ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+                this.game.ctx.fill();
+                
+                this.game.ctx.restore();
             } else {
                 sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
             }
@@ -95,9 +134,9 @@ class Projectile {
     checkPowerupDrop(enemyType) {
         // Different enemy types have different chances to drop specific powerups
         const powerupMappings = {
-            'butterfly': { type: 'rapid', chance: 0.2 },
-            'boss': { type: 'shield', chance: 0.4 },
-            'bee': { type: 'extraLife', chance: 0.1 }
+            'butterfly': { type: 'rapid', chance: 0.15 }, // Reduced from 0.2 for more gradual difficulty
+            'boss': { type: 'shield', chance: 0.3 },      // Reduced from 0.4 for more gradual difficulty
+            'bee': { type: 'extraLife', chance: 0.08 }    // Reduced from 0.1 for more gradual difficulty
             // Add more enemy types and powerups as needed
         };
         
@@ -183,6 +222,22 @@ class ProjectilePool {
         });
     }
     
+    // New method for creating hyperspeed shots
+    createHyperspeedShot(x, y, options = {}) {
+        const baseOptions = {
+            ...options,
+            x,
+            y,
+            type: 'player',
+            powerupType: 'hyperspeed',
+            damage: options.damage || 5, // High damage
+            speed: options.speed || -25  // Very fast bullets
+        };
+        
+        // Create a single powerful hyperspeed shot
+        this.get({...baseOptions});
+    }
+    
     update() {
         // Update all active projectiles
         for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
@@ -213,16 +268,25 @@ class ProjectilePool {
     
     // Handle enemy collision with potential powerup generation
     handleEnemyCollision(projectile, enemy) {
-        // Check if this enemy type drops a powerup
+        // Only create powerups on the exact position of destroyed enemy ships
         const powerupType = projectile.checkPowerupDrop(enemy.type);
         
         if (powerupType) {
-            // Create a powerup at the enemy's position
+            // Create a powerup at the enemy's exact position
             this.game.createPowerup({
                 x: enemy.x,
                 y: enemy.y,
-                type: powerupType
+                type: powerupType,
+                fromEnemyDestruction: true // Flag to indicate this powerup came from destroying an enemy
             });
+        }
+    }
+    
+    // New method to remove all powerups when last enemy is destroyed
+    clearPowerupsOnLastEnemy() {
+        // This should be called from the game class when the last enemy is destroyed
+        if (this.game.clearPowerupsAfterLevel) {
+            this.game.clearAllPowerups();
         }
     }
 }
