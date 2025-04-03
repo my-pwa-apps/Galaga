@@ -32,16 +32,21 @@ class Player {
     update() {
         const controls = this.game.controls.keys;
         
-        // Movement
-        if (controls.left && this.x > this.radius) {
-            this.x -= this.speed;
-        }
-        if (controls.right && this.x < this.game.width - this.radius) {
-            this.x += this.speed;
+        // Skip shooting if we're in a level transition
+        const isTransitioning = this.game.levelManager.isTransitioning;
+        
+        // Movement - only allow during normal gameplay
+        if (!isTransitioning) {
+            if (controls.left && this.x > this.radius) {
+                this.x -= this.speed;
+            }
+            if (controls.right && this.x < this.game.width - this.radius) {
+                this.x += this.speed;
+            }
         }
         
-        // Shooting - add special handling for auto-shooting
-        if (controls.fire && this.shootCooldown <= 0) {
+        // Shooting - disable during transitions
+        if (!isTransitioning && controls.fire && this.shootCooldown <= 0) {
             // Check if auto-shooting is enabled
             const isAuto = this.game.controls && this.game.controls.autoShoot;
             

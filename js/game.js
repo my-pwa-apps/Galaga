@@ -27,6 +27,9 @@ class Game {
         this.levelManager = new LevelManager(this);
         this.explosions = []; // Keep for backwards compatibility
         
+        // Initialize starfield with 150 stars
+        this.starfield = new Starfield(this, 150);
+        
         // Initial game state
         this.gameState = 'start';
         
@@ -130,6 +133,9 @@ class Game {
     }
     
     update() {
+        // Update starfield first - always update regardless of game state
+        this.starfield.update();
+        
         // Update controls state for auto-shoot
         this.controls.update();
         
@@ -176,11 +182,20 @@ class Game {
             // Draw explosions
             this.drawExplosions();
         }
+        
+        // Draw level transition overlay if applicable
+        if (this.levelManager.isTransitioning) {
+            this.levelManager.renderTransition();
+        }
     }
     
     drawBackground() {
+        // Fill with black background
         this.ctx.fillStyle = 'black';
         this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Draw the starfield
+        this.starfield.draw();
     }
     
     updateProjectiles() {

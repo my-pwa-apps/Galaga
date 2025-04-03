@@ -5,7 +5,7 @@ class LevelManager {
         this.game = game;
         this.currentLevel = 1;
         this.enemiesPerLevel = 40;
-        this.levelCompletionDelay = 180; // 3 seconds at 60fps
+        this.levelCompletionDelay = 120; // 2 seconds at 60fps (reduced from 3s)
         this.completionTimer = 0;
         this.isTransitioning = false;
         
@@ -18,8 +18,13 @@ class LevelManager {
         
         // Level transition effects
         this.transitionOpacity = 0;
-        this.transitionPhase = 'none'; // 'none', 'fade-in', 'delay', 'fade-out'
+        this.transitionPhase = 'none'; // 'none', 'hyperspace', 'fade-in', 'delay', 'fade-out'
         this.nextLevelPrepared = false;
+        
+        // Hyperspace effect timing
+        this.hyperspaceTimer = 0;
+        this.hyperspaceDuration = 120; // 2 seconds at 60fps
+        this.playerYPosition = 0; // For tracking player movement during hyperspace
     }
     
     startLevel(level = null) {
@@ -32,9 +37,12 @@ class LevelManager {
         this.transitionPhase = 'none';
         this.nextLevelPrepared = false;
         
+        // Reset hyperspace effect
+        this.hyperspaceTimer = 0;
+        
         // Clear any remaining enemies and projectiles
         this.game.enemyManager.reset();
-        this.game.projectiles = [];
+        this.game.projectilePool.clear();
         
         // Create enemy formation with appropriate difficulty
         this.game.enemyManager.createFormation(this.currentLevel);
@@ -93,6 +101,9 @@ class LevelManager {
         // Check if level is completed (all enemies defeated)
         if (this.game.enemyManager.enemies.length === 0 && !this.completionTimer) {
             this.completionTimer = this.levelCompletionDelay;
+            
+            // Reset all time-based powerups when level is completed
+            this.game.player.resetPowerUps();
         }
         
         // Handle level completion timer
@@ -107,15 +118,48 @@ class LevelManager {
     
     startLevelTransition() {
         this.isTransitioning = true;
-        this.transitionPhase = 'fade-in';
+        this.transitionPhase = 'hyperspace';
         this.transitionOpacity = 0;
         this.completionTimer = 0;
         this.nextLevelPrepared = false;
+        this.hyperspaceTimer = 0;
+        
+        // Store the player's current position for hyperspace animation
+        this.playerYPosition = this.game.player.y;
+        
+        // Start hyperspace effect in starfield
+        this.game.starfield.startHyperspace();
+        
         console.log(`Starting transition from level ${this.currentLevel}`);
     }
     
     handleTransition() {
         switch (this.transitionPhase) {
+            case 'hyperspace':
+                // Hyperspace animation phase
+                this.hyperspaceTimer++;
+                
+                // Move player gradually to top of screen during hyperspace
+                if (this.game.player && this.game.player.active) {
+                    // Move player towards the top of the screen
+                    this.game.player.y -= 3;
+                    
+                    // Apply subtle side-to-side motion for a more dynamic effect
+                    const wobbleAmount = Math.sin(this.hyperspaceTimer * 0.2) * 5;
+                    this.game.player.x += wobbleAmount * 0.1;
+                    
+                    // Keep player within screen bounds
+                    this.game.player.x = Math.max(this.game.player.radius, 
+                                        Math.min(this.game.width - this.game.player.radius, 
+                                        this.game.player.x));
+                }
+                
+                // When hyperspace completes, move to fade in phase
+                if (this.hyperspaceTimer >= this.hyperspaceDuration) {
+                    this.transitionPhase = 'fade-in';
+                }
+                break;
+                
             case 'fade-in':
                 // Fade in black overlay
                 this.transitionOpacity += 0.05;
@@ -127,6 +171,13 @@ class LevelManager {
                     if (!this.nextLevelPrepared) {
                         this.currentLevel += 1;
                         this.nextLevelPrepared = true;
+                        
+                        // Reset player position to bottom of screen
+                        if (this.game.player) {
+                            this.game.player.y = this.game.height - 50;
+                            this.game.player.x = this.game.width / 2;
+                        }
+                        
                         console.log(`Prepared next level: ${this.currentLevel}`);
                         
                         // Set a timeout to move to fade-out phase
@@ -145,6 +196,9 @@ class LevelManager {
                 // Fade out black overlay
                 this.transitionOpacity -= 0.05;
                 if (this.transitionOpacity <= 0) {
+                    // Stop hyperspace effect in starfield
+                    this.game.starfield.stopHyperspace();
+                    
                     // Finish transition and start the new level
                     this.isTransitioning = false;
                     this.transitionPhase = 'none';
@@ -158,17 +212,20 @@ class LevelManager {
     }
     
     renderTransition() {
-        // Draw a semi-transparent overlay
-        const ctx = this.game.ctx;
-        ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionOpacity})`;
-        ctx.fillRect(0, 0, this.game.width, this.game.height);
-        
-        // Show level text when mostly faded in
-        if (this.transitionOpacity > 0.7 && (this.transitionPhase === 'delay' || this.transitionPhase === 'fade-out')) {
-            ctx.fillStyle = 'white';
-            ctx.font = '36px "Press Start 2P", monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(`LEVEL ${this.currentLevel}`, this.game.width / 2, this.game.height / 2);
+        // Draw transition overlay (only for fade phases)
+        if (this.transitionPhase === 'fade-in' || this.transitionPhase === 'delay' || this.transitionPhase === 'fade-out') {
+            // Draw a semi-transparent overlay
+            const ctx = this.game.ctx;
+            ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionOpacity})`;
+            ctx.fillRect(0, 0, this.game.width, this.game.height);
+            
+            // Show level text when mostly faded in
+            if (this.transitionOpacity > 0.7 && (this.transitionPhase === 'delay' || this.transitionPhase === 'fade-out')) {
+                ctx.fillStyle = 'white';
+                ctx.font = '36px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`LEVEL ${this.currentLevel}`, this.game.width / 2, this.game.height / 2);
+            }
         }
     }
     
@@ -178,5 +235,11 @@ class LevelManager {
         this.isTransitioning = false;
         this.transitionPhase = 'none';
         this.nextLevelPrepared = false;
+        this.hyperspaceTimer = 0;
+        
+        // Reset starfield hyperspace effect
+        if (this.game.starfield) {
+            this.game.starfield.stopHyperspace();
+        }
     }
 }
