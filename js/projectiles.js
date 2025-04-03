@@ -10,9 +10,9 @@ class Projectile {
         this.x = options.x || 0;
         this.y = options.y || 0;
         this.speed = options.speed || -8; // Negative for upward movement
-        this.width = options.width || 5;
+        this.width = options.width || 8;  // Increased from 5 to 8
         this.height = options.height || 15;
-        this.radius = 5;
+        this.radius = 8; // Increased from 5 to 8 for better hit detection
         this.type = options.type || 'player'; // 'player' or 'enemy'
         this.isEnemy = this.type === 'enemy';
         this.active = true;

@@ -354,21 +354,27 @@ class PowerUp {
     detonateScreenBomb() {
         // Create explosion at each enemy position
         for (let enemy of this.game.enemyManager.enemies) {
-            this.game.createExplosion(enemy.x, enemy.y, enemy.radius * 1.5, 30);
+            // Use explosionPool instead of the non-existent createExplosion method
+            this.game.explosionPool.get(enemy.x, enemy.y);
         }
         
         // Add score for each enemy
         if (this.game.enemyManager.enemies.length > 0) {
             const totalScore = this.game.enemyManager.enemies.reduce((sum, enemy) => sum + enemy.points, 0);
-            this.game.score += totalScore;
+            this.game.score += Math.round(totalScore); // Use Math.round to ensure whole numbers
             document.getElementById('score').textContent = this.game.score;
         }
         
         // Clear all enemies
         this.game.enemyManager.enemies = [];
         
-        // Big explosion in center of screen
-        this.game.createExplosion(this.game.width / 2, this.game.height / 2, 200, 90);
+        // Big explosion in center of screen - use explosionPool properly
+        this.game.explosionPool.get(this.game.width / 2, this.game.height / 2, 2.0); // Scale parameter for big explosion
+        
+        // Play explosion sound
+        if (window.audioManager) {
+            window.audioManager.play('explosion', 0.7);
+        }
     }
 }
 

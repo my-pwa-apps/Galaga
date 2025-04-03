@@ -218,6 +218,14 @@ class Game {
         this.explosionPool.draw();
     }
     
+    // Add circular collision detection for more accurate hit detection
+    checkCircleCollision(x1, y1, r1, x2, y2, r2) {
+        const dx = x1 - x2;
+        const dy = y1 - y2;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < (r1 + r2);
+    }
+    
     checkCollisions() {
         // 1. Check player projectiles against enemies
         const activeProjectiles = this.projectilePool.activeProjectiles;
@@ -232,10 +240,10 @@ class Game {
             for (let j = this.enemyManager.enemies.length - 1; j >= 0; j--) {
                 const enemy = this.enemyManager.enemies[j];
                 
-                // Simple rectangular collision detection
-                if (this.checkRectCollision(
-                    projectile.x, projectile.y, projectile.width, projectile.height,
-                    enemy.x, enemy.y, enemy.width, enemy.height
+                // Use circle collision for more accurate hit detection
+                if (this.checkCircleCollision(
+                    projectile.x, projectile.y, projectile.radius,
+                    enemy.x, enemy.y, enemy.radius
                 )) {
                     // Enemy hit by player projectile
                     enemy.hit();
@@ -271,20 +279,53 @@ class Game {
                     break;
                 }
             }
+            
+            // 1b. NEW: Check player projectiles against enemy projectiles
+            if (projectile.active) {
+                for (let j = activeProjectiles.length - 1; j >= 0; j--) {
+                    const enemyProjectile = activeProjectiles[j];
+                    
+                    // Only check active enemy projectiles (not our own)
+                    if (!enemyProjectile.isEnemy || !enemyProjectile.active || i === j) continue;
+                    
+                    // Use circle collision for accurate hit detection
+                    if (this.checkCircleCollision(
+                        projectile.x, projectile.y, projectile.radius,
+                        enemyProjectile.x, enemyProjectile.y, enemyProjectile.radius
+                    )) {
+                        // Create small explosion
+                        this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
+                        
+                        // Add a small score bonus
+                        this.score += 10;
+                        this.updateUI();
+                        
+                        // Play hit sound
+                        if (window.audioManager) {
+                            window.audioManager.play('bulletHit', 0.2);
+                        }
+                        
+                        // Deactivate both projectiles
+                        enemyProjectile.active = false;
+                        projectile.active = false;
+                        break;
+                    }
+                }
+            }
         }
 
         // 2. Check enemy projectiles against player
         if (this.player.active) {  // Only if player is active
-            for (let i = this.projectilePool.activeProjectiles.length - 1; i >= 0; i--) {
-                const projectile = this.projectilePool.activeProjectiles[i];
+            for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+                const projectile = activeProjectiles[i];
                 
                 // Skip player projectiles or inactive projectiles
                 if (!projectile.isEnemy || !projectile.active) continue;
                 
                 // Check against player - explicitly check invulnerable here
-                if (!this.player.invulnerable && this.checkRectCollision(
-                    projectile.x, projectile.y, projectile.width, projectile.height,
-                    this.player.x, this.player.y, this.player.width, this.player.height
+                if (!this.player.invulnerable && this.checkCircleCollision(
+                    projectile.x, projectile.y, projectile.radius,
+                    this.player.x, this.player.y, this.player.radius * 0.8 // Make player hitbox slightly smaller than visual
                 )) {
                     console.log("Enemy projectile hit player!");
                     
@@ -310,9 +351,10 @@ class Game {
             for (let i = this.enemyManager.enemies.length - 1; i >= 0; i--) {
                 const enemy = this.enemyManager.enemies[i];
                 
-                if (this.checkRectCollision(
-                    enemy.x, enemy.y, enemy.width, enemy.height,
-                    this.player.x, this.player.y, this.player.width, this.player.height
+                // Use more accurate circle collision
+                if (this.checkCircleCollision(
+                    enemy.x, enemy.y, enemy.radius,
+                    this.player.x, this.player.y, this.player.radius
                 )) {
                     console.log("Enemy ship collided with player!");
                     
