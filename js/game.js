@@ -470,6 +470,11 @@ class Game {
         // Reset game state
         this.gameState = 'playing';
         this.score = 0;
+        
+        // Reset player with exactly 3 lives
+        this.player.reset();
+        this.player.lives = 3; // Explicitly set to 3 lives when starting
+        
         this.updateUI();
         
         // Clear projectiles and explosions

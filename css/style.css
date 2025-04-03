@@ -512,3 +512,25 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
     animation: notification-flash 0.5s infinite alternate;
 }
+
+/* Desktop-specific styles - Hide mobile controls on desktop */
+@media (min-width: 768px) {
+    #game-canvas {
+        max-height: 100%;
+    }
+    
+    /* Hide mobile controls on desktop devices regardless of touch capability */
+    #mobile-controls {
+        display: none !important;
+    }
+}
+
+/* Only show mobile controls on actual touch devices */
+.hidden-on-desktop {
+    display: none;
+}
+
+/* Only show mobile controls on touch devices */
+body.touch-device #mobile-controls.hidden-on-desktop {
+    display: flex;
+}
