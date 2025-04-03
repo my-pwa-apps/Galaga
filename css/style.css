@@ -140,9 +140,9 @@ button:hover {
     justify-content: center;
 }
 
-#move-left::after { content: '←'; }
-#move-right::after { content: '→'; }
-#shoot::after { content: '↑'; }
+#move-left::after { content: '←'; font-size: 24px; }
+#move-right::after { content: '→'; font-size: 24px; }
+#shoot::after { content: '↑'; font-size: 24px; }
 
 /* Better auto-shoot toggle */
 .auto-shoot-toggle {
@@ -720,4 +720,44 @@ body.touch-device #mobile-controls.hidden-on-desktop {
     position: relative;
     z-index: 2;
     text-shadow: 0 0 10px #F00, 0 0 20px #F00, 0 0 30px #F00, 0 0 5px #000, 0 0 10px #000;
+}
+
+/* Mobile controls optimization */
+@media (max-width: 768px) {
+    .controls-wrapper {
+        bottom: 10px;
+        width: 280px; /* Reduced from original width */
+        margin-bottom: 10px;
+    }
+    
+    #mobile-controls button {
+        width: 60px; /* Smaller buttons */
+        height: 60px; /* Smaller buttons */
+        margin: 0 5px; /* Reduced margins */
+    }
+    
+    /* Keep arrow sizes large despite smaller buttons */
+    #move-left::after, 
+    #move-right::after, 
+    #shoot::after {
+        font-size: 28px; /* Even larger arrows on mobile */
+    }
+    
+    /* Auto-shoot toggle position adjustment */
+    .auto-shoot-toggle {
+        top: -35px !important; /* Adjust based on smaller controls */
+    }
+}
+
+/* Additional responsive adjustments for very small screens */
+@media (max-width: 375px) {
+    .controls-wrapper {
+        width: 240px; /* Even smaller on very small screens */
+    }
+    
+    #mobile-controls button {
+        width: 50px; /* Smaller buttons */
+        height: 50px; /* Smaller buttons */
+        margin: 0 3px; /* Reduced margins */
+    }
 }
