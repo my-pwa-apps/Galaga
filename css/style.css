@@ -692,10 +692,23 @@ body.touch-device #mobile-controls.hidden-on-desktop {
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: 200px; /* Fixed height to match canvas */
     z-index: 1;
     pointer-events: none; /* Allow clicks to pass through to elements below */
     overflow: hidden;
+}
+
+/* Make sure content appears properly below the animation */
+#start-screen {
+    padding-top: 200px; /* Space for animation */
+}
+
+/* Make sure the title appears above the animation */
+#start-screen h1 {
+    position: relative;
+    z-index: 2;
+    margin-top: -80px; /* Adjust title position over the animation */
+    text-shadow: 0 0 10px #F00, 0 0 20px #F00, 0 0 30px #F00, 0 0 5px #000, 0 0 10px #000;
 }
 
 /* Make sure the title appears above the animation */
