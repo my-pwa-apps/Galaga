@@ -257,10 +257,14 @@ class PowerUp {
         ctx.fill();
     }
     
+    // Apply powerup with proper reset handling
     apply(player) {
         if (window.audioManager) {
             window.audioManager.play('powerUp', 0.7);
         }
+        
+        // Clear existing powerups first to prevent stacking/persistence issues
+        player.resetPowerUps(true);
         
         let duration = 0;
         
@@ -270,7 +274,6 @@ class PowerUp {
                 player.maxShootCooldown = 5;
                 
                 // The rapid fire status is now checked in the player update method
-                // No need to modify autoShootInterval directly
                 duration = 600; // 10 seconds at 60fps
                 player.activePower = 'RAPID FIRE';
                 break;

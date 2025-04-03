@@ -119,7 +119,7 @@ button:hover {
     outline: none;
 }
 
-/* Simplified button indicators */
+/* Simplified button indicators with larger arrows but smaller touch areas */
 #move-left::after,
 #move-right::after,
 #shoot::after {
@@ -128,12 +128,12 @@ button:hover {
     bottom: 40%;
     left: 50%;
     transform: translateX(-50%);
-    width: 50px;
-    height: 50px;
+    width: 40px; /* Smaller area than before */
+    height: 40px; /* Smaller area than before */
     border-radius: 50%;
     background-color: rgba(0, 0, 0, 0.3);
     border: 2px solid rgba(255, 255, 255, 0.4);
-    font-size: 24px;
+    font-size: 32px; /* Larger arrow size */
     color: white;
     display: flex;
     align-items: center;
@@ -305,6 +305,10 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     font-size: 20px;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0; /* Remove padding that might offset the icon */
 }
 
 .audio-controls button:hover {
