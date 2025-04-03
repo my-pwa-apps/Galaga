@@ -91,9 +91,12 @@ class HighScoreManager {
         nameHeader.textContent = 'Name';
         const scoreHeader = document.createElement('th');
         scoreHeader.textContent = 'Score';
+        const levelHeader = document.createElement('th');
+        levelHeader.textContent = 'Level';
         headerRow.appendChild(rankHeader);
         headerRow.appendChild(nameHeader);
         headerRow.appendChild(scoreHeader);
+        headerRow.appendChild(levelHeader);
         table.appendChild(headerRow);
         
         // Convert to array for sorting
@@ -126,9 +129,13 @@ class HighScoreManager {
             const scoreCell = document.createElement('td');
             scoreCell.textContent = score.score;
             
+            const levelCell = document.createElement('td');
+            levelCell.textContent = score.level || '1';
+            
             row.appendChild(rankCell);
             row.appendChild(nameCell);
             row.appendChild(scoreCell);
+            row.appendChild(levelCell);
             table.appendChild(row);
         });
         
@@ -198,6 +205,7 @@ class HighScoreManager {
         const newScore = {
             name: playerName,
             score: this.currentGameScore,
+            level: this.currentGameLevel || 1, // Default to level 1 if not provided
             timestamp: Date.now()
         };
         

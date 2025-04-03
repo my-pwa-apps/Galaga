@@ -761,3 +761,36 @@ body.touch-device #mobile-controls.hidden-on-desktop {
         margin: 0 3px; /* Reduced margins */
     }
 }
+
+/* High scores table styling */
+.highscores-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: white;
+    font-size: 0.8rem;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.highscores-table th {
+    color: #0ff;
+    padding: 5px;
+    text-align: center;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.highscores-table td {
+    padding: 5px;
+}
+
+.highscores-table tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Highlight new high scores */
+.new-highscore {
+    background-color: rgba(0, 255, 255, 0.15) !important;
+    color: #fff;
+    text-shadow: 0 0 5px #0ff;
+    animation: highlight-row 1.5s infinite;
+}

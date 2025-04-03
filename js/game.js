@@ -472,6 +472,10 @@ class Game {
         document.getElementById('game-over-screen').classList.remove('hidden');
         document.getElementById('final-score').textContent = this.score;
         
+        // Add level information to game over screen
+        const currentLevel = this.levelManager.currentLevel || 1;
+        document.getElementById('final-level').textContent = currentLevel;
+        
         // Play game over sound
         if (window.audioManager) {
             window.audioManager.play('gameOver', 0.7);
@@ -482,6 +486,9 @@ class Game {
             window.highScoreManager.checkHighScore(this.score)
                 .then(isHighScore => {
                     window.highScoreManager.showHighScoreForm(isHighScore);
+                    
+                    // Store current level to use when submitting the score
+                    this.finalLevel = currentLevel;
                 })
                 .catch(error => {
                     console.error("Error checking high score:", error);
@@ -556,6 +563,28 @@ class Game {
     clearNonPersistentPowerups() {
         if (this.projectilePool) {
             this.projectilePool.clearNonPersistentPowerups();
+        }
+    }
+    
+    // Update the submitScore method to include level information
+    submitScore() {
+        const playerNameInput = document.getElementById('player-name');
+        const playerName = playerNameInput ? playerNameInput.value.trim() : 'AAA';
+        
+        // If name is empty, use default
+        const name = playerName || 'AAA';
+        
+        if (window.highScoreManager) {
+            // Include the level reached when submitting the score
+            window.highScoreManager.submitHighScore(name, this.score, this.finalLevel || 1)
+                .then(() => {
+                    console.log('High score submitted successfully');
+                    // Update the high scores display
+                    window.highScoreManager.renderHighScores('gameover-highscores-list');
+                })
+                .catch(error => {
+                    console.error('Error submitting high score:', error);
+                });
         }
     }
 }
