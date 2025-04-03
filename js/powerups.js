@@ -30,7 +30,7 @@ class PowerUp {
     }
 
     getRandomType() {
-        const types = ['rapid-fire', 'shield', 'extra-life', 'double-shot', 'speed-boost', 'multi-shot', 'bomb'];
+        const types = ['rapid-fire', 'shield', 'extra-life', 'double-shot', 'speed-boost', 'bomb'];
         return types[Math.floor(Math.random() * types.length)];
     }
 
@@ -292,20 +292,20 @@ class PowerUp {
                 duration = 600; // 10 seconds at 60fps
                 player.activePower = 'SPEED BOOST';
                 break;
-            case 'multi-shot':
-                player.multiShot = true;
-                duration = 450; // 7.5 seconds at 60fps
-                player.activePower = 'MULTI SHOT';
-                break;
             case 'bomb':
                 // Clear all enemies on screen
                 this.detonateScreenBomb();
                 player.activePower = 'SCREEN BOMB';
-                // Bomb is instant, no timer needed
+                
+                // Clear powerup display after a brief moment
+                setTimeout(() => {
+                    player.activePower = '';
+                    document.getElementById('active-power').textContent = '';
+                }, 2000);
                 break;
         }
         
-        // Set the power-up timer and initial duration
+        // Set the power-up timer and initial duration only for timed power-ups
         if (duration > 0) {
             player.powerUpTimer = duration;
             player.initialPowerUpTimer = duration; // Store initial duration for calculating percentage
