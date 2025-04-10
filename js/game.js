@@ -119,20 +119,21 @@ class Game {
     }
     
     animate(timestamp) {
-        // Request the next frame
-        requestAnimationFrame((time) => this.animate(time));
+        // Request the next frame first to ensure smooth animation loop
+        const nextFrameId = requestAnimationFrame((time) => this.animate(time));
         
         // Calculate elapsed time since last frame
         const deltaTime = timestamp - this.lastTime;
         
-        // Control frame rate to improve performance
+        // Throttle the frame rate to target FPS to improve performance
         if (deltaTime < this.frameInterval) return;
         
-        // Adjust last time for consistent frame rate
+        // Store timestamp for next delta calculation
         this.lastTime = timestamp - (deltaTime % this.frameInterval);
         
-        // Clear the canvas
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        // Clear the canvas using fillRect for better performance than clearRect
+        this.ctx.fillStyle = '#000000';
+        this.ctx.fillRect(0, 0, this.width, this.height);
         
         // Update game state based on current game state
         if (this.gameState === 'playing') {
@@ -260,206 +261,216 @@ class Game {
     
     // Add circular collision detection for more accurate hit detection
     checkCircleCollision(x1, y1, r1, x2, y2, r2) {
+        // Calculate squared distance to avoid expensive square root operation
         const dx = x1 - x2;
         const dy = y1 - y2;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        return distance < (r1 + r2);
+        const distanceSquared = dx * dx + dy * dy;
+        const radiusSum = r1 + r2;
+        
+        // Compare squared values to avoid sqrt for better performance
+        return distanceSquared < (radiusSum * radiusSum);
     }
     
     checkCollisions() {
-        // 1. Check player projectiles against enemies
-        const activeProjectiles = this.projectilePool.activeProjectiles;
+        // Use spatial partitioning for projectiles to improve collision detection performance
+        // Group projectiles into regions (simple grid-based approach)
+        const gridSize = 100; // Size of each grid cell
+        const grid = {}; // Object to hold projectiles by grid cell
         
-        for (let i = activeProjectiles.length - 1; i >= 0; i--) {
-            const projectile = activeProjectiles[i];
+        // Place projectiles into grid cells
+        this.projectilePool.activeProjectiles.forEach(projectile => {
+            if (!projectile.active) return;
             
-            // Skip enemy projectiles
-            if (projectile.isEnemy) continue;
+            // Calculate grid cell coordinates
+            const cellX = Math.floor(projectile.x / gridSize);
+            const cellY = Math.floor(projectile.y / gridSize);
+            const cellKey = `${cellX},${cellY}`;
             
-            // Check against all enemies
-            for (let j = this.enemyManager.enemies.length - 1; j >= 0; j--) {
-                const enemy = this.enemyManager.enemies[j];
-                
-                // Use circle collision for more accurate hit detection
-                if (this.checkCircleCollision(
-                    projectile.x, projectile.y, projectile.radius,
-                    enemy.x, enemy.y, enemy.radius
-                )) {
-                    // Enemy hit by player projectile
-                    enemy.hit();
+            // Initialize cell if needed
+            if (!grid[cellKey]) {
+                grid[cellKey] = [];
+            }
+            
+            // Add projectile to cell
+            grid[cellKey].push(projectile);
+        });
+        
+        // Process enemy collisions
+        this.enemyManager.enemies.forEach((enemy, enemyIndex) => {
+            // Calculate which grid cells this enemy could overlap with
+            const cellX = Math.floor(enemy.x / gridSize);
+            const cellY = Math.floor(enemy.y / gridSize);
+            
+            // Check surrounding cells (3x3 grid around enemy)
+            for (let x = cellX - 1; x <= cellX + 1; x++) {
+                for (let y = cellY - 1; y <= cellY + 1; y++) {
+                    const cellKey = `${x},${y}`;
+                    const projectilesInCell = grid[cellKey] || [];
                     
-                    // When enemy is destroyed
-                    if (enemy.health <= 0) {
-                        // Add score - using Math.round() to ensure whole numbers
-                        const points = Math.round(enemy.points);
-                        this.score += points;
-                        this.updateUI();
+                    // Check collisions with projectiles in this cell
+                    projectilesInCell.forEach(projectile => {
+                        if (!projectile.active || projectile.isEnemy) return;
                         
-                        // Show points popup
-                        this.createPointsPopup(enemy.x, enemy.y, points);
+                        // Use circle collision for more accurate hit detection
+                        if (this.checkCircleCollision(
+                            projectile.x, projectile.y, projectile.radius,
+                            enemy.x, enemy.y, enemy.radius
+                        )) {
+                            // Enemy hit by player projectile
+                            enemy.hit();
+                            
+                            // When enemy is destroyed
+                            if (enemy.health <= 0) {
+                                // Add score
+                                const points = Math.round(enemy.points);
+                                this.score += points;
+                                this.updateUI();
+                                
+                                // Show points popup
+                                this.createPointsPopup(enemy.x, enemy.y, points);
+                                
+                                // Create explosion using pool
+                                this.explosionPool.get(enemy.x, enemy.y);
+                                
+                                // Play explosion sound
+                                if (window.audioManager) {
+                                    window.audioManager.play('explosion', 0.3);
+                                }
+                                
+                                // Chance to drop power-up
+                                this.powerUpManager.trySpawnPowerUp(enemy.x, enemy.y);
+                                
+                                // Mark enemy for removal
+                                enemy.active = false;
+                            } else {
+                                // Play hit sound
+                                if (window.audioManager) {
+                                    window.audioManager.play('bulletHit', 0.2);
+                                }
+                            }
+                            
+                            // Deactivate the projectile
+                            projectile.active = false;
+                        }
+                    });
+                }
+            }
+        });
+        
+        // Remove destroyed enemies
+        this.enemyManager.enemies = this.enemyManager.enemies.filter(enemy => enemy.active !== false);
+        
+        // Check player-related collisions only if player is active
+        if (this.player.active) {
+            const playerCellX = Math.floor(this.player.x / gridSize);
+            const playerCellY = Math.floor(this.player.y / gridSize);
+            
+            // Check enemy projectiles against player
+            if (!this.player.invulnerable) {
+                for (let x = playerCellX - 1; x <= playerCellX + 1; x++) {
+                    for (let y = playerCellY - 1; y <= playerCellY + 1; y++) {
+                        const cellKey = `${x},${y}`;
+                        const projectilesInCell = grid[cellKey] || [];
                         
-                        // Create explosion using pool
+                        for (const projectile of projectilesInCell) {
+                            if (!projectile.active || !projectile.isEnemy) continue;
+                            
+                            // Check against player - explicitly check invulnerable here
+                            if (this.checkCircleCollision(
+                                projectile.x, projectile.y, projectile.radius,
+                                this.player.x, this.player.y, this.player.radius * 0.8 // Make player hitbox slightly smaller than visual
+                            )) {
+                                console.log("Enemy projectile hit player!");
+                                
+                                // Player hit by enemy projectile
+                                this.player.hit();
+                                
+                                // Create explosion using pool
+                                this.explosionPool.get(this.player.x, this.player.y);
+                                
+                                // Play explosion sound
+                                if (window.audioManager) {
+                                    window.audioManager.play('explosion', 0.5);
+                                }
+                                
+                                // Deactivate the projectile
+                                projectile.active = false;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Check enemy ships against player - explicit check for invulnerability
+            if (!this.player.invulnerable) {
+                for (const enemy of this.enemyManager.enemies) {
+                    // Use more accurate circle collision
+                    if (this.checkCircleCollision(
+                        enemy.x, enemy.y, enemy.radius,
+                        this.player.x, this.player.y, this.player.radius
+                    )) {
+                        console.log("Enemy ship collided with player!");
+                        
+                        // Player hit by enemy ship
+                        this.player.hit();
+                        
+                        // Create explosions for both player and enemy
+                        this.explosionPool.get(this.player.x, this.player.y);
                         this.explosionPool.get(enemy.x, enemy.y);
                         
                         // Play explosion sound
                         if (window.audioManager) {
-                            window.audioManager.play('explosion', 0.3);
+                            window.audioManager.play('explosion', 0.7);
                         }
                         
-                        // Chance to drop power-up
-                        this.powerUpManager.trySpawnPowerUp(enemy.x, enemy.y);
+                        // Destroy the enemy that collided with the player
+                        this.score += Math.round(enemy.points);
+                        this.updateUI();
+                        enemy.active = false;
                         
-                        // Remove the enemy
-                        this.enemyManager.enemies.splice(j, 1);
-                    } else {
-                        // Play hit sound
-                        if (window.audioManager) {
-                            window.audioManager.play('bulletHit', 0.2);
-                        }
+                        break; // Exit the loop after the first collision
                     }
-                    
-                    // Deactivate the projectile
-                    projectile.active = false;
-                    break;
                 }
+                
+                // Remove destroyed enemies again
+                this.enemyManager.enemies = this.enemyManager.enemies.filter(enemy => enemy.active !== false);
             }
             
-            // 1b. NEW: Check player projectiles against enemy projectiles
-            if (projectile.active) {
-                for (let j = activeProjectiles.length - 1; j >= 0; j--) {
-                    const enemyProjectile = activeProjectiles[j];
-                    
-                    // Only check active enemy projectiles (not our own)
-                    if (!enemyProjectile.isEnemy || !enemyProjectile.active || i === j) continue;
-                    
-                    // Use circle collision for accurate hit detection
-                    if (this.checkCircleCollision(
-                        projectile.x, projectile.y, projectile.radius,
-                        enemyProjectile.x, enemyProjectile.y, enemyProjectile.radius
-                    )) {
-                        // Create small explosion
-                        this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
-                        
-                        // Add a small score bonus
-                        const bulletPoints = 25 * (projectile.damage || 1);
-                        this.score += bulletPoints;
-                        this.updateUI();
-                        
-                        // Show points popup for destroyed enemy bullet
-                        this.createPointsPopup(enemyProjectile.x, enemyProjectile.y, bulletPoints);
-                        
-                        // Play hit sound
-                        if (window.audioManager) {
-                            window.audioManager.play('bulletHit', 0.2);
-                        }
-                        
-                        // Deactivate both projectiles
-                        enemyProjectile.active = false;
-                        projectile.active = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 2. Check enemy projectiles against player
-        if (this.player.active) {  // Only if player is active
-            for (let i = activeProjectiles.length - 1; i >= 0; i--) {
-                const projectile = activeProjectiles[i];
+            // Check power-ups against player
+            for (let i = this.powerUpManager.powerUps.length - 1; i >= 0; i--) {
+                const powerUp = this.powerUpManager.powerUps[i];
                 
-                // Skip player projectiles or inactive projectiles
-                if (!projectile.isEnemy || !projectile.active) continue;
-                
-                // Check against player - explicitly check invulnerable here
-                if (!this.player.invulnerable && this.checkCircleCollision(
-                    projectile.x, projectile.y, projectile.radius,
-                    this.player.x, this.player.y, this.player.radius * 0.8 // Make player hitbox slightly smaller than visual
-                )) {
-                    console.log("Enemy projectile hit player!");
-                    
-                    // Player hit by enemy projectile
-                    this.player.hit();
-                    
-                    // Create explosion using pool
-                    this.explosionPool.get(this.player.x, this.player.y);
-                    
-                    // Play explosion sound
-                    if (window.audioManager) {
-                        window.audioManager.play('explosion', 0.5);
-                    }
-                    
-                    // Deactivate the projectile
-                    projectile.active = false;
-                }
-            }
-        }
-        
-        // 3. Check enemy ships against player - explicit check for invulnerability
-        if (this.player.active && !this.player.invulnerable) {
-            for (let i = this.enemyManager.enemies.length - 1; i >= 0; i--) {
-                const enemy = this.enemyManager.enemies[i];
-                
-                // Use more accurate circle collision
                 if (this.checkCircleCollision(
-                    enemy.x, enemy.y, enemy.radius,
+                    powerUp.x, powerUp.y, powerUp.radius,
                     this.player.x, this.player.y, this.player.radius
                 )) {
-                    console.log("Enemy ship collided with player!");
+                    // Apply power-up
+                    this.player.applyPowerUp(powerUp.type);
                     
-                    // Player hit by enemy ship
-                    this.player.hit();
+                    // Award points for collecting powerup
+                    const powerupPoints = powerUp.getPointsValue ? powerUp.getPointsValue() : 50;
+                    this.score += powerupPoints;
+                    this.updateUI();
                     
-                    // Create explosions for both player and enemy
-                    this.explosionPool.get(this.player.x, this.player.y);
-                    this.explosionPool.get(enemy.x, enemy.y);
+                    // Show points popup
+                    this.createPointsPopup(powerUp.x, powerUp.y, powerupPoints);
                     
-                    // Play explosion sound
+                    // Show notification
+                    this.showPowerUpNotification(powerUp.type);
+                    
+                    // Play power-up sound
                     if (window.audioManager) {
-                        window.audioManager.play('explosion', 0.7);
+                        window.audioManager.play('powerUp', 0.4);
                     }
                     
-                    // Destroy the enemy that collided with the player
-                    // Using Math.round() to ensure whole numbers
-                    this.score += Math.round(enemy.points);
-                    this.updateUI();
-                    this.enemyManager.enemies.splice(i, 1);
-                    
-                    break; // Exit the loop after the first collision
+                    // Remove the power-up
+                    this.powerUpManager.powerUps.splice(i, 1);
                 }
             }
         }
         
-        // 4. Check power-ups against player
-        for (let i = this.powerUpManager.powerUps.length - 1; i >= 0; i--) {
-            const powerUp = this.powerUpManager.powerUps[i];
-            
-            if (this.checkRectCollision(
-                powerUp.x, powerUp.y, powerUp.width, powerUp.height,
-                this.player.x, this.player.y, this.player.width, this.player.height
-            )) {
-                // Apply power-up
-                this.player.applyPowerUp(powerUp.type);
-                
-                // Award points for collecting powerup
-                const powerupPoints = powerUp.getPointsValue();
-                this.score += powerupPoints;
-                this.updateUI();
-                
-                // Show points popup
-                this.createPointsPopup(powerUp.x, powerUp.y, powerupPoints);
-                
-                // Show notification
-                this.showPowerUpNotification(powerUp.type);
-                
-                // Play power-up sound
-                if (window.audioManager) {
-                    window.audioManager.play('powerUp', 0.4);
-                }
-                
-                // Remove the power-up
-                this.powerUpManager.powerUps.splice(i, 1);
-            }
-        }
+        // Finally, clean up inactive projectiles from the pool
+        this.projectilePool.removeInactiveProjectiles();
     }
     
     // Helper method for rectangle collision detection
@@ -521,7 +532,21 @@ class Game {
         // Play game over sound
         if (window.audioManager) {
             window.audioManager.play('gameOver', 0.7);
+            // Fade out background music if it's playing
+            window.audioManager.stopBackgroundMusic(true); // true = fade out
         }
+        
+        // Clean up any active power-ups
+        if (this.player) {
+            this.player.resetPowerUps(true);
+        }
+        
+        // Clean up any active projectiles and explosions
+        this.projectilePool.clear();
+        this.explosionPool.clear();
+        
+        // Clear points popups
+        this.pointsPopups = [];
         
         // Check if this is a high score and show the appropriate form
         if (window.highScoreManager) {
@@ -733,9 +758,62 @@ class Game {
             this.controls.resetKeys();
         }
     }
+    
+    // Render pause overlay with information
+    renderPauseOverlay() {
+        // Semi-transparent overlay is handled by CSS
+        // This method can be extended to add dynamic content to the pause screen
+        const pauseInfo = document.querySelector('.pause-content h2');
+        if (pauseInfo) {
+            pauseInfo.textContent = 'GAME PAUSED';
+        }
+    }
 }
 
 // Initialize the game when the page loads
 window.addEventListener('load', () => {
     window.game = new Game();
 });
+
+// Add destroy method to properly clean up resources
+Game.prototype.destroy = function() {
+    // Stop animation loop
+    if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
+    }
+    
+    // Remove event listeners
+    window.removeEventListener('resize', this.resize);
+    window.removeEventListener('blur', this.handleBlur);
+    window.removeEventListener('focus', this.handleFocus);
+    window.removeEventListener('keydown', this.handlePauseKeys);
+    
+    // Clean up UI event listeners
+    const startButton = document.getElementById('start-button');
+    if (startButton) {
+        startButton.removeEventListener('click', this.startGame);
+    }
+    
+    const restartButton = document.getElementById('restart-button');
+    if (restartButton) {
+        restartButton.removeEventListener('click', this.startGame);
+    }
+    
+    const muteButton = document.getElementById('mute-button');
+    if (muteButton) {
+        muteButton.removeEventListener('click', () => {});
+    }
+    
+    // Clear references to help garbage collection
+    this.canvas = null;
+    this.ctx = null;
+    this.player = null;
+    this.controls = null;
+    this.projectilePool = null;
+    this.explosionPool = null;
+    this.enemyManager = null;
+    this.powerUpManager = null;
+    this.levelManager = null;
+    this.starfield = null;
+};
