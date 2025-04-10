@@ -295,7 +295,60 @@ class Game {
             grid[cellKey].push(projectile);
         });
         
-        // Process enemy collisions
+        // NEW: Check for player bullet and enemy bullet collisions
+        for (let i = 0; i < this.projectilePool.activeProjectiles.length; i++) {
+            const playerProjectile = this.projectilePool.activeProjectiles[i];
+            // Skip if not active or not a player projectile
+            if (!playerProjectile.active || playerProjectile.isEnemy) continue;
+            
+            // Get the grid cell for this player projectile
+            const playerCellX = Math.floor(playerProjectile.x / gridSize);
+            const playerCellY = Math.floor(playerProjectile.y / gridSize);
+            
+            // Check surrounding cells for enemy bullets
+            for (let x = playerCellX - 1; x <= playerCellX + 1; x++) {
+                for (let y = playerCellY - 1; y <= playerCellY + 1; y++) {
+                    const cellKey = `${x},${y}`;
+                    const projectilesInCell = grid[cellKey] || [];
+                    
+                    for (let j = 0; j < projectilesInCell.length; j++) {
+                        const enemyProjectile = projectilesInCell[j];
+                        // Skip if not active or not an enemy projectile
+                        if (!enemyProjectile.active || !enemyProjectile.isEnemy) continue;
+                        
+                        // Check collision between player bullet and enemy bullet
+                        if (this.checkCircleCollision(
+                            playerProjectile.x, playerProjectile.y, playerProjectile.radius,
+                            enemyProjectile.x, enemyProjectile.y, enemyProjectile.radius
+                        )) {
+                            // Create a small explosion effect at the collision point
+                            this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
+                            
+                            // Play sound effect
+                            if (window.audioManager) {
+                                window.audioManager.play('bulletHit', 0.15);
+                            }
+                            
+                            // Award a small number of points for destroying an enemy bullet
+                            this.score += 10;
+                            this.updateUI();
+                            
+                            // Deactivate both projectiles
+                            enemyProjectile.active = false;
+                            
+                            // Only destroy the player's bullet if it's a normal shot
+                            // Special shots like charged shots or powerups can destroy multiple bullets
+                            if (playerProjectile.powerupType === 'normal') {
+                                playerProjectile.active = false;
+                                break; // Break out of the inner loop once a collision is found
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Process enemy collisions (existing code)
         this.enemyManager.enemies.forEach((enemy, enemyIndex) => {
             // Calculate which grid cells this enemy could overlap with
             const cellX = Math.floor(enemy.x / gridSize);

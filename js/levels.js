@@ -57,26 +57,25 @@ class LevelManager {
                 this.errors = 0;
             }
         }
-        
-        // Get level for calculations (ensure it's a valid number)
+          // Get level for calculations (ensure it's a valid number)
         const level = Math.max(1, this.currentLevel || 1);
         
-        // Fix: Use a more gentle difficulty curve - especially for early levels
-        const speedIncrease = 1.0 + (level - 1) * 0.05; // 5% increase per level
-        const healthIncrease = Math.floor(level / 3) + 1; // +1 health every 3 levels
-        const bossHealthIncrease = Math.floor(level / 2) + 3; // +1 boss health every 2 levels
+        // Make difficulty curve much more gradual - slower progression
+        const speedIncrease = 1.0 + (level - 1) * 0.03; // 3% increase per level (reduced from 5%)
+        const healthIncrease = Math.floor(level / 4) + 1; // +1 health every 4 levels (was every 3)
+        const bossHealthIncrease = Math.floor(level / 3) + 3; // +1 boss health every 3 levels (was every 2)
         
-        // Fix: Adjust fire rate curve to be more manageable in early levels
-        const fireRateMultiplier = 1.0 + (level - 1) * 0.1; // 10% increase per level
+        // Make fire rate increase much more gradual
+        const fireRateMultiplier = 1.0 + (level - 1) * 0.05; // 5% increase per level (reduced from 10%)
         
-        // Fix: Add maximum caps to prevent excessive difficulty
+        // Lower maximum caps for a more balanced experience
         return {
-            enemySpeed: Math.min(this.baseDifficulty.enemySpeed * speedIncrease, 2.5),
-            enemyHealth: Math.min(healthIncrease, 5),
-            bossHealth: Math.min(bossHealthIncrease, 10),
-            fireRate: Math.min(this.baseDifficulty.fireRate * fireRateMultiplier, 0.015),
-            bossFireRate: Math.min(this.baseDifficulty.bossFireRate * fireRateMultiplier, 0.025),
-            pointMultiplier: 1.0 + (level - 1) * 0.1 // 10% more points per level
+            enemySpeed: Math.min(this.baseDifficulty.enemySpeed * speedIncrease, 2.0), // Lower max speed cap
+            enemyHealth: Math.min(healthIncrease, 4), // Max health reduced from 5 to 4
+            bossHealth: Math.min(bossHealthIncrease, 8), // Max boss health reduced from 10 to 8
+            fireRate: Math.min(this.baseDifficulty.fireRate * fireRateMultiplier, 0.012), // Reduced max fire rate
+            bossFireRate: Math.min(this.baseDifficulty.bossFireRate * fireRateMultiplier, 0.02), // Reduced max boss fire rate
+            pointMultiplier: 1.0 + (level - 1) * 0.1 // Keep point multiplier the same
         };
     }
     
