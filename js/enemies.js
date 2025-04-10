@@ -203,11 +203,13 @@ class EnemyManager {
     }
     
     createFormation(level) {
-        // Fix: Validate level parameter
+        // Validate level parameter
         if (isNaN(level) || level < 1) {
             console.error("Invalid level passed to createFormation:", level);
             level = 1; // Default to level 1
         }
+        
+        console.log(`Creating enemy formation for level ${level}`);
         
         // Get difficulty parameters from level manager
         let difficultyParams;
@@ -226,49 +228,137 @@ class EnemyManager {
             };
         }
         
-        // Fix: Initialize wavePatterns if undefined
+        // IMPORTANT: Create enemies immediately instead of with setTimeout
+        // Clear any existing enemies first
+        this.enemies = [];
+        
+        // Initialize wavePatterns if undefined
         if (!this.wavePatterns || !Array.isArray(this.wavePatterns) || this.wavePatterns.length === 0) {
-            console.log("Regenerating wave patterns");
+            console.log("Generating wave patterns");
             try {
                 this.wavePatterns = this.generateWavePatterns();
+                if (!this.wavePatterns || this.wavePatterns.length === 0) {
+                    throw new Error("Wave pattern generation resulted in empty patterns");
+                }
             } catch (error) {
                 console.error("Error generating wave patterns:", error);
                 // Create a simple default pattern
-                const centerX = this.game.width / 2;
-                this.wavePatterns = [[
-                    [{ x: centerX - 100, y: -50 }, { x: centerX - 100, y: 100 }],
-                    [{ x: centerX, y: -50 }, { x: centerX, y: 100 }],
-                    [{ x: centerX + 100, y: -50 }, { x: centerX + 100, y: 100 }]
-                ]];
+                this.createDefaultPattern();
             }
         }
         
-        // Choose a wave pattern based on level with better error handling
+        // Choose a wave pattern based on level with error handling
         try {
-            this.currentWavePattern = (level - 1) % Math.max(1, this.wavePatterns.length);
-            const entryPaths = this.wavePatterns[this.currentWavePattern];
+            const patternIndex = Math.min((level - 1) % Math.max(1, this.wavePatterns.length), this.wavePatterns.length - 1);
+            this.currentWavePattern = patternIndex;
             
-            // Fix: Enemies creation logic...
-            // ...existing code...
+            const entryPaths = this.wavePatterns[patternIndex];
             
+            if (!entryPaths || !Array.isArray(entryPaths) || entryPaths.length === 0) {
+                throw new Error("Selected entry path is invalid");
+            }
+            
+            console.log(`Using wave pattern ${patternIndex} with ${entryPaths.length} paths`);
+            
+            // Generate the enemy formation
+            this.generateEnemyFormation(level, difficultyParams, entryPaths);
+            console.log(`Created ${this.enemies.length} enemies for level ${level}`);
+            
+            // Signal to level manager that enemies have been created
+            if (this.game.levelManager) {
+                this.game.levelManager.enemiesHaveSpawned(this.enemies.length);
+            }
+            
+            // Make sure we have at least some enemies
+            if (this.enemies.length === 0) {
+                console.warn("No enemies created in standard formation, adding fallback enemies");
+                this.createFallbackFormation();
+                
+                // Signal fallback enemies have been created
+                if (this.game.levelManager) {
+                    this.game.levelManager.enemiesHaveSpawned(this.enemies.length);
+                }
+            }
         } catch (error) {
             console.error("Error in createFormation:", error);
             // Create a simple fallback formation
             this.createFallbackFormation();
+            
+            // Signal fallback enemies have been created
+            if (this.game.levelManager) {
+                this.game.levelManager.enemiesHaveSpawned(this.enemies.length);
+            }
         }
     }
     
-    // Add a fallback method to create a simple formation if the main method fails
+    // Helper function to generate enemy formation
+    generateEnemyFormation(level, difficultyParams, entryPaths) {
+        // Setup the enemy grid format
+        const rows = Math.min(5, 3 + Math.floor(level / 3)); // Increase rows with level
+        const cols = Math.min(8, 4 + Math.floor(level / 2)); // Increase columns with level
+        
+        // Location in screen space for formation
+        const gridSpacingX = 50;
+        const gridSpacingY = 40;
+        const gridOffsetX = (this.game.width - (cols - 1) * gridSpacingX) / 2;
+        const gridOffsetY = 80;
+        
+        let pathIndex = 0;
+        
+        // Generate enemies in rows and columns
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                // Determine enemy type and properties
+                let type, health, points;
+                
+                if (row === 0) {
+                    // Boss enemies on top row - harder to reach
+                    type = 'boss';
+                    health = difficultyParams.bossHealth;
+                    points = 300 * difficultyParams.pointMultiplier;
+                } else {
+                    // Standard enemies in rows below
+                    type = 'basic';
+                    health = difficultyParams.enemyHealth;
+                    points = 100 * difficultyParams.pointMultiplier;
+                }
+                
+                // Calculate grid position
+                const formationX = gridOffsetX + col * gridSpacingX;
+                const formationY = gridOffsetY + row * gridSpacingY;
+                
+                // Get an entry path, cycling through available paths
+                const entryPath = entryPaths[pathIndex % entryPaths.length];
+                pathIndex++;
+                
+                // Create the enemy
+                const enemy = new Enemy({
+                    game: this.game,
+                    x: entryPath[0].x,
+                    y: entryPath[0].y,
+                    formationX: formationX,
+                    formationY: formationY,
+                    entryPath: entryPath,
+                    type: type,
+                    points: points,
+                    health: health
+                });
+                
+                this.enemies.push(enemy);
+            }
+        }
+    }
+    
     createFallbackFormation() {
         console.log("Creating fallback formation");
         // Clear any existing enemies
         this.enemies = [];
         
         // Create a simple grid of enemies
-        const rows = 3;
-        const cols = 5;
-        const spacingX = 50;
-        const spacingY = 40;
+        const rows = 2;
+        const cols = 3;
+        const spacingX = 80;
+        const spacingY = 60;
         const startX = (this.game.width - (cols - 1) * spacingX) / 2;
         const startY = 100;
         
@@ -282,13 +372,19 @@ class EnemyManager {
                 const health = row === 0 ? 3 : 1;
                 const points = row === 0 ? 300 : 100;
                 
+                // Create entry path directly from top to formation position
+                const entryPath = [
+                    { x: x, y: -50 }, // Start off-screen
+                    { x: x, y: y }    // End at formation position
+                ];
+                
                 const enemy = new Enemy({
                     game: this.game,
-                    x: x,
-                    y: y,
+                    x: entryPath[0].x,
+                    y: entryPath[0].y,
                     formationX: x,
                     formationY: y,
-                    entryPath: [{ x: x, y: -30 }, { x: x, y: y }],
+                    entryPath: entryPath,
                     type: type,
                     points: points,
                     health: health
@@ -297,6 +393,8 @@ class EnemyManager {
                 this.enemies.push(enemy);
             }
         }
+        
+        console.log(`Created ${this.enemies.length} fallback enemies`);
     }
     
     shouldSkipEnemy(row, col, level, skipProbability) {

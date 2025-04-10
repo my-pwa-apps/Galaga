@@ -20,8 +20,12 @@ class LevelManager {
             pointMultiplier: 1.0
         };
         
-        // Fix: Add error tracking
+        // Track level state
         this.errors = 0;
+        this.enemiesSpawned = false;
+        this.initialEnemyCount = 0;
+        this.levelStartTime = 0;
+        this.minLevelDuration = 5000; // Minimum 5 seconds per level
     }
     
     // Calculate difficulty parameters based on current level
@@ -62,30 +66,8 @@ class LevelManager {
         };
     }
     
-    update() {
-        // Skip if transitioning
-        if (this.isTransitioning) {
-            this.handleTransition();
-            return;
-        }
-        
-        // Fix the automatic level transition issue
-        // Only check for level completion when enemies have been initialized
-        if (this.game.enemyManager && this.game.enemyManager.enemies) {
-            const enemiesRemaining = this.game.enemyManager.enemies.length;
-            const enemiesInEntryPath = this.game.enemyManager.enemies.filter(e => e.isEnteringFormation).length;
-            
-            // Only complete level when there are no enemies AND they've all been properly spawned
-            // Wait for at least some enemies to be created before checking for completion
-            if (enemiesRemaining === 0 && this.enemiesSpawned) {
-                console.log("Level complete!");
-                this.goToNextLevel();
-            }
-        }
-    }
-    
     startLevel(level) {
-        // Fix: Ensure level is a valid number
+        // Ensure level is a valid number
         if (isNaN(level) || level < 1) {
             console.error("Invalid level number:", level);
             level = 1; // Fallback to level 1
@@ -97,21 +79,61 @@ class LevelManager {
         // Update level display in UI
         document.getElementById('level').textContent = this.currentLevel;
         
-        // Set flag to indicate enemies haven't been fully spawned yet
+        // Reset level state tracking
         this.enemiesSpawned = false;
+        this.initialEnemyCount = 0;
+        this.levelStartTime = Date.now();
         
         // Reset enemy formation for new level
         if (this.game.enemyManager) {
             this.game.enemyManager.enemies = [];
             this.game.enemyManager.createFormation(this.currentLevel);
-            
-            // Set a slight delay before checking for level completion
-            // This prevents the "instant next level" issue
-            setTimeout(() => {
-                this.enemiesSpawned = true;
-            }, 1000); // 1 second delay
         } else {
             console.error("Enemy manager not initialized");
+        }
+    }
+    
+    // Track when enemies have spawned
+    enemiesHaveSpawned(count) {
+        console.log(`Level ${this.currentLevel}: ${count} enemies have spawned`);
+        this.enemiesSpawned = true;
+        this.initialEnemyCount = count;
+    }
+    
+    update() {
+        // Skip if transitioning
+        if (this.isTransitioning) {
+            this.handleTransition();
+            return;
+        }
+        
+        // Don't check for level completion until:
+        // 1. Enemies have been spawned
+        // 2. We've waited the minimum level duration
+        // 3. There were actually enemies to begin with
+        const now = Date.now();
+        const levelElapsed = now - this.levelStartTime;
+        const minTimeElapsed = levelElapsed > this.minLevelDuration;
+        
+        if (this.enemiesSpawned && minTimeElapsed) {
+            if (this.initialEnemyCount === 0) {
+                // If no enemies were created for this level despite enemiesSpawned being true,
+                // then we need to generate a new formation
+                console.warn("No enemies were created for this level, creating new formation");
+                if (this.game.enemyManager) {
+                    this.enemiesSpawned = false;
+                    this.game.enemyManager.createFormation(this.currentLevel);
+                }
+                return;
+            }
+            
+            // Check if all enemies are destroyed
+            const enemiesCount = this.game.enemyManager ? this.game.enemyManager.enemies.length : 0;
+            
+            if (enemiesCount === 0) {
+                console.log("Level complete! All enemies destroyed.");
+                this.goToNextLevel();
+            }
         }
     }
     
