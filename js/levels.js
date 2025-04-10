@@ -26,6 +26,20 @@ class LevelManager {
         this.initialEnemyCount = 0;
         this.levelStartTime = 0;
         this.minLevelDuration = 5000; // Minimum 5 seconds per level
+        
+        // Add level themes to enhance feeling of progression
+        this.levelThemes = [
+            { name: "Training Ground", description: "A test of your basic skills." },
+            { name: "The Invasion Begins", description: "Enemies have arrived in force!" },
+            { name: "First Wave", description: "The alien force grows stronger." },
+            { name: "Green Squadron", description: "New alien types have arrived!" },
+            { name: "Advanced Vanguard", description: "The aliens are adapting to your tactics." },
+            { name: "The Elite", description: "Beware of their special abilities!" },
+            { name: "Dark Fleet", description: "Advanced alien technology detected." },
+            { name: "Mysterious Forces", description: "These aliens have unique powers." },
+            { name: "Guardian Squadron", description: "The aliens' elite defense force." },
+            { name: "Golden Armada", description: "Face the most powerful alien fleet!" }
+        ];
     }
     
     // Calculate difficulty parameters based on current level
@@ -76,6 +90,10 @@ class LevelManager {
         console.log(`Starting level ${level}`);
         this.currentLevel = level;
         
+        // Get theme for this level
+        const themeIndex = Math.min(level - 1, this.levelThemes.length - 1);
+        const theme = this.levelThemes[themeIndex];
+        
         // Update level display in UI
         document.getElementById('level').textContent = this.currentLevel;
         
@@ -84,12 +102,60 @@ class LevelManager {
         this.initialEnemyCount = 0;
         this.levelStartTime = Date.now();
         
+        // Show level intro with theme
+        this.showLevelIntro(level, theme);
+        
         // Reset enemy formation for new level
         if (this.game.enemyManager) {
             this.game.enemyManager.enemies = [];
             this.game.enemyManager.createFormation(this.currentLevel);
         } else {
             console.error("Enemy manager not initialized");
+        }
+    }
+    
+    // Show level intro with theme
+    showLevelIntro(level, theme) {
+        // Create a temporary overlay for level intro
+        const overlay = document.createElement('div');
+        overlay.className = 'level-intro';
+        
+        // Add level info
+        const levelNumber = document.createElement('h2');
+        levelNumber.textContent = `LEVEL ${level}`;
+        
+        // Add theme name
+        const themeName = document.createElement('h3');
+        themeName.textContent = theme.name;
+        
+        // Add description
+        const description = document.createElement('p');
+        description.textContent = theme.description;
+        
+        // Add elements to overlay
+        overlay.appendChild(levelNumber);
+        overlay.appendChild(themeName);
+        overlay.appendChild(description);
+        
+        // Add to game container
+        const gameContainer = document.getElementById('game-screen');
+        if (gameContainer) {
+            gameContainer.appendChild(overlay);
+            
+            // Animate in
+            setTimeout(() => {
+                overlay.classList.add('active');
+                
+                // Animate out and remove after delay
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                    setTimeout(() => {
+                        if (overlay.parentNode) {
+                            overlay.parentNode.removeChild(overlay);
+                        }
+                    }, 500);
+                }, 2000);
+            }, 0);
         }
     }
     

@@ -890,3 +890,43 @@ body.touch-device #mobile-controls.hidden-on-desktop {
 .hidden {
     display: none !important;
 }
+
+/* Level intro styling */
+.level-intro {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 2px solid #00FFFF;
+    border-radius: 10px;
+    padding: 20px 40px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+    z-index: 100;
+    opacity: 0;
+    transition: all 0.3s ease-in-out;
+}
+
+.level-intro.active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.level-intro h2 {
+    color: #FFFF00;
+    font-family: 'Press Start 2P', monospace;
+    margin-bottom: 15px;
+}
+
+.level-intro h3 {
+    color: #00FFFF;
+    font-family: 'Press Start 2P', monospace;
+    margin-bottom: 20px;
+}
+
+.level-intro p {
+    color: #FFFFFF;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 14px;
+}
