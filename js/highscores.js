@@ -280,12 +280,10 @@ class HighScoreManager {
             // Ensure level is always a number and at least 1
             const finalLevel = (typeof level === 'number' && level > 0) ? level : 1;
             
-            // Log the level being saved for debugging
-            console.log(`Saving high score with level: ${finalLevel}`);
-            
             // Create a new score entry with explicit level information
+            // Allow up to 6 characters for player name
             const newScore = {
-                name: name.substring(0, 3).toUpperCase(), // Enforce 3-letter code
+                name: name.substring(0, 6).toUpperCase(), // Allow up to 6 characters
                 score: score,
                 level: finalLevel,
                 timestamp: Date.now()

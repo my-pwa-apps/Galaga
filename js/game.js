@@ -640,6 +640,29 @@ class Game {
         
         this.ctx.restore();
     }
+    
+    submitScore() {
+        const playerNameInput = document.getElementById('player-name');
+        const playerName = playerNameInput ? playerNameInput.value.trim() : 'PLAYER';
+        
+        // If name is empty, use default
+        const name = playerName || 'PLAYER';
+        
+        if (window.highScoreManager) {
+            console.log(`Submitting score for player: ${name}`);
+            
+            // Use the stored finalLevel value, with a fallback to ensure it's never undefined
+            window.highScoreManager.submitHighScore(name, this.score, this.finalLevel || 1)
+                .then(() => {
+                    console.log('High score submitted successfully');
+                    // Update the high scores display
+                    window.highScoreManager.renderHighScores('gameover-highscores-list');
+                })
+                .catch(error => {
+                    console.error('Error submitting high score:', error);
+                });
+        }
+    }
 }
 
 // Initialize the game when the page loads

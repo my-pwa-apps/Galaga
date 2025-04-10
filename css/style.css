@@ -620,18 +620,9 @@ body.touch-device #mobile-controls.hidden-on-desktop {
 }
 
 #player-name {
-    background-color: rgba(0, 50, 100, 0.4);
-    border: 2px solid #0ff;
-    color: #fff;
-    padding: 10px;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 1rem;
-    width: 100%;
-    max-width: 220px;
-    text-align: center;
-    border-radius: 4px;
+    width: 100px; /* Make input wider to fit longer names */
     text-transform: uppercase;
-    outline: none;
+    text-align: center;
 }
 
 #player-name:focus {
@@ -762,7 +753,7 @@ body.touch-device #mobile-controls.hidden-on-desktop {
     }
 }
 
-/* High scores table styling */
+/* High scores table styling for longer names */
 .highscores-table {
     width: 100%;
     border-collapse: collapse;
@@ -774,17 +765,19 @@ body.touch-device #mobile-controls.hidden-on-desktop {
 
 .highscores-table th {
     color: #0ff;
-    padding: 5px;
+    padding: 5px 3px;
     text-align: center;
     border-bottom: 1px solid rgba(0, 255, 255, 0.3);
 }
 
 .highscores-table td {
-    padding: 5px;
+    padding: 5px 3px;
 }
 
-.highscores-table tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.05);
+/* Ensure name column has proper width for longer names */
+.highscores-table th:nth-child(2),
+.highscores-table td:nth-child(2) {
+    min-width: 80px; /* Wider name column */
 }
 
 /* Highlight new high scores */
