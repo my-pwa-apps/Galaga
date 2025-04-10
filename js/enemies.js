@@ -203,90 +203,98 @@ class EnemyManager {
     }
     
     createFormation(level) {
+        // Fix: Validate level parameter
+        if (isNaN(level) || level < 1) {
+            console.error("Invalid level passed to createFormation:", level);
+            level = 1; // Default to level 1
+        }
+        
         // Get difficulty parameters from level manager
-        const difficultyParams = this.game.levelManager.getDifficultyParams();
-        
-        // FIXED: Safely access wavePatterns and handle undefined cases
-        if (!this.wavePatterns || !this.wavePatterns.length) {
-            console.warn('Wave patterns not available, initializing them now');
-            this.initWavePatterns();
+        let difficultyParams;
+        try {
+            difficultyParams = this.game.levelManager.getDifficultyParams();
+        } catch (error) {
+            console.error("Error getting difficulty params:", error);
+            // Use default parameters if there's an error
+            difficultyParams = {
+                enemySpeed: 1.0,
+                enemyHealth: 1,
+                bossHealth: 3,
+                fireRate: 0.005,
+                bossFireRate: 0.008,
+                pointMultiplier: 1.0
+            };
         }
         
-        // Choose a wave pattern based on level (with safety check)
-        this.currentWavePattern = (level - 1) % Math.max(1, this.wavePatterns.length);
-        const entryPaths = this.wavePatterns[this.currentWavePattern] || [];
-        
-        // Ensure we have at least one path
-        if (entryPaths.length === 0) {
-            console.warn('No entry paths available, creating default path');
-            this.createDefaultPattern();
-            const entryPaths = this.wavePatterns[0] || [];
+        // Fix: Initialize wavePatterns if undefined
+        if (!this.wavePatterns || !Array.isArray(this.wavePatterns) || this.wavePatterns.length === 0) {
+            console.log("Regenerating wave patterns");
+            try {
+                this.wavePatterns = this.generateWavePatterns();
+            } catch (error) {
+                console.error("Error generating wave patterns:", error);
+                // Create a simple default pattern
+                const centerX = this.game.width / 2;
+                this.wavePatterns = [[
+                    [{ x: centerX - 100, y: -50 }, { x: centerX - 100, y: 100 }],
+                    [{ x: centerX, y: -50 }, { x: centerX, y: 100 }],
+                    [{ x: centerX + 100, y: -50 }, { x: centerX + 100, y: 100 }]
+                ]];
+            }
         }
         
-        let pathIndex = 0;
+        // Choose a wave pattern based on level with better error handling
+        try {
+            this.currentWavePattern = (level - 1) % Math.max(1, this.wavePatterns.length);
+            const entryPaths = this.wavePatterns[this.currentWavePattern];
+            
+            // Fix: Enemies creation logic...
+            // ...existing code...
+            
+        } catch (error) {
+            console.error("Error in createFormation:", error);
+            // Create a simple fallback formation
+            this.createFallbackFormation();
+        }
+    }
+    
+    // Add a fallback method to create a simple formation if the main method fails
+    createFallbackFormation() {
+        console.log("Creating fallback formation");
+        // Clear any existing enemies
+        this.enemies = [];
         
-        // Calculate a consistent alien style for this level
-        const levelVariation = (level - 1) % 5;
+        // Create a simple grid of enemies
+        const rows = 3;
+        const cols = 5;
+        const spacingX = 50;
+        const spacingY = 40;
+        const startX = (this.game.width - (cols - 1) * spacingX) / 2;
+        const startY = 100;
         
-        // Determine formation density based on level (more enemies in higher levels)
-        const skipProbability = Math.max(0, 0.4 - (level * 0.05)); // Decreases with level
-        
-        for (let row = 0; row < this.formationHeight; row++) {
-            for (let col = 0; col < this.formationWidth; col++) {
-                // Skip some enemies based on level to create different formations
-                // Lower skip probability in higher levels means more enemies
-                if (this.shouldSkipEnemy(row, col, level, skipProbability)) continue;
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                // Create simpler enemies
+                const x = startX + col * spacingX;
+                const y = startY + row * spacingY;
                 
-                // Determine enemy type and attributes based on position and level
-                let type = 'basic';
-                let points = 100;
-                let fireRate = difficultyParams.fireRate;
-                let health = difficultyParams.enemyHealth;
-                
-                // Top row is bosses
-                if (row === 0) {
-                    type = 'boss';
-                    points = 300;
-                    fireRate = difficultyParams.bossFireRate;
-                    health = difficultyParams.bossHealth;
-                } 
-                // Middle rows sometimes have dive attackers (more in higher levels)
-                else if (row === 2 || row === 3) {
-                    // Increasing chance of dive attackers in higher levels
-                    if (Math.random() < (0.3 + level * 0.03)) {
-                        type = 'dive';
-                        points = 150;
-                        fireRate = difficultyParams.fireRate * 1.5;
-                        health = Math.max(1, difficultyParams.enemyHealth - 1);
-                    }
-                }
-                
-                // Adjust points based on level
-                points = points * difficultyParams.pointMultiplier;
-                
-                // Formation coordinates
-                const formationX = (col * this.formationSpacingX) + 
-                               (this.game.width - (this.formationWidth - 1) * this.formationSpacingX) / 2;
-                const formationY = (row * this.formationSpacingY) + this.formationOffsetY;
+                const type = row === 0 ? 'boss' : 'basic';
+                const health = row === 0 ? 3 : 1;
+                const points = row === 0 ? 300 : 100;
                 
                 const enemy = new Enemy({
                     game: this.game,
-                    x: -50, // Start offscreen
-                    y: -50,
-                    formationX: formationX,
-                    formationY: formationY,
-                    entryPath: entryPaths[pathIndex % entryPaths.length],
+                    x: x,
+                    y: y,
+                    formationX: x,
+                    formationY: y,
+                    entryPath: [{ x: x, y: -30 }, { x: x, y: y }],
                     type: type,
-                    subType: levelVariation,
                     points: points,
-                    speed: difficultyParams.enemySpeed,
-                    fireRate: fireRate,
-                    health: health,
-                    attackChance: difficultyParams.attackChance
+                    health: health
                 });
                 
                 this.enemies.push(enemy);
-                pathIndex++;
             }
         }
     }

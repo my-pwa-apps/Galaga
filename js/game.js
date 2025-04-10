@@ -482,9 +482,10 @@ class Game {
     }
     
     updateUI() {
-        document.getElementById('score').textContent = this.score;
-        document.getElementById('level').textContent = this.levelManager.currentLevel;
-        document.getElementById('lives').textContent = this.player.lives;
+        // Fix: Ensure we're displaying valid numbers
+        document.getElementById('score').textContent = this.score || 0;
+        document.getElementById('level').textContent = this.levelManager.currentLevel || 1;
+        document.getElementById('lives').textContent = this.player.lives || 0;
     }
     
     gameOver() {
@@ -534,20 +535,23 @@ class Game {
         this.gameState = 'playing';
         this.score = 0;
         
-        // Reset player with exactly 3 lives
+        // Reset all game components
         this.player.reset();
-        this.player.lives = 3; // Explicitly set to 3 lives when starting
-        
-        this.updateUI();
-        
-        // Clear projectiles and explosions
+        this.player.lives = 3;
         this.projectilePool.clear();
         this.explosionPool.clear();
-        this.projectiles = []; // Clear legacy array too
-        this.explosions = []; // Clear legacy array too
+        this.powerUpManager.clearAllPowerups();
+        
+        // Fix: Reset level manager properly
+        if (this.levelManager) {
+            this.levelManager.reset();
+        }
         
         // Initialize level
         this.levelManager.startLevel(1);
+        
+        // Update UI
+        this.updateUI();
         
         // Play background music
         if (window.audioManager) {

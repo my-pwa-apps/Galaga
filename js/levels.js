@@ -4,295 +4,191 @@ class LevelManager {
     constructor(game) {
         this.game = game;
         this.currentLevel = 1;
-        this.enemiesPerLevel = 40;
-        this.levelCompletionDelay = 120; // 2 seconds at 60fps (reduced from 3s)
-        this.completionTimer = 0;
         this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.transitionDuration = 180; // 3 seconds at 60 fps
+        this.messageFlashTimer = 0;
+        this.messageVisible = true;
         
-        // Add difficulty scaling parameters
-        this.baseEnemySpeed = 2;
-        this.baseEnemyHealth = 1;
-        this.baseBossHealth = 3;
-        this.baseFireRate = 0.001;
-        this.baseBossFireRate = 0.003;
+        // Store base difficulty parameters
+        this.baseDifficulty = {
+            enemySpeed: 1.0,
+            enemyHealth: 1,
+            bossHealth: 3,
+            fireRate: 0.005,
+            bossFireRate: 0.008,
+            pointMultiplier: 1.0
+        };
         
-        // Level transition effects
-        this.transitionOpacity = 0;
-        this.transitionPhase = 'none'; // 'none', 'hyperspace', 'fade-in', 'delay', 'fade-out'
-        this.nextLevelPrepared = false;
-        
-        // Hyperspace effect timing
-        this.hyperspaceTimer = 0;
-        this.hyperspaceDuration = 120; // 2 seconds at 60fps
-        this.playerYPosition = 0; // For tracking player movement during hyperspace
+        // Fix: Add error tracking
+        this.errors = 0;
     }
     
-    // Make sure the currentLevel is always correctly updated
-    startLevel(level) {
-        this.currentLevel = level;
-        
-        // Reset transition state
-        this.isTransitioning = false;
-        this.transitionPhase = 'none';
-        this.nextLevelPrepared = false;
-        
-        // Reset hyperspace effect
-        this.hyperspaceTimer = 0;
-        
-        // Clear any remaining enemies and projectiles
-        this.game.enemyManager.reset();
-        this.game.projectilePool.clear();
-        
-        // Create enemy formation with appropriate difficulty
-        this.game.enemyManager.createFormation(this.currentLevel);
-        
-        // Update UI
-        document.getElementById('level').textContent = this.currentLevel;
-        
-        // Show level notification
-        this.showLevelNotification();
-        
-        // Play level start sound (if not the first level)
-        if (window.audioManager && this.currentLevel > 1) {
-            window.audioManager.play('levelUp', 0.6);
+    // Calculate difficulty parameters based on current level
+    getDifficultyParams() {
+        // Fix: Add defensive checks to prevent NaN
+        if (!this.currentLevel || isNaN(this.currentLevel)) {
+            console.error("Invalid level detected:", this.currentLevel);
+            this.currentLevel = 1; // Reset to level 1 if invalid
+            this.errors++; // Track error
+            
+            // If too many errors, restart from level 1
+            if (this.errors > 3) {
+                console.warn("Too many level errors - resetting to level 1");
+                this.startLevel(1);
+                this.errors = 0;
+            }
         }
         
-        console.log(`Level ${this.currentLevel} started`);
-    }
-    
-    // Add a method to display the current level
-    showLevelNotification() {
-        const notification = document.getElementById('powerup-notification');
-        notification.textContent = `LEVEL ${this.currentLevel}`;
-        notification.classList.remove('hidden');
+        // Get level for calculations (ensure it's a valid number)
+        const level = Math.max(1, this.currentLevel || 1);
         
-        // Hide the notification after 2 seconds
-        setTimeout(() => {
-            notification.classList.add('hidden');
-        }, 2000);
-    }
-    
-    // Calculate difficulty parameters based on current level with more gradual scaling
-    getDifficultyParams() {
-        // Use a logarithmic curve for more gradual scaling instead of the previous square root approach
-        // This ensures levels 6-8 don't have such a sharp difficulty increase
+        // Fix: Use a more gentle difficulty curve - especially for early levels
+        const speedIncrease = 1.0 + (level - 1) * 0.05; // 5% increase per level
+        const healthIncrease = Math.floor(level / 3) + 1; // +1 health every 3 levels
+        const bossHealthIncrease = Math.floor(level / 2) + 3; // +1 boss health every 2 levels
         
-        // Create a more gradual curve that flattens out for higher levels
-        const levelFactor = this.currentLevel <= 3 ? 
-            this.currentLevel : // Linear for first few levels
-            3 + Math.log(this.currentLevel - 2) / Math.log(1.6); // Logarithmic scaling after level 3
+        // Fix: Adjust fire rate curve to be more manageable in early levels
+        const fireRateMultiplier = 1.0 + (level - 1) * 0.1; // 10% increase per level
         
-        console.log(`Level ${this.currentLevel}, Difficulty factor: ${levelFactor.toFixed(2)}`);
-        
+        // Fix: Add maximum caps to prevent excessive difficulty
         return {
-            // More gradual speed increase
-            enemySpeed: this.baseEnemySpeed + (levelFactor * 0.15),
-            
-            // Health increases at specific level thresholds instead of continuously
-            enemyHealth: this.baseEnemyHealth + Math.floor(levelFactor / 4),
-            bossHealth: this.baseBossHealth + Math.floor(levelFactor / 3),
-            
-            // More gradual fire rate increases
-            fireRate: this.baseFireRate * (1 + levelFactor * 0.12),
-            bossFireRate: this.baseBossFireRate * (1 + levelFactor * 0.08),
-            
-            // More gradual attack chance increases
-            attackChance: 0.001 * (1 + levelFactor * 0.08),
-            
-            // Points increase steadily
-            pointMultiplier: 1 + (levelFactor * 0.1)
+            enemySpeed: Math.min(this.baseDifficulty.enemySpeed * speedIncrease, 2.5),
+            enemyHealth: Math.min(healthIncrease, 5),
+            bossHealth: Math.min(bossHealthIncrease, 10),
+            fireRate: Math.min(this.baseDifficulty.fireRate * fireRateMultiplier, 0.015),
+            bossFireRate: Math.min(this.baseDifficulty.bossFireRate * fireRateMultiplier, 0.025),
+            pointMultiplier: 1.0 + (level - 1) * 0.1 // 10% more points per level
         };
     }
     
+    startLevel(level) {
+        // Fix: Ensure level is a valid number
+        if (isNaN(level) || level < 1) {
+            console.error("Invalid level number:", level);
+            level = 1; // Fallback to level 1
+        }
+        
+        console.log(`Starting level ${level}`);
+        this.currentLevel = level;
+        
+        // Update level display in UI
+        document.getElementById('level').textContent = this.currentLevel;
+        
+        // Fix: Ensure enemy manager exists before using it
+        if (this.game.enemyManager) {
+            // Reset enemy formation for new level
+            this.game.enemyManager.enemies = [];
+            this.game.enemyManager.createFormation(this.currentLevel);
+        } else {
+            console.error("Enemy manager not initialized");
+        }
+    }
+    
+    goToNextLevel() {
+        // Fix: Ensure we're incrementing a valid number
+        const nextLevel = (this.currentLevel || 0) + 1;
+        
+        // Clear lingering powerups between levels
+        if (this.game.clearNonPersistentPowerups) {
+            this.game.clearNonPersistentPowerups();
+        }
+        
+        // Start transition effect
+        this.isTransitioning = true;
+        this.transitionTimer = 0;
+        this.messageFlashTimer = 0;
+        this.messageVisible = true;
+        
+        console.log(`Transitioning to level ${nextLevel}`);
+    }
+    
     update() {
-        // Check if we're in a level transition
+        // Skip if transitioning
         if (this.isTransitioning) {
             this.handleTransition();
             return;
         }
         
-        // Check if level is completed (all enemies defeated)
-        if (this.game.enemyManager.enemies.length === 0 && !this.completionTimer) {
-            this.completionTimer = this.levelCompletionDelay;
-            
-            // Force reset all time-based powerups when level is completed
-            if (this.game.player && typeof this.game.player.resetPowerUps === 'function') {
-                this.game.player.resetPowerUps(true); // Force clear all powerups
-                console.log("Level completed - forced powerup clear");
-            }
+        // Check if level is complete (all enemies destroyed)
+        const enemiesRemaining = this.game.countActiveEnemies ? this.game.countActiveEnemies() : 0;
+        
+        if (enemiesRemaining <= 0) {
+            console.log("Level complete!");
+            this.goToNextLevel();
         }
-        
-        // Handle level completion timer
-        if (this.completionTimer > 0) {
-            this.completionTimer--;
-            
-            if (this.completionTimer <= 0) {
-                this.startLevelTransition();
-            }
-        }
-    }
-    
-    startLevelTransition() {
-        this.isTransitioning = true;
-        this.transitionPhase = 'hyperspace';
-        this.transitionOpacity = 0;
-        this.completionTimer = 0;
-        this.nextLevelPrepared = false;
-        this.hyperspaceTimer = 0;
-        
-        // Store the player's current position for hyperspace animation
-        this.playerYPosition = this.game.player.y;
-        
-        // Force clear all powerups immediately when transitioning
-        if (this.game.player && typeof this.game.player.resetPowerUps === 'function') {
-            this.game.player.resetPowerUps(true);
-            console.log("Level transition started - forced powerup clear");
-        }
-        
-        // Also make sure to clear any powerup visuals and UI elements
-        const activePowerElement = document.getElementById('active-power');
-        if (activePowerElement) {
-            activePowerElement.textContent = 'NONE';
-        }
-        
-        // Hide power timer
-        const powerTimerContainer = document.getElementById('power-timer-container');
-        if (powerTimerContainer) {
-            powerTimerContainer.classList.add('hidden');
-            powerTimerContainer.setAttribute('aria-hidden', 'true');
-        }
-        
-        // Start hyperspace effect in starfield
-        this.game.starfield.startHyperspace();
-        
-        // Play the hyperspeed sound effect
-        if (window.audioManager) {
-            window.audioManager.play('hyperspeed', 0.7);
-        }
-        
-        console.log(`Starting transition from level ${this.currentLevel}`);
     }
     
     handleTransition() {
-        switch (this.transitionPhase) {
-            case 'hyperspace':
-                // Hyperspace animation phase
-                this.hyperspaceTimer++;
-                
-                // Move player gradually to top of screen during hyperspace
-                if (this.game.player && this.game.player.active) {
-                    // Calculate movement path towards top of screen
-                    // Start slow, accelerate in the middle, then slow down again
-                    const progress = this.hyperspaceTimer / this.hyperspaceDuration;
-                    const speedFactor = Math.sin(progress * Math.PI); // Creates an acceleration curve
-                    
-                    // Target Y is top of screen with a little padding
-                    const targetY = 20;
-                    const startY = this.playerYPosition;
-                    const totalDistance = startY - targetY;
-                    
-                    // Create an easing effect for the movement
-                    const easedPosition = startY - (totalDistance * Math.pow(progress, 1.5));
-                    
-                    // Move player's Y position - ensure it reaches the top
-                    this.game.player.y = Math.max(targetY, easedPosition);
-                    
-                    // Apply more dynamic side-to-side motion that increases with speed
-                    const wobbleAmount = Math.sin(this.hyperspaceTimer * 0.3) * 8 * speedFactor;
-                    this.game.player.x += wobbleAmount * 0.2;
-                    
-                    // Keep player within screen bounds
-                    this.game.player.x = Math.max(this.game.player.radius, 
-                                        Math.min(this.game.width - this.game.player.radius, 
-                                        this.game.player.x));
-                }
-                
-                // When hyperspace completes, move to fade in phase
-                if (this.hyperspaceTimer >= this.hyperspaceDuration) {
-                    this.transitionPhase = 'fade-in';
-                }
-                break;
-                
-            case 'fade-in':
-                // Fade in black overlay
-                this.transitionOpacity += 0.05;
-                if (this.transitionOpacity >= 1) {
-                    // Move to delay phase when fully black
-                    this.transitionPhase = 'delay';
-                    
-                    // Prepare for next level ONLY ONCE
-                    if (!this.nextLevelPrepared) {
-                        this.currentLevel += 1;
-                        this.nextLevelPrepared = true;
-                        
-                        // Reset player position to bottom of screen
-                        if (this.game.player) {
-                            this.game.player.y = this.game.height - 50;
-                            this.game.player.x = this.game.width / 2;
-                        }
-                        
-                        console.log(`Prepared next level: ${this.currentLevel}`);
-                        
-                        // Set a timeout to move to fade-out phase
-                        setTimeout(() => {
-                            this.transitionPhase = 'fade-out';
-                        }, 500);
-                    }
-                }
-                break;
-                
-            case 'delay':
-                // Just waiting for the timeout to complete
-                break;
-                
-            case 'fade-out':
-                // Fade out black overlay
-                this.transitionOpacity -= 0.05;
-                if (this.transitionOpacity <= 0) {
-                    // Stop hyperspace effect in starfield
-                    this.game.starfield.stopHyperspace();
-                    
-                    // Finish transition and start the new level
-                    this.isTransitioning = false;
-                    this.transitionPhase = 'none';
-                    this.startLevel();
-                }
-                break;
+        // Update transition timer
+        this.transitionTimer++;
+        
+        // Flash "Level Complete" message
+        this.messageFlashTimer++;
+        if (this.messageFlashTimer >= 30) { // Flash every half second
+            this.messageFlashTimer = 0;
+            this.messageVisible = !this.messageVisible;
         }
         
-        // Always render the transition effect
-        this.renderTransition();
+        // When transition is complete, start next level
+        if (this.transitionTimer >= this.transitionDuration) {
+            this.isTransitioning = false;
+            
+            // Fix: Ensure we're incrementing the level correctly
+            const nextLevel = (this.currentLevel || 0) + 1;
+            this.startLevel(nextLevel);
+        }
     }
     
     renderTransition() {
-        // Draw transition overlay (only for fade phases)
-        if (this.transitionPhase === 'fade-in' || this.transitionPhase === 'delay' || this.transitionPhase === 'fade-out') {
-            // Draw a semi-transparent overlay
-            const ctx = this.game.ctx;
-            ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionOpacity})`;
-            ctx.fillRect(0, 0, this.game.width, this.game.height);
+        const ctx = this.game.ctx;
+        const width = this.game.width;
+        const height = this.game.height;
+        
+        // Semi-transparent overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Only show the message when it should be visible (for flashing effect)
+        if (this.messageVisible) {
+            // Level complete message
+            ctx.font = '24px "Press Start 2P", monospace';
+            ctx.fillStyle = '#FFFF00';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('LEVEL COMPLETE', width / 2, height / 2 - 40);
             
-            // Show level text when mostly faded in
-            if (this.transitionOpacity > 0.7 && (this.transitionPhase === 'delay' || this.transitionPhase === 'fade-out')) {
-                ctx.fillStyle = 'white';
-                ctx.font = '36px "Press Start 2P", monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(`LEVEL ${this.currentLevel}`, this.game.width / 2, this.game.height / 2);
-            }
+            // Prepare for next level message
+            ctx.font = '18px "Press Start 2P", monospace';
+            ctx.fillStyle = '#00FFFF';
+            
+            // Fix: Ensure we display a valid next level number
+            const nextLevel = (this.currentLevel || 0) + 1;
+            ctx.fillText(`PREPARE FOR LEVEL ${nextLevel}`, width / 2, height / 2 + 20);
         }
+        
+        // Progress bar background
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(width / 4, height / 2 + 60, width / 2, 20);
+        
+        // Progress bar fill
+        const progressWidth = (this.transitionTimer / this.transitionDuration) * (width / 2);
+        ctx.fillStyle = '#00FF00';
+        ctx.fillRect(width / 4, height / 2 + 60, progressWidth, 20);
     }
     
+    // Fix: Add a reset method for game restart
     reset() {
         this.currentLevel = 1;
-        this.completionTimer = 0;
         this.isTransitioning = false;
-        this.transitionPhase = 'none';
-        this.nextLevelPrepared = false;
-        this.hyperspaceTimer = 0;
+        this.errors = 0;
         
-        // Reset starfield hyperspace effect
-        if (this.game.starfield) {
-            this.game.starfield.stopHyperspace();
-        }
+        // Update level display in UI
+        document.getElementById('level').textContent = this.currentLevel;
     }
+}
+
+// Make LevelManager available globally
+if (typeof window !== 'undefined') {
+    window.LevelManager = LevelManager;
 }
