@@ -284,3 +284,29 @@ class Controls {
         }
     }
 }
+
+// If you have a separate MobileControls class
+class MobileControls {
+    // ...existing code...
+    
+    // Add method to reset all button states
+    resetButtons() {
+        // Reset all button states to not pressed
+        const buttons = document.querySelectorAll('#mobile-controls button');
+        buttons.forEach(button => {
+            button.classList.remove('active');
+        });
+        
+        // Reset auto-shoot toggle if it exists
+        const autoShootToggle = document.querySelector('.auto-shoot-toggle input');
+        if (autoShootToggle && this.onAutoShootChange) {
+            // Only update if the state needs to be reset to off
+            if (autoShootToggle.checked) {
+                autoShootToggle.checked = false;
+                this.onAutoShootChange({ target: autoShootToggle });
+            }
+        }
+    }
+    
+    // ...existing code...
+}

@@ -48,7 +48,21 @@
         
         <!-- Game Screen -->
         <div id="game-screen" class="screen hidden">
-            <div class="hud" aria-live="polite">
+            <canvas id="game-canvas"></canvas>
+            
+            <!-- Add pause overlay -->
+            <div id="pause-overlay" class="overlay hidden">
+                <div class="pause-content">
+                    <h2>PAUSED</h2>
+                    <p>Press ESC or P to resume</p>
+                    <button id="resume-button" class="menu-button">RESUME</button>
+                    <button id="restart-from-pause" class="menu-button">RESTART</button>
+                    <button id="exit-to-menu" class="menu-button">MAIN MENU</button>
+                </div>
+            </div>
+            
+            <!-- HUD elements -->
+            <div id="hud">
                 <div>SCORE: <span id="score">0</span></div>
                 <div>LEVEL: <span id="level">1</span></div>
                 <div>LIVES: <span id="lives">3</span></div>
@@ -57,8 +71,10 @@
                         <div id="power-timer-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div>
                     </div>
                 </div>
+                
+                <!-- Add pause button for mobile -->
+                <button id="pause-button" class="icon-button">II</button>
             </div>
-            <canvas id="game-canvas" aria-label="Galaga Game Canvas"></canvas>
             
             <!-- Power-up notification - simplified -->
             <div id="powerup-notification" class="hidden" aria-live="assertive"></div>
@@ -113,7 +129,7 @@
     <script src="js/utils.js" defer></script>
     <script src="js/audio.js" defer></script>
     <script src="js/sprites.js" defer></script>
-    <script src="js/controls.js" defer></script>
+    <script src="js/controls.js" defer></cript>
     <script src="js/starfield.js" defer></script>
     <script src="js/projectiles.js" defer></script> <!-- Move projectiles before powerups -->
     <script src="js/powerups.js" defer></script>    <!-- Load powerups before player -->
@@ -125,3 +141,56 @@
     <script src="js/game.js" defer></script>        <!-- Game loads last, after all dependencies -->
 </body>
 </html>
+
+<script>
+    // ...existing code...
+    
+    // Add event listeners for pause buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        // Pause button click
+        const pauseButton = document.getElementById('pause-button');
+        if (pauseButton) {
+            pauseButton.addEventListener('click', function() {
+                if (window.game) {
+                    window.game.togglePause();
+                }
+            });
+        }
+        
+        // Resume button click
+        const resumeButton = document.getElementById('resume-button');
+        if (resumeButton) {
+            resumeButton.addEventListener('click', function() {
+                if (window.game && window.game.isPaused) {
+                    window.game.togglePause();
+                }
+            });
+        }
+        
+        // Restart from pause button
+        const restartFromPause = document.getElementById('restart-from-pause');
+        if (restartFromPause) {
+            restartFromPause.addEventListener('click', function() {
+                if (window.game) {
+                    window.game.isPaused = false;
+                    document.getElementById('pause-overlay').classList.add('hidden');
+                    window.game.startGame();
+                }
+            });
+        }
+        
+        // Exit to menu button
+        const exitToMenu = document.getElementById('exit-to-menu');
+        if (exitToMenu) {
+            exitToMenu.addEventListener('click', function() {
+                if (window.game) {
+                    window.game.isPaused = false;
+                    document.getElementById('pause-overlay').classList.add('hidden');
+                    // Show start screen
+                    document.getElementById('game-screen').classList.add('hidden');
+                    document.getElementById('start-screen').classList.remove('hidden');
+                }
+            });
+        }
+    });
+</script>

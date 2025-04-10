@@ -41,6 +41,16 @@ class Game {
         this.pointsPopups = [];
         this.maxPopups = 20; // Limit total popups for performance
         
+        // Add pause state
+        this.isPaused = false;
+        
+        // Set up focus/blur event handlers
+        window.addEventListener('blur', this.handleBlur.bind(this));
+        window.addEventListener('focus', this.handleFocus.bind(this));
+        
+        // Listen for pause key events
+        window.addEventListener('keydown', this.handlePauseKeys.bind(this));
+        
         // Start animation loop
         this.animate(0);
     }
@@ -137,6 +147,9 @@ class Game {
     }
     
     update() {
+        // Skip updates if paused
+        if (this.isPaused) return;
+        
         // Update starfield first - always update regardless of game state
         this.starfield.update();
         
@@ -193,6 +206,11 @@ class Game {
         // Draw level transition overlay if applicable
         if (this.levelManager.isTransitioning) {
             this.levelManager.renderTransition();
+        }
+        
+        // Render pause overlay if paused
+        if (this.isPaused) {
+            this.renderPauseOverlay();
         }
     }
     
@@ -665,6 +683,54 @@ class Game {
                 .catch(error => {
                     console.error('Error submitting high score:', error);
                 });
+        }
+    }
+    
+    // Handle pause key presses (ESC or P)
+    handlePauseKeys(e) {
+        if (this.gameState === 'playing' && (e.key === 'Escape' || e.key === 'p' || e.key === 'P')) {
+            this.togglePause();
+        }
+    }
+    
+    // Handle window losing focus
+    handleBlur() {
+        if (this.gameState === 'playing' && !this.isPaused) {
+            this.togglePause(true); // Force pause
+        }
+    }
+    
+    // Handle window regaining focus
+    handleFocus() {
+        // Reset controls when focus is regained to prevent stuck keys
+        if (this.controls) {
+            this.controls.resetKeys();
+        }
+    }
+    
+    // Toggle pause state
+    togglePause(forcePause = false) {
+        if (this.gameState !== 'playing') return;
+        
+        if (forcePause) {
+            this.isPaused = true;
+        } else {
+            this.isPaused = !this.isPaused;
+        }
+        
+        // Show or hide pause overlay
+        const pauseOverlay = document.getElementById('pause-overlay');
+        if (pauseOverlay) {
+            if (this.isPaused) {
+                pauseOverlay.classList.remove('hidden');
+            } else {
+                pauseOverlay.classList.add('hidden');
+            }
+        }
+        
+        // Reset controls when unpausing to prevent stuck keys
+        if (!this.isPaused && this.controls) {
+            this.controls.resetKeys();
         }
     }
 }
