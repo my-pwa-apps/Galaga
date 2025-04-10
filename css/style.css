@@ -444,7 +444,6 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     font-size: 1rem;
     text-shadow: 0 0 5px #00f, 0 0 10px #00f;
     z-index: 10;
-    border-bottom: 2px solid rgba(0, 200, 255, 0.5);
     box-shadow: 0 0 15px rgba(0, 100, 255, 0.3);
 }
 

@@ -323,14 +323,13 @@ class Game {
                         )) {
                             // Create a small explosion effect at the collision point
                             this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
-                            
-                            // Play sound effect
+                              // Play sound effect
                             if (window.audioManager) {
                                 window.audioManager.play('bulletHit', 0.15);
                             }
                             
-                            // Award a small number of points for destroying an enemy bullet
-                            this.score += 10;
+                            // Award points for destroying an enemy bullet (increased from 10 to 25)
+                            this.score += 25;
                             this.updateUI();
                             
                             // Deactivate both projectiles

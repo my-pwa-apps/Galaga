@@ -162,14 +162,13 @@ const drawBasicEnemy = (ctx, x, y, width, height, color, variation = 0, hitFlash
     
     // Get variation from 0-4 (5 variations) using modulo in case we get higher numbers
     const actualVariation = variation % 5;
-    
-    // Different color schemes for different variations
+      // Enhanced color schemes with more vibrant colors and glow effect values
     const colorSchemes = [
-        { primary: '#FF3000', secondary: '#FF5020', accent: '#FFFF00' }, // Red/Orange
-        { primary: '#30B0FF', secondary: '#5080FF', accent: '#FFFFFF' }, // Blue
-        { primary: '#60FF30', secondary: '#40C020', accent: '#FFFF00' }, // Green
-        { primary: '#B030FF', secondary: '#8020C0', accent: '#FF80FF' }, // Purple
-        { primary: '#FF8000', secondary: '#FFA030', accent: '#FFFF00' }  // Orange/Yellow
+        { primary: '#FF3000', secondary: '#FF5020', accent: '#FFFF00', glow: '#FF6600' }, // Red/Orange
+        { primary: '#30B0FF', secondary: '#5080FF', accent: '#FFFFFF', glow: '#00CCFF' }, // Blue
+        { primary: '#60FF30', secondary: '#40C020', accent: '#FFFF00', glow: '#80FF60' }, // Green
+        { primary: '#B030FF', secondary: '#8020C0', accent: '#FF80FF', glow: '#D060FF' }, // Purple
+        { primary: '#FF8000', secondary: '#FFA030', accent: '#FFFF00', glow: '#FFB040' }  // Orange/Yellow
     ];
     
     const colors = colorSchemes[actualVariation];
