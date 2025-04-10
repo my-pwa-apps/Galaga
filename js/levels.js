@@ -27,10 +27,9 @@ class LevelManager {
         this.playerYPosition = 0; // For tracking player movement during hyperspace
     }
     
-    startLevel(level = null) {
-        if (level !== null) {
-            this.currentLevel = level;
-        }
+    // Make sure the currentLevel is always correctly updated
+    startLevel(level) {
+        this.currentLevel = level;
         
         // Reset transition state
         this.isTransitioning = false;

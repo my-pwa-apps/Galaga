@@ -259,6 +259,171 @@ class HighScoreManager {
             }
         });
     }
+    
+    submitHighScore(name, score, level) {
+        // Validate inputs
+        if (!name || typeof score !== 'number' || score <= 0) {
+            console.error('Invalid high score data');
+            return Promise.reject('Invalid high score data');
+        }
+
+        return new Promise((resolve, reject) => {
+            if (!this.database) {
+                console.error('Firebase database not initialized');
+                reject('Database not available');
+                return;
+            }
+
+            // Get a reference to the high scores in the database
+            const scoresRef = this.database.ref('highScores');
+            
+            // Ensure level is always a number and at least 1
+            const finalLevel = (typeof level === 'number' && level > 0) ? level : 1;
+            
+            // Log the level being saved for debugging
+            console.log(`Saving high score with level: ${finalLevel}`);
+            
+            // Create a new score entry with explicit level information
+            const newScore = {
+                name: name.substring(0, 3).toUpperCase(), // Enforce 3-letter code
+                score: score,
+                level: finalLevel,
+                timestamp: Date.now()
+            };
+            
+            // Push the new score to the database
+            scoresRef.push(newScore)
+                .then(() => {
+                    console.log('High score submitted successfully');
+                    resolve();
+                })
+                .catch(error => {
+                    console.error('Error submitting high score:', error);
+                    reject(error);
+                });
+        });
+    }
+
+    // Update the fetchHighScores method to ensure it retrieves level data
+    fetchHighScores() {
+        return new Promise((resolve, reject) => {
+            if (!this.database) {
+                console.error('Firebase database not initialized');
+                reject('Database not available');
+                return;
+            }
+            
+            const scoresRef = this.database.ref('highScores');
+            
+            scoresRef.orderByChild('score')
+                .limitToLast(this.maxHighScores)
+                .once('value')
+                .then(snapshot => {
+                    const scores = [];
+                    snapshot.forEach(childSnapshot => {
+                        const scoreData = childSnapshot.val();
+                        
+                        // Make sure level is included and has a default value if missing
+                        if (!scoreData.level) {
+                            scoreData.level = 1;
+                        }
+                        
+                        scores.push(scoreData);
+                    });
+                    
+                    // Sort in descending order
+                    scores.sort((a, b) => b.score - a.score);
+                    resolve(scores);
+                })
+                .catch(error => {
+                    console.error('Error fetching high scores:', error);
+                    reject(error);
+                });
+        });
+    }
+
+    // Make sure the renderHighScores method displays the level correctly
+    renderHighScores(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.error(`Container with ID ${containerId} not found`);
+            return;
+        }
+        
+        this.fetchHighScores()
+            .then(scores => {
+                // Clear the container
+                container.innerHTML = '';
+                
+                if (scores.length === 0) {
+                    container.innerHTML = '<p>No high scores yet. Be the first!</p>';
+                    return;
+                }
+                
+                // Create table for better layout
+                const table = document.createElement('table');
+                table.className = 'highscores-table';
+                
+                // Create table header
+                const headerRow = document.createElement('tr');
+                
+                const rankHeader = document.createElement('th');
+                rankHeader.textContent = 'RANK';
+                
+                const nameHeader = document.createElement('th');
+                nameHeader.textContent = 'NAME';
+                
+                const scoreHeader = document.createElement('th');
+                scoreHeader.textContent = 'SCORE';
+                
+                // Add level header
+                const levelHeader = document.createElement('th');
+                levelHeader.textContent = 'LEVEL';
+                
+                headerRow.appendChild(rankHeader);
+                headerRow.appendChild(nameHeader);
+                headerRow.appendChild(scoreHeader);
+                headerRow.appendChild(levelHeader);
+                table.appendChild(headerRow);
+                
+                // Add rows for each high score
+                scores.forEach((score, index) => {
+                    const row = document.createElement('tr');
+                    
+                    // Check if this is a new high score to highlight
+                    if (score.isNew) {
+                        row.className = 'new-highscore';
+                    }
+                    
+                    const rankCell = document.createElement('td');
+                    rankCell.textContent = `${index + 1}`;
+                    
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = score.name;
+                    
+                    const scoreCell = document.createElement('td');
+                    scoreCell.textContent = score.score;
+                    
+                    // Add level cell with proper value
+                    const levelCell = document.createElement('td');
+                    // Ensure level is a number and at least 1
+                    const level = (typeof score.level === 'number' && score.level > 0) ? score.level : 1;
+                    levelCell.textContent = level;
+                    
+                    row.appendChild(rankCell);
+                    row.appendChild(nameCell);
+                    row.appendChild(scoreCell);
+                    row.appendChild(levelCell);
+                    table.appendChild(row);
+                });
+                
+                container.appendChild(table);
+            })
+            .catch(error => {
+                console.error('Error rendering high scores:', error);
+                container.innerHTML = '<p>Error loading high scores. Please try again later.</p>';
+            });
+    }
 }
 
 // Create a global instance when the script loads

@@ -369,6 +369,10 @@ class PowerUp {
         for (let enemy of this.game.enemyManager.enemies) {
             // Use explosionPool instead of the non-existent createExplosion method
             this.game.explosionPool.get(enemy.x, enemy.y);
+            
+            // Add points popup for each destroyed enemy
+            const points = Math.round(enemy.points);
+            this.game.createPointsPopup(enemy.x, enemy.y, points);
         }
         
         // Add score for each enemy
@@ -407,7 +411,9 @@ class PowerUpManager {
         // Update existing power-ups
         for (let i = this.powerUps.length - 1; i >= 0; i--) {
             const powerUp = this.powerUps[i];
-            if (powerUp.update() || !powerUp.active) {
+            powerUp.update();
+            
+            if (!powerUp.active) {
                 this.powerUps.splice(i, 1);
             }
         }
@@ -530,33 +536,31 @@ class PowerUpManager {
     detonateScreenBomb() {
         // Create explosion at each enemy position
         for (let enemy of this.game.enemyManager.enemies) {
-            this.game.explosionPool.get(enemy.x, enemy.y);
-        }
-        
-        // Add score for each enemy
-        if (this.game.enemyManager.enemies.length > 0) {
+            // Use explosionPool instead of the non-existent createExplosion method
             const totalScore = this.game.enemyManager.enemies.reduce((sum, enemy) => sum + enemy.points, 0);
-            this.game.score += Math.round(totalScore);
-            document.getElementById('score').textContent = this.game.score;
+            this.game.score += Math.round(totalScore);   const points = Math.round(enemy.points);
+            document.getElementById('score').textContent = this.game.score;    this.game.createPointsPopup(enemy.x, enemy.y, points);
         }
         
-        // Clear all enemies
-        this.game.enemyManager.enemies = [];
-        
-        // Create a big explosion in center of screen
-        this.game.explosionPool.get(this.game.width / 2, this.game.height / 2, 2.0);
+        // Clear all enemies// Add score for each enemy
+        this.game.enemyManager.enemies = [];) {
+         sum + enemy.points, 0);
+        // Create a big explosion in center of screen    this.game.score += Math.round(totalScore); // Use Math.round to ensure whole numbers
+        this.game.explosionPool.get(this.game.width / 2, this.game.height / 2, 2.0);ById('score').textContent = this.game.score;
         
         // Play explosion sound
-        if (window.audioManager) {
-            window.audioManager.play('explosion', 0.8);
+        if (window.audioManager) {/ Clear all enemies
+            window.audioManager.play('explosion', 0.8);this.game.enemyManager.enemies = [];
         }
-        
-        // Screen shake effect
+        ter of screen - use explosionPool properly
+        // Screen shake effect/ 2, this.game.height / 2, 2.0); // Scale parameter for big explosion
         if (this.game.canvas) {
             this.game.canvas.classList.add('shake');
-            setTimeout(() => {
-                this.game.canvas.classList.remove('shake');
-            }, 500);
-        }
-    }
+            setTimeout(() => {udioManager) {
+                this.game.canvas.classList.remove('shake');   window.audioManager.play('explosion', 0.7);
+            }, 500);   }
+        }   }
+    }}
+
+
 }

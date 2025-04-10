@@ -37,6 +37,10 @@ class Game {
         this.setupAudioControls();
         this.initUI();
         
+        // Add scoring popup container
+        this.pointsPopups = [];
+        this.maxPopups = 20; // Limit total popups for performance
+        
         // Start animation loop
         this.animate(0);
     }
@@ -181,6 +185,9 @@ class Game {
             
             // Draw explosions
             this.drawExplosions();
+            
+            // Draw point popups
+            this.drawPointsPopups();
         }
         
         // Draw level transition overlay if applicable
@@ -263,11 +270,15 @@ class Game {
                     // Enemy hit by player projectile
                     enemy.hit();
                     
-                    // If enemy is destroyed
+                    // When enemy is destroyed
                     if (enemy.health <= 0) {
                         // Add score - using Math.round() to ensure whole numbers
-                        this.score += Math.round(enemy.points);
+                        const points = Math.round(enemy.points);
+                        this.score += points;
                         this.updateUI();
+                        
+                        // Show points popup
+                        this.createPointsPopup(enemy.x, enemy.y, points);
                         
                         // Create explosion using pool
                         this.explosionPool.get(enemy.x, enemy.y);
@@ -311,14 +322,13 @@ class Game {
                         // Create small explosion
                         this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
                         
-                        // Add a score bonus for destroying an enemy bullet
-                        // Add more points for higher-damage projectiles
+                        // Add a small score bonus
                         const bulletPoints = 25 * (projectile.damage || 1);
                         this.score += bulletPoints;
                         this.updateUI();
                         
-                        // Show small score popup at the collision point
-                        this.showPointsPopup(enemyProjectile.x, enemyProjectile.y, bulletPoints);
+                        // Show points popup for destroyed enemy bullet
+                        this.createPointsPopup(enemyProjectile.x, enemyProjectile.y, bulletPoints);
                         
                         // Play hit sound
                         if (window.audioManager) {
@@ -412,6 +422,14 @@ class Game {
                 // Apply power-up
                 this.player.applyPowerUp(powerUp.type);
                 
+                // Award points for collecting powerup
+                const powerupPoints = powerUp.getPointsValue();
+                this.score += powerupPoints;
+                this.updateUI();
+                
+                // Show points popup
+                this.createPointsPopup(powerUp.x, powerUp.y, powerupPoints);
+                
                 // Show notification
                 this.showPowerUpNotification(powerUp.type);
                 
@@ -477,7 +495,7 @@ class Game {
         document.getElementById('game-over-screen').classList.remove('hidden');
         document.getElementById('final-score').textContent = this.score;
         
-        // Add level information to game over screen
+        // Store the current level - ensure we get the actual level reached
         const currentLevel = this.levelManager.currentLevel || 1;
         document.getElementById('final-level').textContent = currentLevel;
         
@@ -488,12 +506,12 @@ class Game {
         
         // Check if this is a high score and show the appropriate form
         if (window.highScoreManager) {
+            // Store the level in a class property to ensure it's available when submitting
+            this.finalLevel = currentLevel;
+            
             window.highScoreManager.checkHighScore(this.score)
                 .then(isHighScore => {
                     window.highScoreManager.showHighScoreForm(isHighScore);
-                    
-                    // Store current level to use when submitting the score
-                    this.finalLevel = currentLevel;
                 })
                 .catch(error => {
                     console.error("Error checking high score:", error);
@@ -537,85 +555,90 @@ class Game {
         }
     }
 
-    // Create a powerup from enemy destruction or other sources
-    createPowerup(options) {
-        if (this.powerUpManager) {
-            this.powerUpManager.createPowerUp(options.x, options.y, options.type);
-        }
-    }
-    
-    // Count active enemies - used to determine if level is complete
-    countActiveEnemies() {
-        return this.enemyManager ? this.enemyManager.enemies.length : 0;
-    }
-    
-    // Clear timed powerups - called during level transitions
-    clearTimedPowerups() {
-        if (this.player) {
-            this.player.resetPowerUps();
-        }
-    }
-    
-    // Clear all powerups - called when last enemy is destroyed
-    clearAllPowerups() {
-        // Return all projectiles to pool
-        if (this.projectilePool) {
-            this.projectilePool.clearNonPersistentPowerups();
-        }
-    }
-    
-    // Clear non-persistent powerups - called during level transitions
-    clearNonPersistentPowerups() {
-        if (this.projectilePool) {
-            this.projectilePool.clearNonPersistentPowerups();
-        }
-    }
-    
-    // Update the submitScore method to include level information
-    submitScore() {
-        const playerNameInput = document.getElementById('player-name');
-        const playerName = playerNameInput ? playerNameInput.value.trim() : 'AAA';
+    // Create a points popup at a specific location
+    createPointsPopup(x, y, points) {
+        // Create popup object
+        const popup = {
+            x: x,
+            y: y,
+            points: points,
+            opacity: 1.0,
+            scale: 0.8,
+            life: 40 // Number of frames to live
+        };
         
-        // If name is empty, use default
-        const name = playerName || 'AAA';
-        
-        if (window.highScoreManager) {
-            // Include the level reached when submitting the score
-            window.highScoreManager.submitHighScore(name, this.score, this.finalLevel || 1)
-                .then(() => {
-                    console.log('High score submitted successfully');
-                    // Update the high scores display
-                    window.highScoreManager.renderHighScores('gameover-highscores-list');
-                })
-                .catch(error => {
-                    console.error('Error submitting high score:', error);
-                });
+        // Add to popups array, remove oldest if max is reached
+        if (this.pointsPopups.length >= this.maxPopups) {
+            this.pointsPopups.shift();
         }
+        this.pointsPopups.push(popup);
     }
-
-    // Add a new method to show points popup
-    showPointsPopup(x, y, points) {
-        // Create a points popup element
-        const popup = document.createElement('div');
-        popup.className = 'points-popup';
-        popup.textContent = `+${points}`;
+    
+    // Draw all active point popups
+    drawPointsPopups() {
+        this.ctx.save();
         
-        // Position it at the point of collision
-        popup.style.left = `${x}px`;
-        popup.style.top = `${y}px`;
-        
-        // Add it to the game container
-        const gameScreen = document.getElementById('game-screen');
-        if (gameScreen) {
-            gameScreen.appendChild(popup);
+        // Process each popup
+        for (let i = this.pointsPopups.length - 1; i >= 0; i--) {
+            const popup = this.pointsPopups[i];
             
-            // Animate and remove after animation completes
-            setTimeout(() => {
-                if (popup.parentNode) {
-                    popup.parentNode.removeChild(popup);
-                }
-            }, 1000);
+            // Update popup animation
+            popup.y -= 1; // Move upward
+            popup.life--;
+            
+            // Calculate animation values
+            if (popup.life > 30) {
+                // Grow phase
+                popup.scale = 0.8 + (0.4 * (40 - popup.life) / 10);
+            } else if (popup.life < 10) {
+                // Fade out phase
+                popup.opacity = popup.life / 10;
+                popup.scale = 1.0 + ((10 - popup.life) * 0.05);
+            }
+            
+            // Remove if expired
+            if (popup.life <= 0) {
+                this.pointsPopups.splice(i, 1);
+                continue;
+            }
+            
+            // Draw the popup
+            this.ctx.globalAlpha = popup.opacity;
+            
+            // Text style
+            this.ctx.font = 'bold 16px "Press Start 2P", monospace';
+            this.ctx.textAlign = 'center';
+            
+            // Different colors based on point values
+            if (popup.points >= 300) {
+                // High value - boss points
+                this.ctx.fillStyle = '#FF00FF'; // Magenta
+                this.ctx.shadowColor = '#FF00FF';
+            } else if (popup.points >= 100) {
+                // Medium value - regular enemy
+                this.ctx.fillStyle = '#FFFF00'; // Yellow
+                this.ctx.shadowColor = '#FFFF00';
+            } else {
+                // Low value - bullet hit
+                this.ctx.fillStyle = '#00FFFF'; // Cyan
+                this.ctx.shadowColor = '#00FFFF';
+            }
+            
+            // Add glow effect
+            this.ctx.shadowBlur = 5;
+            
+            // Apply scale transform
+            this.ctx.translate(popup.x, popup.y);
+            this.ctx.scale(popup.scale, popup.scale);
+            
+            // Draw text
+            this.ctx.fillText(`+${popup.points}`, 0, 0);
+            
+            // Reset transforms
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
+        
+        this.ctx.restore();
     }
 }
 
