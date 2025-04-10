@@ -125,24 +125,22 @@
         </div>
     </div>
     
-    <!-- Scripts - Load with correct order for proper dependency resolution -->
+    <!-- Scripts - Load with correct order -->
     <script src="js/utils.js" defer></script>
     <script src="js/audio.js" defer></script>
     <script src="js/sprites.js" defer></script>
-    <script src="js/controls.js" defer></cript>
-    <script src="js/starfield.js" defer></script>
-    <script src="js/projectiles.js" defer></script> <!-- Move projectiles before powerups -->
-    <script src="js/powerups.js" defer></script>    <!-- Load powerups before player -->
+    <script src="js/controls.js" defer></script>
+    <script src="js/starfield.js" defer></script> <!-- Make sure this is loaded before game.js -->
+    <script src="js/projectiles.js" defer></script>
+    <script src="js/powerups.js" defer></script>
     <script src="js/player.js" defer></script>
     <script src="js/enemies.js" defer></script>
     <script src="js/levels.js" defer></script>
     <script src="js/highscores.js" defer></script>
     <script src="js/splash-animation.js" defer></script>
-    <script src="js/game.js" defer></script>        <!-- Game loads last, after all dependencies -->
-</body>
-</html>
+    <script src="js/game.js" defer></script>
 
-<script>
+    <script>
     // ...existing code...
     
     // Add event listeners for pause buttons
@@ -194,3 +192,5 @@
         }
     });
 </script>
+</body>
+</html>
