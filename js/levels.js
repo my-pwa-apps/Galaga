@@ -62,6 +62,28 @@ class LevelManager {
         };
     }
     
+    update() {
+        // Skip if transitioning
+        if (this.isTransitioning) {
+            this.handleTransition();
+            return;
+        }
+        
+        // Fix the automatic level transition issue
+        // Only check for level completion when enemies have been initialized
+        if (this.game.enemyManager && this.game.enemyManager.enemies) {
+            const enemiesRemaining = this.game.enemyManager.enemies.length;
+            const enemiesInEntryPath = this.game.enemyManager.enemies.filter(e => e.isEnteringFormation).length;
+            
+            // Only complete level when there are no enemies AND they've all been properly spawned
+            // Wait for at least some enemies to be created before checking for completion
+            if (enemiesRemaining === 0 && this.enemiesSpawned) {
+                console.log("Level complete!");
+                this.goToNextLevel();
+            }
+        }
+    }
+    
     startLevel(level) {
         // Fix: Ensure level is a valid number
         if (isNaN(level) || level < 1) {
@@ -75,11 +97,19 @@ class LevelManager {
         // Update level display in UI
         document.getElementById('level').textContent = this.currentLevel;
         
-        // Fix: Ensure enemy manager exists before using it
+        // Set flag to indicate enemies haven't been fully spawned yet
+        this.enemiesSpawned = false;
+        
+        // Reset enemy formation for new level
         if (this.game.enemyManager) {
-            // Reset enemy formation for new level
             this.game.enemyManager.enemies = [];
             this.game.enemyManager.createFormation(this.currentLevel);
+            
+            // Set a slight delay before checking for level completion
+            // This prevents the "instant next level" issue
+            setTimeout(() => {
+                this.enemiesSpawned = true;
+            }, 1000); // 1 second delay
         } else {
             console.error("Enemy manager not initialized");
         }
@@ -101,22 +131,6 @@ class LevelManager {
         this.messageVisible = true;
         
         console.log(`Transitioning to level ${nextLevel}`);
-    }
-    
-    update() {
-        // Skip if transitioning
-        if (this.isTransitioning) {
-            this.handleTransition();
-            return;
-        }
-        
-        // Check if level is complete (all enemies destroyed)
-        const enemiesRemaining = this.game.countActiveEnemies ? this.game.countActiveEnemies() : 0;
-        
-        if (enemiesRemaining <= 0) {
-            console.log("Level complete!");
-            this.goToNextLevel();
-        }
     }
     
     handleTransition() {

@@ -399,12 +399,26 @@ class PowerUpManager {
     constructor(game) {
         this.game = game;
         this.powerUps = [];
-        this.dropChance = 0.1; // Increased from 0.02 to 0.1 (10% chance)
-        this.lastDropTime = 0;
-        this.minDropInterval = 120; // Decreased from 300 to 120
-        this.guaranteedDropKillCount = 15; // Decreased from 20 to 15
-        this.enemiesDestroyedSinceDrop = 0;
-        this.levelStartPowerUp = true; // Enable automatic level-start power-up
+        this.powerUpChance = 0.3; // 30% chance for power-up on enemy death
+        
+        // Define power-up types and their relative weights
+        this.powerUpTypes = [
+            { type: 'rapidFire', weight: 20 },
+            { type: 'multiShot', weight: 15 },
+            { type: 'shield', weight: 10 },
+            { type: 'screenBomb', weight: 5 },
+            { type: 'extraLife', weight: 3 },
+            { type: 'hyperspeed', weight: 8 }
+        ];
+        
+        // Calculate total weight for random selection
+        this.totalWeight = this.powerUpTypes.reduce((sum, type) => sum + type.weight, 0);
+    }
+    
+    // Add this missing method to fix the error
+    clearAllPowerups() {
+        // Remove all active power-ups from the game
+        this.powerUps = [];
     }
     
     update() {
