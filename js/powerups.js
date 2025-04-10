@@ -536,31 +536,38 @@ class PowerUpManager {
     detonateScreenBomb() {
         // Create explosion at each enemy position
         for (let enemy of this.game.enemyManager.enemies) {
-            // Use explosionPool instead of the non-existent createExplosion method
-            const totalScore = this.game.enemyManager.enemies.reduce((sum, enemy) => sum + enemy.points, 0);
-            this.game.score += Math.round(totalScore);   const points = Math.round(enemy.points);
-            document.getElementById('score').textContent = this.game.score;    this.game.createPointsPopup(enemy.x, enemy.y, points);
+            this.game.explosionPool.get(enemy.x, enemy.y);
         }
         
-        // Clear all enemies// Add score for each enemy
-        this.game.enemyManager.enemies = [];) {
-         sum + enemy.points, 0);
-        // Create a big explosion in center of screen    this.game.score += Math.round(totalScore); // Use Math.round to ensure whole numbers
-        this.game.explosionPool.get(this.game.width / 2, this.game.height / 2, 2.0);ById('score').textContent = this.game.score;
+        // Add score for each enemy
+        if (this.game.enemyManager.enemies.length > 0) {
+            const totalScore = this.game.enemyManager.enemies.reduce((sum, enemy) => sum + enemy.points, 0);
+            this.game.score += Math.round(totalScore);
+            document.getElementById('score').textContent = this.game.score;
+        }
+        
+        // Clear all enemies
+        this.game.enemyManager.enemies = [];
+        
+        // Create a big explosion in center of screen
+        this.game.explosionPool.get(this.game.width / 2, this.game.height / 2, 2.0);
         
         // Play explosion sound
-        if (window.audioManager) {/ Clear all enemies
-            window.audioManager.play('explosion', 0.8);this.game.enemyManager.enemies = [];
+        if (window.audioManager) {
+            window.audioManager.play('explosion', 0.8);
         }
-        ter of screen - use explosionPool properly
-        // Screen shake effect/ 2, this.game.height / 2, 2.0); // Scale parameter for big explosion
+        
+        // Screen shake effect
         if (this.game.canvas) {
             this.game.canvas.classList.add('shake');
-            setTimeout(() => {udioManager) {
-                this.game.canvas.classList.remove('shake');   window.audioManager.play('explosion', 0.7);
-            }, 500);   }
-        }   }
-    }}
+            setTimeout(() => {
+                this.game.canvas.classList.remove('shake');
+            }, 500);
+        }
+    }
+}
 
-
+// Make PowerUpManager available globally for the Game class to use
+if (typeof window !== 'undefined') {
+    window.PowerUpManager = PowerUpManager;
 }
