@@ -161,17 +161,68 @@ class EnemyManager {
         this.formationSpacingX = 40;
         this.formationSpacingY = 40;
         this.formationOffsetY = 80;
-        this.wavePatterns = this.generateWavePatterns();
+        
+        // Initialize patterns or set default
+        this.initWavePatterns();
         this.currentWavePattern = 0;
+    }
+    
+    // Initialize wave patterns safely
+    initWavePatterns() {
+        try {
+            this.wavePatterns = this.generateWavePatterns();
+            
+            // If wavePatterns is undefined or empty, create a default pattern
+            if (!this.wavePatterns || !this.wavePatterns.length) {
+                console.warn('Wave patterns not generated properly, using default pattern');
+                this.createDefaultPattern();
+            }
+        } catch (error) {
+            console.error('Error generating wave patterns:', error);
+            this.createDefaultPattern();
+        }
+    }
+    
+    // Create a simple default pattern if normal generation fails
+    createDefaultPattern() {
+        const centerX = this.game ? this.game.width / 2 : 300;
+        
+        // Simple straight-line entry pattern
+        const straightPattern = [];
+        for (let i = 0; i < 4; i++) {
+            const startX = centerX - 150 + (i * 100);
+            const path = [
+                { x: startX, y: -50 },
+                { x: startX, y: 100 },
+                { x: startX, y: 150 }
+            ];
+            straightPattern.push(path);
+        }
+        
+        this.wavePatterns = [straightPattern];
     }
     
     createFormation(level) {
         // Get difficulty parameters from level manager
         const difficultyParams = this.game.levelManager.getDifficultyParams();
         
-        // Choose a wave pattern based on level
-        this.currentWavePattern = (level - 1) % this.wavePatterns.length;
-        const entryPaths = this.wavePatterns[this.currentWavePattern];
+        // FIXED: Safely access wavePatterns and handle undefined cases
+        if (!this.wavePatterns || !this.wavePatterns.length) {
+            console.warn('Wave patterns not available, initializing them now');
+            this.initWavePatterns();
+        }
+        
+        // Choose a wave pattern based on level (with safety check)
+        this.currentWavePattern = (level - 1) % Math.max(1, this.wavePatterns.length);
+        const entryPaths = this.wavePatterns[this.currentWavePattern] || [];
+        
+        // Ensure we have at least one path
+        if (entryPaths.length === 0) {
+            console.warn('No entry paths available, creating default path');
+            this.createDefaultPattern();
+            const entryPaths = this.wavePatterns[0] || [];
+        }
+        
         let pathIndex = 0;
         
         // Calculate a consistent alien style for this level
@@ -259,6 +310,12 @@ class EnemyManager {
     }
     
     generateWavePatterns() {
+        // Add safety check at the beginning
+        if (!this.game || typeof this.game.width === 'undefined') {
+            console.error('Game object not properly initialized in EnemyManager');
+            return this.createDefaultPattern();
+        }
+        
         // Create different entry path patterns for variety
         const patterns = [];
         const centerX = this.game.width / 2;
@@ -319,7 +376,7 @@ class EnemyManager {
         }
         patterns.push(zigzagPattern);
         
-        return patterns;
+        return patterns || [];
     }
     
     update() {
