@@ -829,18 +829,46 @@ class Enemy {
             this.state = 'attacking';
         }
     }
-    
-    tryToShoot() {
+      tryToShoot() {
         if (Math.random() < this.fireRate) {
-            // Create bullet using the projectile pool with proper parameters
-            this.game.projectilePool.get({
-                game: this.game,
-                x: this.x,
-                y: this.y + 20,
-                speed: 5, // Positive speed for downward movement
-                type: 'enemy',
-                isEnemy: true // Explicitly set isEnemy flag
-            });
+            // Get current level for bullet count scaling
+            const currentLevel = this.game.levelManager ? this.game.levelManager.currentLevel : 1;
+            
+            // Calculate how many bullets to fire based on level (increases gradually)
+            // Level 1-3: mostly single bullets
+            // Level 4-7: chance for double bullets
+            // Level 8+: chance for triple bullets
+            let bulletCount = 1;
+            
+            if (currentLevel >= 4) {
+                // At level 4+ add chance for double bullets
+                if (Math.random() < (currentLevel - 3) * 0.1) {
+                    bulletCount = 2;
+                }
+            }
+            
+            if (currentLevel >= 8) {
+                // At level 8+ add chance for triple bullets
+                if (Math.random() < (currentLevel - 7) * 0.05) {
+                    bulletCount = 3;
+                }
+            }
+            
+            // Fire the determined number of bullets
+            for (let i = 0; i < bulletCount; i++) {
+                // Add slight spread for multiple bullets
+                const offsetX = bulletCount > 1 ? (i - Math.floor(bulletCount / 2)) * 8 : 0;
+                
+                // Create bullet using the projectile pool with proper parameters
+                this.game.projectilePool.get({
+                    game: this.game,
+                    x: this.x + offsetX,
+                    y: this.y + 20,
+                    speed: 5, // Positive speed for downward movement
+                    type: 'enemy',
+                    isEnemy: true // Explicitly set isEnemy flag
+                });
+            }
             
             // Play enemy shooting sound
             if (window.audioManager) {

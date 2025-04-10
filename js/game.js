@@ -320,10 +320,10 @@ class Game {
                         if (this.checkCircleCollision(
                             playerProjectile.x, playerProjectile.y, playerProjectile.radius,
                             enemyProjectile.x, enemyProjectile.y, enemyProjectile.radius
-                        )) {
-                            // Create a small explosion effect at the collision point
+                        )) {                            // Create a small explosion effect at the collision point
                             this.explosionPool.get(enemyProjectile.x, enemyProjectile.y, 0.5);
-                              // Play sound effect
+                            
+                            // Play sound effect
                             if (window.audioManager) {
                                 window.audioManager.play('bulletHit', 0.15);
                             }
@@ -331,6 +331,9 @@ class Game {
                             // Award points for destroying an enemy bullet (increased from 10 to 25)
                             this.score += 25;
                             this.updateUI();
+                            
+                            // Create score popup for bullet destruction
+                            this.createPointsPopup(enemyProjectile.x, enemyProjectile.y, 25);
                             
                             // Deactivate both projectiles
                             enemyProjectile.active = false;
