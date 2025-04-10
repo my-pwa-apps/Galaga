@@ -433,17 +433,18 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     top: 0;
     left: 0;
     width: 100%;
-    padding: 10px;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0) 100%);
+    padding: 15px 10px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%);
     display: flex;
     justify-content: space-around;
     align-items: center;
     text-align: center;
     color: #fff;
-    font-size: 0.8rem;
+    font-size: 1rem;
     text-shadow: 0 0 5px #00f, 0 0 10px #00f;
-    z-index: 5;
-    border-bottom: 1px solid rgba(0, 100, 255, 0.3);
+    z-index: 10;
+    border-bottom: 2px solid rgba(0, 200, 255, 0.5);
+    box-shadow: 0 0 15px rgba(0, 100, 255, 0.3);
 }
 
 .hud div {
