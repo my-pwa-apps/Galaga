@@ -828,28 +828,28 @@ class Enemy {
         if (Math.random() < 0.001) {
             this.state = 'attacking';
         }
-    }
-      tryToShoot() {
-        if (Math.random() < this.fireRate) {
+    }    tryToShoot() {
+        // Reduce base fire rate by 40% to decrease overall bullet count
+        if (Math.random() < this.fireRate * 0.6) {
             // Get current level for bullet count scaling
             const currentLevel = this.game.levelManager ? this.game.levelManager.currentLevel : 1;
             
-            // Calculate how many bullets to fire based on level (increases gradually)
-            // Level 1-3: mostly single bullets
-            // Level 4-7: chance for double bullets
-            // Level 8+: chance for triple bullets
+            // Calculate how many bullets to fire based on level (increases gradually but with lower chances)
+            // Level 1-5: only single bullets
+            // Level 6-10: small chance for double bullets
+            // Level 11+: very small chance for triple bullets
             let bulletCount = 1;
             
-            if (currentLevel >= 4) {
-                // At level 4+ add chance for double bullets
-                if (Math.random() < (currentLevel - 3) * 0.1) {
+            if (currentLevel >= 6) {
+                // Reduced chance for double bullets, starting at higher levels
+                if (Math.random() < (currentLevel - 5) * 0.05) { // Reduced from 0.1 to 0.05
                     bulletCount = 2;
                 }
             }
             
-            if (currentLevel >= 8) {
-                // At level 8+ add chance for triple bullets
-                if (Math.random() < (currentLevel - 7) * 0.05) {
+            if (currentLevel >= 11) { // Increased from 8 to 11
+                // Very small chance for triple bullets
+                if (Math.random() < (currentLevel - 10) * 0.025) { // Reduced from 0.05 to 0.025
                     bulletCount = 3;
                 }
             }
