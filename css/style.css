@@ -428,7 +428,8 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
 }
 
 /* Improve the HUD appearance with a more attractive design */
-.hud {
+/* Position the HUD properly at the top of the screen */
+#hud {
     position: absolute;
     top: 0;
     left: 0;
@@ -447,13 +448,13 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     box-shadow: 0 0 15px rgba(0, 100, 255, 0.3);
 }
 
-.hud div {
+#hud div {
     flex: 1;
     padding: 5px 10px;
     position: relative;
 }
 
-.hud div::after {
+#hud div::after {
     content: '';
     position: absolute;
     right: 0;
@@ -463,14 +464,8 @@ body:not(.keyboard-navigation) #mobile-controls button:focus {
     background: rgba(0, 200, 255, 0.3);
 }
 
-.hud div:last-child::after {
+#hud div:last-child::after {
     display: none;
-}
-
-.hud span {
-    color: #0ff;
-    margin-left: 5px;
-    font-weight: bold;
 }
 
 #score {
@@ -820,7 +815,7 @@ body.touch-device #mobile-controls.hidden-on-desktop {
 /* Pause button styles */
 #pause-button {
     position: absolute;
-    top: 10px;
+    top: 60px;
     right: 10px;
     width: 40px;
     height: 40px;
@@ -884,7 +879,6 @@ body.touch-device #mobile-controls.hidden-on-desktop {
     display: block;
     width: 200px;
     margin: 15px auto;
-    padding: 10px;
 }
 
 /* Ensure the overlay is hidden initially */
