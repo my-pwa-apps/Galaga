@@ -464,13 +464,12 @@ class Game {
                     }
                     
                     // Remove the power-up
-                    this.powerUpManager.powerUps.splice(i, 1);
-                }
+                    this.powerUpManager.powerUps.splice(i, 1);                }
             }
         }
         
-        // Finally, clean up inactive projectiles from the pool
-        this.projectilePool.removeInactiveProjectiles();
+        // The projectile pool already handles cleanup in its update() method
+        // No need for an explicit call to a separate cleanup method
     }
     
     // Helper method for rectangle collision detection
