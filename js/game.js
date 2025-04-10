@@ -778,12 +778,11 @@ class Game {
             this.togglePause(true); // Force pause
         }
     }
-    
-    // Handle window regaining focus
+      // Handle window regaining focus
     handleFocus() {
         // Reset controls when focus is regained to prevent stuck keys
         if (this.controls) {
-            this.controls.resetKeys();
+            this.controls.reset();
         }
     }
     
@@ -806,10 +805,9 @@ class Game {
                 pauseOverlay.classList.add('hidden');
             }
         }
-        
-        // Reset controls when unpausing to prevent stuck keys
+          // Reset controls when unpausing to prevent stuck keys
         if (!this.isPaused && this.controls) {
-            this.controls.resetKeys();
+            this.controls.reset();
         }
     }
     
