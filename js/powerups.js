@@ -257,6 +257,80 @@ class PowerUp {
         ctx.fill();
     }
     
+    // Draw spread-shot powerup (fan shape)
+    drawSpreadShot(ctx, x, y, size) {
+        ctx.beginPath();
+        // Draw a fan/spread shape
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, size, -Math.PI/4, Math.PI/4, false);
+        ctx.lineTo(x, y);
+        ctx.fill();
+        
+        // Add bullet lines to illustrate spread
+        ctx.fillStyle = '#FFFFFF';
+        ctx.globalAlpha = 0.8;
+        
+        // Draw three lines indicating bullet trajectories
+        for (let angle = -Math.PI/6; angle <= Math.PI/6; angle += Math.PI/6) {
+            ctx.beginPath();
+            ctx.rect(x + Math.cos(angle) * size * 0.2, 
+                   y + Math.sin(angle) * size * 0.2, 
+                   Math.cos(angle) * size * 0.6, 
+                   Math.sin(angle) * size * 0.6);
+            ctx.fill();
+        }
+    }
+    
+    // Draw slow-motion powerup (hourglass shape)
+    drawSlowMotion(ctx, x, y, size) {
+        // Hourglass outline
+        ctx.beginPath();
+        ctx.moveTo(x - size/2, y - size);
+        ctx.lineTo(x + size/2, y - size);
+        ctx.lineTo(x - size/2, y + size);
+        ctx.lineTo(x + size/2, y + size);
+        ctx.lineTo(x - size/2, y - size);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Center dot
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(x, y, size * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // Draw mega-bomb powerup (pulsing explosive)
+    drawMegaBomb(ctx, x, y, size) {
+        // Outer circle
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Inner explosive pattern
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        
+        // Draw star-like explosion shape
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const innerRadius = size * 0.3;
+            const outerRadius = size * 0.7;
+            
+            if (i === 0) {
+                ctx.moveTo(x + Math.cos(angle) * outerRadius, y + Math.sin(angle) * outerRadius);
+            } else {
+                ctx.lineTo(x + Math.cos(angle) * outerRadius, y + Math.sin(angle) * outerRadius);
+            }
+            
+            const halfAngle = angle + Math.PI / 8;
+            ctx.lineTo(x + Math.cos(halfAngle) * innerRadius, y + Math.sin(halfAngle) * innerRadius);
+        }
+        
+        ctx.closePath();
+        ctx.fill();
+    }
+    
     // Apply powerup with proper reset handling
     apply(player) {
         if (window.audioManager) {
@@ -399,7 +473,14 @@ class PowerUpManager {
     constructor(game) {
         this.game = game;
         this.powerUps = [];
-        this.powerUpChance = 0.3; // 30% chance for power-up on enemy death
+        
+        // Initialize powerup spawn variables
+        this.dropChance = 0.15; // 15% chance for power-up on enemy death
+        this.lastDropTime = 0; // Track when the last powerup was dropped
+        this.minDropInterval = 300; // Minimum frames between random drops (5 seconds at 60fps)
+        this.enemiesDestroyedSinceDrop = 0; // Counter for enemies destroyed since last drop
+        this.guaranteedDropKillCount = 15; // Force a drop after destroying this many enemies
+        this.levelStartPowerUp = true; // Whether to give a powerup at level start
         
         // Define power-up types and their relative weights
         this.powerUpTypes = [
