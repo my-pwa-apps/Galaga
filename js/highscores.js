@@ -1,7 +1,6 @@
 // Firebase High Scores Management for Galaga
 
-class HighScoreManager {
-    constructor() {
+class HighScoreManager {    constructor() {
         // Initialize Firebase with your config
         const firebaseConfig = {
             apiKey: "AIzaSyB6VUKC89covzLlhUO7UMeILVCJVy1SPdc",
@@ -23,6 +22,7 @@ class HighScoreManager {
         this.highScoresRef = this.database.ref('highScores');
         this.maxHighScores = 10; // Only store top 10 scores
         this.currentGameScore = 0;
+        this.currentGameLevel = 1; // Initialize with default level 1
         this.isHighScore = false;
         
         // DOM elements
@@ -140,6 +140,11 @@ class HighScoreManager {
         });
         
         listElement.appendChild(table);
+    }
+      // New method to set the current game level
+    setCurrentLevel(level) {
+        // Ensure level is a valid number and at least 1
+        this.currentGameLevel = (typeof level === 'number' && level > 0) ? level : 1;
     }
     
     checkHighScore(score) {

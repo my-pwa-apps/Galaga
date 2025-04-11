@@ -601,11 +601,13 @@ class Game {
         
         // Clear points popups
         this.pointsPopups = [];
-        
-        // Check if this is a high score and show the appropriate form
+          // Check if this is a high score and show the appropriate form
         if (window.highScoreManager) {
             // Store the level in a class property to ensure it's available when submitting
             this.finalLevel = currentLevel;
+            
+            // Set the current level in the high score manager
+            window.highScoreManager.setCurrentLevel(currentLevel);
             
             window.highScoreManager.checkHighScore(this.score)
                 .then(isHighScore => {
