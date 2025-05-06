@@ -250,13 +250,32 @@ class EnemyManager {
         // Randomize slightly for visual diversity within same enemy types
         const variationSeed = Math.random();
         const colorShift = variationSeed * 20 - 10; // -10 to +10 color variation
-        
-        // Apply color variation
+          // Apply color variation with error handling
         const adjustColor = (color) => {
-            const rgb = color.match(/\d+/g).map(Number);
-            return `rgb(${Math.min(255, Math.max(0, rgb[0] + colorShift))}, 
-                       ${Math.min(255, Math.max(0, rgb[1] + colorShift))}, 
-                       ${Math.min(255, Math.max(0, rgb[2] + colorShift))})`;
+            // Handle hex colors or fallback to default if no match
+            if (!color) {
+                return '#FF0000'; // Default to red if no color provided
+            }
+            
+            // Check if it's a hex color and convert to RGB
+            if (color.startsWith('#')) {
+                const r = parseInt(color.slice(1, 3), 16);
+                const g = parseInt(color.slice(3, 5), 16);
+                const b = parseInt(color.slice(5, 7), 16);
+                return `rgb(${Math.min(255, Math.max(0, r + colorShift))}, 
+                           ${Math.min(255, Math.max(0, g + colorShift))}, 
+                           ${Math.min(255, Math.max(0, b + colorShift))})`;
+            }
+            
+            // Otherwise try to parse as RGB
+            const rgb = color.match(/\d+/g);
+            if (!rgb || rgb.length < 3) {
+                return color; // Return original if can't parse
+            }
+            
+            return `rgb(${Math.min(255, Math.max(0, parseInt(rgb[0]) + colorShift))}, 
+                       ${Math.min(255, Math.max(0, parseInt(rgb[1]) + colorShift))}, 
+                       ${Math.min(255, Math.max(0, parseInt(rgb[2]) + colorShift))})`;
         };
         
         ctx.fillStyle = adjustColor(colors.main);
