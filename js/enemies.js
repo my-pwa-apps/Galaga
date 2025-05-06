@@ -109,8 +109,7 @@ class EnemyManager {
             return this.enemyThemes[3]; // Gold theme (levels 10+)
         }
     }
-    
-    // Create enemy formation with level-specific enemies
+      // Create enemy formation with level-specific enemies
     createFormation(level) {
         // Validate level parameter
         if (isNaN(level) || level < 1) {
@@ -120,10 +119,11 @@ class EnemyManager {
         
         console.log(`Creating enemy formation for level ${level}`);
         
-        // Get difficulty parameters from level manager
+        // Get enhanced difficulty parameters from level manager
         let difficultyParams;
         try {
             difficultyParams = this.game.levelManager.getDifficultyParams();
+            console.log(`Difficulty level: ${difficultyParams.difficultyLabel}`);
         } catch (error) {
             console.error("Error getting difficulty params:", error);
             // Use default parameters if there's an error
@@ -133,7 +133,14 @@ class EnemyManager {
                 bossHealth: 3,
                 fireRate: 0.005,
                 bossFireRate: 0.008,
-                pointMultiplier: 1.0
+                pointMultiplier: 1.0,
+                specialBehaviorChance: 0.05,
+                teleportUnlocked: level >= 5,
+                aggressiveUnlocked: level >= 3,
+                bossSpecialAttackChance: Math.min((level - 2) * 0.05, 0.4),
+                formationComplexity: Math.min(Math.floor((level + 1) / 3), 4),
+                diveChance: Math.min(0.001 + (level - 1) * 0.0003, 0.002),
+                difficultyLabel: "Normal"
             };
         }
         
@@ -220,11 +227,10 @@ class EnemyManager {
             special: this.createEnemyAsset('special', theme.colors.special),
             boss: this.createEnemyAsset('boss', theme.colors.boss)
         };
-    }
-      // Create a pre-rendered enemy asset
+    }    // Create a pre-rendered enemy asset with improved visual diversity
     createEnemyAsset(type, colors) {
         // Larger canvas size for better rendering quality
-        const enemySize = 80;
+        const enemySize = 100;  // Increased from 80 for more detail
         const canvas = document.createElement('canvas');
         canvas.width = enemySize;
         canvas.height = enemySize;
@@ -237,15 +243,28 @@ class EnemyManager {
         ctx.save();
         ctx.translate(centerX, centerY);
         
-        // Draw with theme colors
-        ctx.fillStyle = colors.main;
-        ctx.strokeStyle = colors.accent;
-        ctx.shadowBlur = 15;
+        // Enhanced shadow and glow effects
+        ctx.shadowBlur = type === 'boss' ? 20 : (type === 'special' ? 18 : 15);
         ctx.shadowColor = colors.glow;
         
+        // Randomize slightly for visual diversity within same enemy types
+        const variationSeed = Math.random();
+        const colorShift = variationSeed * 20 - 10; // -10 to +10 color variation
+        
+        // Apply color variation
+        const adjustColor = (color) => {
+            const rgb = color.match(/\d+/g).map(Number);
+            return `rgb(${Math.min(255, Math.max(0, rgb[0] + colorShift))}, 
+                       ${Math.min(255, Math.max(0, rgb[1] + colorShift))}, 
+                       ${Math.min(255, Math.max(0, rgb[2] + colorShift))})`;
+        };
+        
+        ctx.fillStyle = adjustColor(colors.main);
+        ctx.strokeStyle = adjustColor(colors.accent);
+        
         // Get size for this enemy type (larger sizes)
-        const width = type === 'boss' ? 60 : (type === 'special' ? 50 : 45);
-        const height = type === 'boss' ? 60 : (type === 'special' ? 50 : 45);
+        const width = type === 'boss' ? 70 : (type === 'special' ? 55 : 48);
+        const height = type === 'boss' ? 70 : (type === 'special' ? 55 : 48);
         
         // Create enemy shape based on type
         if (type === 'boss') {
@@ -262,59 +281,112 @@ class EnemyManager {
         ctx.restore();
         return canvas;
     }
-    
-    // Draw basic enemy shape
+      // Draw enhanced basic enemy shape with more detail and visual diversity
     drawBasicEnemyShape(ctx, width, height, colors) {
-        // Basic alien body shape - similar to original with theme colors
+        // Generate variation id for this specific enemy (0-3)
+        const variationId = Math.floor(Math.random() * 4);
+        
+        // Base shape with variations
         ctx.beginPath();
-        ctx.moveTo(0, -height/2); // Top center
-        ctx.bezierCurveTo(
-            width/3, -height/2,
-            width/2, -height/3,
-            width/2, -height/4
-        ); // Upper right curve
-        ctx.lineTo(width/2, height/4); // Right side
-        ctx.quadraticCurveTo(width/2, height/3, width/3, height/2); // Bottom right curve
-        ctx.lineTo(-width/3, height/2); // Bottom
-        ctx.quadraticCurveTo(-width/2, height/3, -width/2, height/4); // Bottom left curve
-        ctx.lineTo(-width/2, -height/4); // Left side
-        ctx.bezierCurveTo(
-            -width/2, -height/3,
-            -width/3, -height/2,
-            0, -height/2
-        ); // Upper left curve
+        
+        if (variationId === 0) {
+            // Classic shape with smoother curves
+            ctx.moveTo(0, -height/2); // Top center
+            ctx.bezierCurveTo(
+                width/3, -height/2,
+                width/2, -height/3,
+                width/2, -height/4
+            );
+            ctx.lineTo(width/2, height/4);
+            ctx.quadraticCurveTo(width/2, height/3, width/3, height/2);
+            ctx.lineTo(-width/3, height/2);
+            ctx.quadraticCurveTo(-width/2, height/3, -width/2, height/4);
+            ctx.lineTo(-width/2, -height/4);
+            ctx.bezierCurveTo(
+                -width/2, -height/3,
+                -width/3, -height/2,
+                0, -height/2
+            );
+        } else if (variationId === 1) {
+            // Octagonal variation
+            ctx.moveTo(-width/2, -height/4);
+            ctx.lineTo(-width/3, -height/2);
+            ctx.lineTo(width/3, -height/2);
+            ctx.lineTo(width/2, -height/4);
+            ctx.lineTo(width/2, height/4);
+            ctx.lineTo(width/3, height/2);
+            ctx.lineTo(-width/3, height/2);
+            ctx.lineTo(-width/2, height/4);
+        } else if (variationId === 2) {
+            // More circular variation
+            ctx.arc(0, 0, width/2, 0, Math.PI * 2);
+        } else {
+            // Hexagonal variation
+            ctx.moveTo(0, -height/2);
+            ctx.lineTo(width/2, -height/4);
+            ctx.lineTo(width/2, height/4);
+            ctx.lineTo(0, height/2);
+            ctx.lineTo(-width/2, height/4);
+            ctx.lineTo(-width/2, -height/4);
+        }
+        
         ctx.closePath();
         ctx.fill();
         
-        // Body details
+        // Add texture details based on variation
         ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-width/3, height/6);
-        ctx.lineTo(width/3, height/6);
-        ctx.stroke();
         
-        // Eyes
+        if (variationId === 0 || variationId === 2) {
+            // Horizontal stripes for some variations
+            ctx.beginPath();
+            ctx.moveTo(-width/3, height/6);
+            ctx.lineTo(width/3, height/6);
+            ctx.stroke();
+            
+            // Add second line for more detail in circular variation
+            if (variationId === 2) {
+                ctx.beginPath();
+                ctx.moveTo(-width/3, -height/6);
+                ctx.lineTo(width/3, -height/6);
+                ctx.stroke();
+            }
+        } else {
+            // Cross pattern for other variations
+            ctx.beginPath();
+            ctx.moveTo(0, -height/3);
+            ctx.lineTo(0, height/3);
+            ctx.moveTo(-width/3, 0);
+            ctx.lineTo(width/3, 0);
+            ctx.stroke();
+        }
+        
+        // Eyes with glow effect
         ctx.fillStyle = '#FFFFFF';
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#FFFFFF';
         
+        // Eye positions vary with shape
+        const eyeX = variationId === 2 ? width/4 : width/5;
+        const eyeY = variationId === 3 ? height/4 : height/5;
+        const eyeSize = variationId === 0 ? width/8 : width/9;
+        
         // Left eye
         ctx.beginPath();
-        ctx.arc(-width/5, height/5, width/8, 0, Math.PI * 2);
+        ctx.arc(-eyeX, eyeY, eyeSize, 0, Math.PI * 2);
         ctx.fill();
         
         // Right eye
         ctx.beginPath();
-        ctx.arc(width/5, height/5, width/8, 0, Math.PI * 2);
+        ctx.arc(eyeX, eyeY, eyeSize, 0, Math.PI * 2);
         ctx.fill();
         
-        // Pupils
+        // Pupils with glowing effect
         ctx.fillStyle = colors.glow;
-        ctx.shadowBlur = 5;
+        ctx.shadowBlur = 8;
         ctx.shadowColor = colors.glow;
         
         ctx.beginPath();
-        ctx.arc(-width/5, height/5, width/16, 0, Math.PI * 2);
+        ctx.arc(-eyeX, eyeY, eyeSize/2, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.beginPath();
@@ -1011,18 +1083,45 @@ class Enemy {
             return;
         }
         
-        ctx.save();
-          // If enemy has a custom sprite, use it
-        if (this.sprite) {
-            // Add pulsing size effect for more dynamic appearance
-            const pulseAmount = Math.sin(this.animationPhase) * 0.05;
-            const width = this.width * (1 + pulseAmount);
-            const height = this.height * (1 + pulseAmount);
+        ctx.save();        // Add subtle rotation based on movement
+        const rotationAmount = this.state === 'attacking' ? 
+            Math.sin(this.game.frameCount * 0.05) * 0.2 : 
+            Math.sin(this.game.frameCount * 0.02) * 0.05;
+        
+        // Apply rotation to create more dynamic movement
+        ctx.translate(this.x, this.y);
+        ctx.rotate(rotationAmount);
+        ctx.translate(-this.x, -this.y);
             
-            // Draw the pre-rendered sprite
+        // Enhanced rendering with animation effects
+        if (this.sprite) {
+            // More pronounced pulsing size effect for dynamic appearance
+            const baseAnimSpeed = this.type === 'boss' ? 0.08 : (this.type === 'special' ? 0.06 : 0.04);
+            const pulseAmount = Math.sin(this.animationPhase * baseAnimSpeed) * 0.08;
+            
+            // Size is based on enemy type and animation state
+            let width = this.width * (1 + pulseAmount);
+            let height = this.height * (1 + pulseAmount);
+            
+            // When attacking, make the enemy appear more aggressive with larger size
+            if (this.state === 'attacking') {
+                width *= 1.1;
+                height *= 1.1;
+            }
+            
+            // Add slight wobble when moving
+            const wobbleX = this.state !== 'formation' ? Math.sin(this.game.frameCount * 0.2) * 2 : 0;
+            
+            // Draw with enhanced effects
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.hitTimer > 0 ? '#FFFFFF' : 
+                             (this.type === 'boss' ? '#FF00FF' : 
+                             (this.type === 'special' ? '#FFFF00' : '#00FFFF'));
+            
+            // Draw the pre-rendered sprite with effects
             ctx.drawImage(
                 this.sprite,
-                this.x - width/2,
+                this.x - width/2 + wobbleX,
                 this.y - height/2,
                 width,
                 height
@@ -1039,24 +1138,77 @@ class Enemy {
             }
         }
         
-        // Add behavior-specific visual effects
-        if (this.behavior === 'teleport' && this.teleportCooldown < 20) {
-            // Teleport charging effect
-            ctx.globalAlpha = 0.5;
-            ctx.fillStyle = '#FFFFFF';
+        // Enhanced special behavior effects
+        if (this.behavior === 'teleport') {
+            // Enhanced teleport visual effect with rays
+            if (this.teleportCooldown < 20) {
+                // Outer glow
+                ctx.globalAlpha = 0.4;
+                ctx.fillStyle = '#80FFFF';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.width * (0.8 + Math.sin(this.behaviorTimer * 0.2) * 0.3), 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner bright flash
+                ctx.globalAlpha = 0.7;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.width/3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw teleport rays
+                ctx.globalAlpha = 0.6;
+                ctx.strokeStyle = '#80FFFF';
+                ctx.lineWidth = 2;
+                const rayCount = 8;
+                for (let i = 0; i < rayCount; i++) {
+                    const angle = (Math.PI * 2 / rayCount) * i + (this.game.frameCount * 0.02);
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    const rayLength = this.width * (0.7 + Math.sin(this.behaviorTimer * 0.2) * 0.3);
+                    ctx.lineTo(
+                        this.x + Math.cos(angle) * rayLength,
+                        this.y + Math.sin(angle) * rayLength
+                    );
+                    ctx.stroke();
+                }
+            }
+        } else if (this.behavior === 'aggressive') {
+            // Aggressive enemies get a red aura
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = '#FF3030';
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.width/2 * (1 + Math.sin(this.behaviorTimer * 0.2) * 0.2), 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, this.width * 0.7, 0, Math.PI * 2);
             ctx.fill();
-            ctx.globalAlpha = 1.0;
+        } else if (this.behavior === 'dive' && this.behaviorState === 'diving') {
+            // Dive trails
+            ctx.globalAlpha = 0.4;
+            ctx.fillStyle = '#3080FF';
+            for (let i = 0; i < 3; i++) {
+                const trailDist = i * 10;
+                const trailSize = this.width/2 - (i * 5);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - trailDist, trailSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
         
-        // Hit effect
+        // Enhanced hit effect
         if (this.hitTimer > 0) {
-            ctx.globalAlpha = 0.7;
+            // Outer flash
+            ctx.globalAlpha = 0.4 + (this.hitTimer/10) * 0.6;
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.width/2, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, this.width/1.5 + (10 - this.hitTimer), 0, Math.PI * 2);
             ctx.fill();
+            
+            // Inner bright core
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.width/3, 0, Math.PI * 2);
+            ctx.fill();
+            
             ctx.globalAlpha = 1.0;
         }
         

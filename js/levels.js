@@ -41,8 +41,7 @@ class LevelManager {
             { name: "Golden Armada", description: "Face the most powerful alien fleet!" }
         ];
     }
-    
-    // Calculate difficulty parameters based on current level
+      // Calculate difficulty parameters based on current level
     getDifficultyParams() {
         // Fix: Add defensive checks to prevent NaN
         if (!this.currentLevel || isNaN(this.currentLevel)) {
@@ -57,25 +56,67 @@ class LevelManager {
                 this.errors = 0;
             }
         }
-          // Get level for calculations (ensure it's a valid number)
+        
+        // Get level for calculations (ensure it's a valid number)
         const level = Math.max(1, this.currentLevel || 1);
         
-        // Make difficulty curve much more gradual - slower progression
-        const speedIncrease = 1.0 + (level - 1) * 0.03; // 3% increase per level (reduced from 5%)
-        const healthIncrease = Math.floor(level / 4) + 1; // +1 health every 4 levels (was every 3)
-        const bossHealthIncrease = Math.floor(level / 3) + 3; // +1 boss health every 3 levels (was every 2)
+        // Much more gradual difficulty curve - smoother progression
+        // First 3 levels are quite easy to let player learn the mechanics
+        let speedIncrease, healthIncrease, bossHealthIncrease, fireRateMultiplier;
         
-        // Make fire rate increase much more gradual
-        const fireRateMultiplier = 1.0 + (level - 1) * 0.05; // 5% increase per level (reduced from 10%)
+        if (level <= 3) {
+            // First three levels have very minimal increases
+            speedIncrease = 1.0 + (level - 1) * 0.01; // Only 1% speed increase per level
+            healthIncrease = 1; // Basic enemies have 1 health for first 3 levels
+            bossHealthIncrease = 3; // Boss health stays at 3 for first 3 levels
+            fireRateMultiplier = 1.0 + (level - 1) * 0.02; // Very slow fire rate increase (2%)
+        } else if (level <= 7) {
+            // Levels 4-7 start ramping up gently
+            speedIncrease = 1.03 + (level - 4) * 0.02; // Starting at 3% then +2% per level
+            healthIncrease = Math.floor((level - 1) / 3) + 1; // Health increases more slowly
+            bossHealthIncrease = 3 + Math.floor((level - 3) / 2); // Boss health increases every 2 levels
+            fireRateMultiplier = 1.04 + (level - 4) * 0.03; // Fire rate increases by 3% per level
+        } else {
+            // Levels 8+ get gradually more challenging
+            speedIncrease = 1.11 + (level - 8) * 0.025; // More noticeable speed increases
+            healthIncrease = Math.floor((level - 1) / 2.5) + 1; // More health but still gradual
+            bossHealthIncrease = 5 + Math.floor((level - 7) / 2); // Boss health continues to scale
+            fireRateMultiplier = 1.13 + (level - 8) * 0.035; // Fire rate increases more significantly
+        }
         
-        // Lower maximum caps for a more balanced experience
+        // Special behavior unlocks based on level
+        // This adds enemy variety gradually rather than all at once
+        const specialBehaviorChance = Math.min(0.05 + (level - 3) * 0.03, 0.3); // Max 30% chance for special behaviors
+        const teleportUnlocked = level >= 5; // Teleporting enemies appear at level 5
+        const aggressiveUnlocked = level >= 3; // Aggressive enemies appear at level 3
+        const bossSpecialAttackChance = Math.min((level - 2) * 0.05, 0.4); // Boss special attacks increase gradually
+        
+        // Enemy formation pattern complexity increases with level
+        const formationComplexity = Math.min(Math.floor((level + 1) / 3), 4); // 5 different formation patterns (0-4)
+        
+        // Return a much more detailed difficulty parameter object with gradual scaling
         return {
-            enemySpeed: Math.min(this.baseDifficulty.enemySpeed * speedIncrease, 2.0), // Lower max speed cap
-            enemyHealth: Math.min(healthIncrease, 4), // Max health reduced from 5 to 4
-            bossHealth: Math.min(bossHealthIncrease, 8), // Max boss health reduced from 10 to 8
-            fireRate: Math.min(this.baseDifficulty.fireRate * fireRateMultiplier, 0.012), // Reduced max fire rate
-            bossFireRate: Math.min(this.baseDifficulty.bossFireRate * fireRateMultiplier, 0.02), // Reduced max boss fire rate
-            pointMultiplier: 1.0 + (level - 1) * 0.1 // Keep point multiplier the same
+            enemySpeed: Math.min(this.baseDifficulty.enemySpeed * speedIncrease, 1.8), // Lower max speed cap
+            enemyHealth: Math.min(healthIncrease, 4), // Max health of 4 for regular enemies
+            bossHealth: Math.min(bossHealthIncrease, 8), // Max boss health of 8
+            fireRate: Math.min(this.baseDifficulty.fireRate * fireRateMultiplier, 0.01), // More controlled max fire rate
+            bossFireRate: Math.min(this.baseDifficulty.bossFireRate * fireRateMultiplier, 0.018), // More controlled boss fire rate
+            pointMultiplier: 1.0 + (level - 1) * 0.1, // Keep point multiplier the same
+            
+            // Additional parameters for more nuanced difficulty progression
+            specialBehaviorChance: specialBehaviorChance,
+            teleportUnlocked: teleportUnlocked,
+            aggressiveUnlocked: aggressiveUnlocked,
+            bossSpecialAttackChance: bossSpecialAttackChance,
+            formationComplexity: formationComplexity,
+            
+            // Gradually introduce dive attacks
+            diveChance: Math.min(0.001 + (level - 1) * 0.0003, 0.002), // Max 0.2% chance per frame
+            
+            // Difficulty label for UI feedback
+            difficultyLabel: level <= 3 ? "Easy" : 
+                            (level <= 6 ? "Normal" : 
+                            (level <= 9 ? "Hard" : "Extreme"))
         };
     }
     
@@ -201,7 +242,7 @@ class LevelManager {
             }
         }
     }
-      goToNextLevel() {
+    goToNextLevel() {
         // Fix: Ensure we're incrementing a valid number
         const nextLevel = (this.currentLevel || 0) + 1;
         
@@ -210,34 +251,31 @@ class LevelManager {
             this.game.clearNonPersistentPowerups();
         }
         
-        // Start transition effect with light speed
+        // Start transition effect with light speed - only use light speed for transitions
         this.isTransitioning = true;
         this.transitionTimer = 0;
-        this.messageFlashTimer = 0;
-        this.messageVisible = true;
         
-        // Activate light speed effect
-        if (this.game.initLightSpeedEffect) {
+        // Activate light speed effect - ensure it's always available
+        if (!this.game.initLightSpeedEffect) {
+            console.error("Light speed effect not available, implementing fallback");
+            // Define a minimal implementation if missing
+            this.game.lightSpeedActive = true;
+            setTimeout(() => {
+                this.game.lightSpeedActive = false;
+            }, 2500);
+        } else {
             this.game.initLightSpeedEffect();
         }
         
         console.log(`Transitioning to level ${nextLevel}`);
     }
-      handleTransition() {
+    handleTransition() {
         // Update transition timer
         this.transitionTimer++;
         
-        // Flash "Level Complete" message
-        this.messageFlashTimer++;
-        if (this.messageFlashTimer >= 30) { // Flash every half second
-            this.messageFlashTimer = 0;
-            this.messageVisible = !this.messageVisible;
-        }
-        
-        // If we're using light speed effect, wait a little longer
-        const transitionTime = this.game.lightSpeedActive ? 
-            Math.max(this.transitionDuration, 120) : // Wait for light speed effect
-            this.transitionDuration;
+        // Always use a transition time that matches the light speed effect
+        // Make sure we wait for the light speed effect to finish
+        const transitionTime = Math.max(this.transitionDuration, 150); // Slightly longer than light speed effect
         
         // When transition is complete, start next level
         if (this.transitionTimer >= transitionTime) {
@@ -248,13 +286,15 @@ class LevelManager {
             this.startLevel(nextLevel);
         }
     }
-      renderTransition() {
-        // If light speed effect is active, let Game handle it
+    renderTransition() {
+        // Only use the light speed effect for transitions and skip all other rendering
+        // If light speed effect is active, let Game handle it completely
         if (this.game.lightSpeedActive) {
             return;
         }
         
-        // Fall back to progress bar only if light speed is not available
+        // This is an emergency fallback rendering if for some reason light speed effect fails
+        // This should never be visible in normal gameplay
         const ctx = this.game.ctx;
         const width = this.game.width;
         const height = this.game.height;
@@ -263,36 +303,12 @@ class LevelManager {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(0, 0, width, height);
         
-        // Only show the message when it should be visible (for flashing effect)
-        if (this.messageVisible) {
-            // Level complete message
-            ctx.font = '24px "Press Start 2P", monospace';
-            ctx.fillStyle = '#FFFF00';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('LEVEL COMPLETE', width / 2, height / 2 - 40);
-            
-            // Prepare for next level message
-            ctx.font = '18px "Press Start 2P", monospace';
-            ctx.fillStyle = '#00FFFF';
-            
-            // Fix: Ensure we display a valid next level number
-            const nextLevel = (this.currentLevel || 0) + 1;
-            ctx.fillText(`PREPARE FOR LEVEL ${nextLevel}`, width / 2, height / 2 + 20);
-        }
-        
-        // We no longer need the progress bar as we use light speed effect
-        // But we'll keep it as a fallback just in case
-        if (!this.game.lightSpeedActive) {
-            // Progress bar background
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.fillRect(width / 4, height / 2 + 60, width / 2, 20);
-            
-            // Progress bar fill
-            const progressWidth = (this.transitionTimer / this.transitionDuration) * (width / 2);
-            ctx.fillStyle = '#00FF00';
-            ctx.fillRect(width / 4, height / 2 + 60, progressWidth, 20);
-        }
+        // Only show a minimal message
+        ctx.font = '18px "Press Start 2P", monospace';
+        ctx.fillStyle = '#00FFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('LOADING NEXT LEVEL', width / 2, height / 2);
     }
     
     // Fix: Add a reset method for game restart

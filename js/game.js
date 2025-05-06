@@ -831,14 +831,13 @@ class Game {
         if (pauseInfo) {
             pauseInfo.textContent = 'GAME PAUSED';
         }
-    }
-      // Initialize light speed effect for level transitions
+    }      // Initialize light speed effect for level transitions
     initLightSpeedEffect() {
         this.lightSpeedActive = true;
         this.lightSpeedStars = [];
         
         // Create initial light speed stars - increased number for more dramatic effect
-        for (let i = 0; i < 300; i++) {
+        for (let i = 0; i < 400; i++) {
             this.createLightSpeedStar();
         }
         
@@ -850,7 +849,7 @@ class Game {
         // Create additional stars over time for continuous effect
         this.lightSpeedInterval = setInterval(() => {
             // Add a few more stars
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 15; i++) {
                 this.createLightSpeedStar();
             }
         }, 200);
@@ -859,9 +858,8 @@ class Game {
         setTimeout(() => {
             this.lightSpeedActive = false;
             clearInterval(this.lightSpeedInterval);
-        }, 2500); // 2.5 seconds of light speed effect - slightly longer
-    }
-      // Create a single light speed star
+        }, 2800); // 2.8 seconds of light speed effect - enhanced duration for better visual impact
+    }      // Create a single light speed star with enhanced visual effects
     createLightSpeedStar() {
         // Stars start near the center and move outward
         const centerX = this.width / 2;
@@ -870,27 +868,50 @@ class Game {
         // Random angle for the star's direction
         const angle = Math.random() * Math.PI * 2;
         
-        // Random distance from center (mostly near center)
-        const distance = Math.random() * Math.min(this.width, this.height) * 0.1;
+        // Random distance from center (mostly near center for better warp effect)
+        const distance = Math.random() * Math.min(this.width, this.height) * 0.08;
         
-        // Add color variation for more vibrant effect
-        const colorChoices = ['255, 255, 255', '200, 220, 255', '220, 220, 255', '255, 240, 200'];
+        // Enhanced color variation for more vibrant effect
+        const colorChoices = [
+            '255, 255, 255', // White
+            '200, 220, 255', // Light blue
+            '220, 220, 255', // Pale blue
+            '255, 240, 200', // Warm white
+            '180, 200, 255', // Sky blue
+            '220, 180, 255', // Light purple
+            '200, 255, 230'  // Mint
+        ];
         const color = colorChoices[Math.floor(Math.random() * colorChoices.length)];
         
-        // Vary the speed more to create depth perception
-        const speedFactor = Math.random() < 0.3 ? 3 : (Math.random() < 0.6 ? 2 : 1);
+        // More variation in speed for enhanced depth perception
+        const speedTypes = [
+            { chance: 0.2, factor: 3.5 }, // Very fast (20%)
+            { chance: 0.5, factor: 2.2 }, // Medium fast (30%)
+            { chance: 0.8, factor: 1.5 }, // Normal (30%) 
+            { chance: 1.0, factor: 0.8 }  // Slow (20%)
+        ];
+        
+        let speedFactor = 1;
+        const speedRoll = Math.random();
+        for (const type of speedTypes) {
+            if (speedRoll <= type.chance) {
+                speedFactor = type.factor;
+                break;
+            }
+        }
         
         const star = {
             x: centerX + Math.cos(angle) * distance,
             y: centerY + Math.sin(angle) * distance,
             angle: angle,
             speed: (1 + Math.random() * 2) * speedFactor,
-            size: 1 + Math.random() * 2.5,
-            opacity: 0.5 + Math.random() * 0.5,
+            size: 0.8 + Math.random() * 3.2, // More size variation
+            opacity: 0.4 + Math.random() * 0.6,
             trail: [], // For creating light trails
-            color: color, // Custom color for this star
+            trailLength: Math.floor(8 + speedFactor * 4), // Variable trail length based on speed
+            color: color,
             // Higher accelerationFactor for faster stars
-            accelerationFactor: 1.05 + (Math.random() * 0.02 * speedFactor)
+            accelerationFactor: 1.05 + (Math.random() * 0.03 * speedFactor)
         };
         
         this.lightSpeedStars.push(star);
@@ -906,9 +927,10 @@ class Game {
         // Update each star
         for (let i = this.lightSpeedStars.length - 1; i >= 0; i--) {
             const star = this.lightSpeedStars[i];
+              // Store current position for variable-length trail
+            const maxTrailLength = star.trailLength || 12; // Use custom trail length or default to 12
             
-            // Store current position for trail
-            if (star.trail.length < 12) {
+            if (star.trail.length < maxTrailLength) {
                 star.trail.push({x: star.x, y: star.y});
             } else {
                 star.trail.shift();
@@ -963,16 +985,29 @@ class Game {
             this.ctx.arc(star.x, star.y, star.size/2, 0, Math.PI * 2);
             this.ctx.fill();
         }
-        
-        // Add a subtle radial gradient in center for enhanced effect
+          // Add an enhanced radial gradient in center for more dramatic light speed effect
         const gradient = this.ctx.createRadialGradient(
             this.width/2, this.height/2, 0,
-            this.width/2, this.height/2, this.width/3
+            this.width/2, this.height/2, this.width/2
         );
-        gradient.addColorStop(0, 'rgba(100, 120, 255, 0.1)');
+        gradient.addColorStop(0, 'rgba(120, 140, 255, 0.15)');
+        gradient.addColorStop(0.3, 'rgba(100, 120, 255, 0.08)');
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Add pulsating central light source for enhanced visual impact
+        const pulseSize = 50 + Math.sin(Date.now() / 100) * 15;
+        const pulseGradient = this.ctx.createRadialGradient(
+            this.width/2, this.height/2, 0,
+            this.width/2, this.height/2, pulseSize
+        );
+        pulseGradient.addColorStop(0, 'rgba(200, 220, 255, 0.15)');
+        pulseGradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
+        this.ctx.fillStyle = pulseGradient;
+        this.ctx.beginPath();
+        this.ctx.arc(this.width/2, this.height/2, pulseSize, 0, Math.PI * 2);
+        this.ctx.fill();
         
         this.ctx.restore();
     }
