@@ -30,6 +30,10 @@ class Game {
         // Initialize starfield with 150 stars
         this.starfield = new Starfield(this, 150);
         
+        // Light speed stars for level transitions
+        this.lightSpeedStars = [];
+        this.lightSpeedActive = false;
+        
         // Initial game state
         this.gameState = 'start';
         
@@ -204,8 +208,12 @@ class Game {
             this.drawPointsPopups();
         }
         
-        // Draw level transition overlay if applicable
-        if (this.levelManager.isTransitioning) {
+        // Draw light speed effect if active
+        if (this.lightSpeedActive) {
+            this.renderLightSpeedEffect();
+        }
+        // Draw level transition overlay if applicable but not using light speed
+        else if (this.levelManager.isTransitioning) {
             this.levelManager.renderTransition();
         }
         
@@ -601,7 +609,9 @@ class Game {
         
         // Clear points popups
         this.pointsPopups = [];
-          // Check if this is a high score and show the appropriate form
+        this.lightSpeedActive = false;
+        
+        // Check if this is a high score and show the appropriate form
         if (window.highScoreManager) {
             // Store the level in a class property to ensure it's available when submitting
             this.finalLevel = currentLevel;
@@ -821,6 +831,150 @@ class Game {
         if (pauseInfo) {
             pauseInfo.textContent = 'GAME PAUSED';
         }
+    }
+      // Initialize light speed effect for level transitions
+    initLightSpeedEffect() {
+        this.lightSpeedActive = true;
+        this.lightSpeedStars = [];
+        
+        // Create initial light speed stars - increased number for more dramatic effect
+        for (let i = 0; i < 300; i++) {
+            this.createLightSpeedStar();
+        }
+        
+        // Play light speed sound effect
+        if (window.audioManager) {
+            window.audioManager.play('lightspeed', 0.4);
+        }
+        
+        // Create additional stars over time for continuous effect
+        this.lightSpeedInterval = setInterval(() => {
+            // Add a few more stars
+            for (let i = 0; i < 10; i++) {
+                this.createLightSpeedStar();
+            }
+        }, 200);
+        
+        // Set a timeout to end the effect
+        setTimeout(() => {
+            this.lightSpeedActive = false;
+            clearInterval(this.lightSpeedInterval);
+        }, 2500); // 2.5 seconds of light speed effect - slightly longer
+    }
+      // Create a single light speed star
+    createLightSpeedStar() {
+        // Stars start near the center and move outward
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        
+        // Random angle for the star's direction
+        const angle = Math.random() * Math.PI * 2;
+        
+        // Random distance from center (mostly near center)
+        const distance = Math.random() * Math.min(this.width, this.height) * 0.1;
+        
+        // Add color variation for more vibrant effect
+        const colorChoices = ['255, 255, 255', '200, 220, 255', '220, 220, 255', '255, 240, 200'];
+        const color = colorChoices[Math.floor(Math.random() * colorChoices.length)];
+        
+        // Vary the speed more to create depth perception
+        const speedFactor = Math.random() < 0.3 ? 3 : (Math.random() < 0.6 ? 2 : 1);
+        
+        const star = {
+            x: centerX + Math.cos(angle) * distance,
+            y: centerY + Math.sin(angle) * distance,
+            angle: angle,
+            speed: (1 + Math.random() * 2) * speedFactor,
+            size: 1 + Math.random() * 2.5,
+            opacity: 0.5 + Math.random() * 0.5,
+            trail: [], // For creating light trails
+            color: color, // Custom color for this star
+            // Higher accelerationFactor for faster stars
+            accelerationFactor: 1.05 + (Math.random() * 0.02 * speedFactor)
+        };
+        
+        this.lightSpeedStars.push(star);
+    }
+      // Update and render the light speed effect
+    renderLightSpeedEffect() {
+        this.ctx.save();
+        
+        // Semi-transparent dark overlay to enhance contrast
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Update each star
+        for (let i = this.lightSpeedStars.length - 1; i >= 0; i--) {
+            const star = this.lightSpeedStars[i];
+            
+            // Store current position for trail
+            if (star.trail.length < 12) {
+                star.trail.push({x: star.x, y: star.y});
+            } else {
+                star.trail.shift();
+                star.trail.push({x: star.x, y: star.y});
+            }
+            
+            // Move star outward from center
+            star.x += Math.cos(star.angle) * star.speed;
+            star.y += Math.sin(star.angle) * star.speed;
+            
+            // Increase speed for warp effect
+            star.speed *= star.accelerationFactor;
+            
+            // Remove if off screen
+            if (star.x < 0 || star.x > this.width || 
+                star.y < 0 || star.y > this.height) {
+                this.lightSpeedStars.splice(i, 1);
+                this.createLightSpeedStar();
+                continue;
+            }
+            
+            // Draw star with trail
+            this.ctx.beginPath();
+            this.ctx.moveTo(star.x, star.y);
+            
+            // Draw trail with gradient for fade effect
+            const trailLength = star.trail.length;
+            for (let j = 0; j < trailLength; j++) {
+                const point = star.trail[trailLength - j - 1];
+                this.ctx.lineTo(point.x, point.y);
+                
+                // Adjust opacity based on position in trail
+                const trailOpacity = star.opacity * (1 - j / trailLength);
+                
+                if (j === 0 || j === Math.floor(trailLength / 3) || j === Math.floor(trailLength * 2 / 3)) {
+                    this.ctx.stroke();
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(point.x, point.y);
+                    this.ctx.strokeStyle = `rgba(${star.color}, ${trailOpacity})`;
+                    this.ctx.lineWidth = star.size * (1 - j / trailLength * 0.7);
+                }
+            }
+            this.ctx.stroke();
+            
+            // Draw star point with glow
+            this.ctx.shadowBlur = 5;
+            this.ctx.shadowColor = `rgba(${star.color}, 1.0)`;
+            this.ctx.fillStyle = `rgba(${star.color}, ${star.opacity})`;
+            
+            // Draw as circle instead of rectangle for smoother look
+            this.ctx.beginPath();
+            this.ctx.arc(star.x, star.y, star.size/2, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        // Add a subtle radial gradient in center for enhanced effect
+        const gradient = this.ctx.createRadialGradient(
+            this.width/2, this.height/2, 0,
+            this.width/2, this.height/2, this.width/3
+        );
+        gradient.addColorStop(0, 'rgba(100, 120, 255, 0.1)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        this.ctx.restore();
     }
 }
 

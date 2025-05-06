@@ -201,8 +201,7 @@ class LevelManager {
             }
         }
     }
-    
-    goToNextLevel() {
+      goToNextLevel() {
         // Fix: Ensure we're incrementing a valid number
         const nextLevel = (this.currentLevel || 0) + 1;
         
@@ -211,16 +210,20 @@ class LevelManager {
             this.game.clearNonPersistentPowerups();
         }
         
-        // Start transition effect
+        // Start transition effect with light speed
         this.isTransitioning = true;
         this.transitionTimer = 0;
         this.messageFlashTimer = 0;
         this.messageVisible = true;
         
+        // Activate light speed effect
+        if (this.game.initLightSpeedEffect) {
+            this.game.initLightSpeedEffect();
+        }
+        
         console.log(`Transitioning to level ${nextLevel}`);
     }
-    
-    handleTransition() {
+      handleTransition() {
         // Update transition timer
         this.transitionTimer++;
         
@@ -231,8 +234,13 @@ class LevelManager {
             this.messageVisible = !this.messageVisible;
         }
         
+        // If we're using light speed effect, wait a little longer
+        const transitionTime = this.game.lightSpeedActive ? 
+            Math.max(this.transitionDuration, 120) : // Wait for light speed effect
+            this.transitionDuration;
+        
         // When transition is complete, start next level
-        if (this.transitionTimer >= this.transitionDuration) {
+        if (this.transitionTimer >= transitionTime) {
             this.isTransitioning = false;
             
             // Fix: Ensure we're incrementing the level correctly
@@ -240,8 +248,13 @@ class LevelManager {
             this.startLevel(nextLevel);
         }
     }
-    
-    renderTransition() {
+      renderTransition() {
+        // If light speed effect is active, let Game handle it
+        if (this.game.lightSpeedActive) {
+            return;
+        }
+        
+        // Fall back to progress bar only if light speed is not available
         const ctx = this.game.ctx;
         const width = this.game.width;
         const height = this.game.height;
@@ -268,14 +281,18 @@ class LevelManager {
             ctx.fillText(`PREPARE FOR LEVEL ${nextLevel}`, width / 2, height / 2 + 20);
         }
         
-        // Progress bar background
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.fillRect(width / 4, height / 2 + 60, width / 2, 20);
-        
-        // Progress bar fill
-        const progressWidth = (this.transitionTimer / this.transitionDuration) * (width / 2);
-        ctx.fillStyle = '#00FF00';
-        ctx.fillRect(width / 4, height / 2 + 60, progressWidth, 20);
+        // We no longer need the progress bar as we use light speed effect
+        // But we'll keep it as a fallback just in case
+        if (!this.game.lightSpeedActive) {
+            // Progress bar background
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(width / 4, height / 2 + 60, width / 2, 20);
+            
+            // Progress bar fill
+            const progressWidth = (this.transitionTimer / this.transitionDuration) * (width / 2);
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(width / 4, height / 2 + 60, progressWidth, 20);
+        }
     }
     
     // Fix: Add a reset method for game restart

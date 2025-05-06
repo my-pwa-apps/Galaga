@@ -221,10 +221,10 @@ class EnemyManager {
             boss: this.createEnemyAsset('boss', theme.colors.boss)
         };
     }
-    
-    // Create a pre-rendered enemy asset
+      // Create a pre-rendered enemy asset
     createEnemyAsset(type, colors) {
-        const enemySize = 60;
+        // Larger canvas size for better rendering quality
+        const enemySize = 80;
         const canvas = document.createElement('canvas');
         canvas.width = enemySize;
         canvas.height = enemySize;
@@ -243,9 +243,9 @@ class EnemyManager {
         ctx.shadowBlur = 15;
         ctx.shadowColor = colors.glow;
         
-        // Get size for this enemy type
-        const width = type === 'boss' ? 46 : 36;
-        const height = type === 'boss' ? 46 : 36;
+        // Get size for this enemy type (larger sizes)
+        const width = type === 'boss' ? 60 : (type === 'special' ? 50 : 45);
+        const height = type === 'boss' ? 60 : (type === 'special' ? 50 : 45);
         
         // Create enemy shape based on type
         if (type === 'boss') {
@@ -735,12 +735,20 @@ class Enemy {
         this.behaviorState = 'normal';
         this.teleportCooldown = 0;
         this.strafeDir = Math.random() > 0.5 ? 1 : -1;
-        
-        // Use the level-specific variation instead of random
+          // Use the level-specific variation instead of random
         this.subType = options.subType || 0;
         
-        this.width = options.width || 25;
-        this.height = options.height || 25;
+        // Larger enemies based on type
+        if (this.type === 'boss') {
+            this.width = options.width || 45; 
+            this.height = options.height || 45;
+        } else if (this.type === 'special') {
+            this.width = options.width || 35;
+            this.height = options.height || 35;
+        } else {
+            this.width = options.width || 30;
+            this.height = options.height || 30;
+        }
         this.radius = Math.max(this.width, this.height) / 2;
         this.health = options.health || (this.type === 'boss' ? 3 : 1);
         
@@ -1004,11 +1012,12 @@ class Enemy {
         }
         
         ctx.save();
-        
-        // If enemy has a custom sprite, use it
+          // If enemy has a custom sprite, use it
         if (this.sprite) {
-            const width = this.type === 'boss' ? this.width * 1.2 : this.width;
-            const height = this.type === 'boss' ? this.height * 1.2 : this.height;
+            // Add pulsing size effect for more dynamic appearance
+            const pulseAmount = Math.sin(this.animationPhase) * 0.05;
+            const width = this.width * (1 + pulseAmount);
+            const height = this.height * (1 + pulseAmount);
             
             // Draw the pre-rendered sprite
             ctx.drawImage(

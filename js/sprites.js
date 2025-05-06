@@ -1115,22 +1115,21 @@ const sprites = {
         height: 30, 
         color: '#1E90FF', 
         drawFunction: drawPlayerShip 
-    }),
-    basicEnemy: new Sprite({ 
-        width: 25, 
-        height: 25, 
+    }),    basicEnemy: new Sprite({ 
+        width: 30, 
+        height: 30, 
         color: '#FF0000', 
         drawFunction: drawBasicEnemy
     }),
     diveEnemy: new Sprite({ 
-        width: 30, 
-        height: 30, 
+        width: 35, 
+        height: 35, 
         color: '#00FF80', 
         drawFunction: drawDiveEnemy
     }),
     bossEnemy: new Sprite({ 
-        width: 40, 
-        height: 40, 
+        width: 45, 
+        height: 45, 
         color: '#FF00FF', 
         drawFunction: drawBossEnemy
     }),
