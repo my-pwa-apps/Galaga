@@ -135,13 +135,13 @@
         </div>
     </div>    <!-- Scripts - Optimized loading order -->    <!-- Asset loader must be first - critical priority -->
     <script src="js/asset-loader.js"></script>
-    
-    <!-- Critical path scripts - load with defer for ordered execution -->
+      <!-- Critical path scripts - load with defer for ordered execution -->
     <script src="js/utils.js" defer></script>
     <script src="js/sprites.js" defer></script>
     <script src="js/starfield.js" defer></script>
     <script src="js/renderer.js" defer></script>
     <script src="js/webgl-renderer.js" defer></script>
+    <script src="js/splash-animation.js" defer></script>
     
     <!-- Non-critical scripts that can load in parallel with async -->
     <script src="js/audio.js" async></script>
@@ -152,7 +152,6 @@
     <script src="js/enemies.js" async></script>
     <script src="js/levels.js" async></script>
     <script src="js/highscores.js" async></script>
-    <script src="js/splash-animation.js" async></script>
     
     <!-- Main game initialization - should load after others -->
     <script src="js/game.js" defer></script>
@@ -198,12 +197,17 @@
         const exitToMenu = document.getElementById('exit-to-menu');
         if (exitToMenu) {
             exitToMenu.addEventListener('click', function() {
-                if (window.game) {
-                    window.game.isPaused = false;
+                if (window.game) {                    window.game.isPaused = false;
                     document.getElementById('pause-overlay').classList.add('hidden');
                     // Show start screen
                     document.getElementById('game-screen').classList.add('hidden');
                     document.getElementById('start-screen').classList.remove('hidden');
+                    
+                    // Restart splash animation
+                    if (window.splashAnimation) {
+                        window.splashAnimation.stopAnimation();
+                        window.splashAnimation = new SplashAnimation();
+                    }
                 }
             });
         }

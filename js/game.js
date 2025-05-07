@@ -136,7 +136,7 @@ class Game {    constructor(options) {
         // Request the next frame first for better performance
         this.animationFrameId = requestAnimationFrame((time) => this.animate(time));
         
-        // Clear the canvas at the start of each frame
+        // Make sure we always start with a clean canvas
         this.ctx.clearRect(0, 0, this.width, this.height);
         
         // Save canvas context state at the start of each frame
@@ -625,8 +625,7 @@ class Game {    constructor(options) {
         document.getElementById('level').textContent = this.levelManager.currentLevel || 1;
         document.getElementById('lives').textContent = this.player.lives || 0;
     }
-    
-    gameOver() {
+      gameOver() {
         this.gameState = 'gameOver';
         
         // Update screens
@@ -658,6 +657,9 @@ class Game {    constructor(options) {
         this.pointsPopups = [];
         this.lightSpeedActive = false;
         
+        // Make sure to clear the entire canvas
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        
         // Check if this is a high score and show the appropriate form
         if (window.highScoreManager) {
             // Store the level in a class property to ensure it's available when submitting
@@ -680,8 +682,12 @@ class Game {    constructor(options) {
                 });
         }
     }
-    
-    startGame() {
+      startGame() {
+        // Stop splash screen animation if it's running
+        if (window.splashAnimation) {
+            window.splashAnimation.stopAnimation();
+        }
+        
         // Hide start screen and show game screen
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
@@ -690,25 +696,28 @@ class Game {    constructor(options) {
         // Reset game state
         this.gameState = 'playing';
         this.score = 0;
-        
+
+        // Clear the canvas to ensure no leftover graphics
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
         // Reset all game components
         this.player.reset();
         this.player.lives = 3;
         this.projectilePool.clear();
         this.explosionPool.clear();
         this.powerUpManager.clearAllPowerups();
-        
-        // Fix: Reset level manager properly
+
+        // Reset level manager properly
         if (this.levelManager) {
             this.levelManager.reset();
         }
-        
+
         // Initialize level
         this.levelManager.startLevel(1);
-        
+
         // Update UI
         this.updateUI();
-        
+
         // Play background music
         if (window.audioManager) {
             window.audioManager.playBackgroundMusic();
@@ -1101,7 +1110,7 @@ window.addEventListener('load', () => {
                     // Initialize game
                     window.game = new Game();
                     
-                    // Initialize splash animation
+                    // Restore splash animation initialization
                     if (window.initSplashAnimation) {
                         window.initSplashAnimation();
                     }
@@ -1121,29 +1130,34 @@ Game.prototype.destroy = function() {
         cancelAnimationFrame(this.animationFrameId);
         this.animationFrameId = null;
     }
-    
+
+    // Clear the canvas to ensure no leftover graphics
+    if (this.ctx) {
+        this.ctx.clearRect(0, 0, this.width, this.height);
+    }
+
     // Remove event listeners
     window.removeEventListener('resize', this.resize);
     window.removeEventListener('blur', this.handleBlur);
     window.removeEventListener('focus', this.handleFocus);
     window.removeEventListener('keydown', this.handlePauseKeys);
-    
+
     // Clean up UI event listeners
     const startButton = document.getElementById('start-button');
     if (startButton) {
         startButton.removeEventListener('click', this.startGame);
     }
-    
+
     const restartButton = document.getElementById('restart-button');
     if (restartButton) {
         restartButton.removeEventListener('click', this.startGame);
     }
-    
+
     const muteButton = document.getElementById('mute-button');
     if (muteButton) {
         muteButton.removeEventListener('click', () => {});
     }
-    
+
     // Clear references to help garbage collection
     this.canvas = null;
     this.ctx = null;
