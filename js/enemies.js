@@ -249,33 +249,74 @@ class EnemyManager {
         
         // Randomize slightly for visual diversity within same enemy types
         const variationSeed = Math.random();
-        const colorShift = variationSeed * 20 - 10; // -10 to +10 color variation
-          // Apply color variation with error handling
+        const colorShift = variationSeed * 20 - 10; // -10 to +10 color variation        // Apply color variation with optimized error handling - fixes parsing bugs
         const adjustColor = (color) => {
-            // Handle hex colors or fallback to default if no match
+            // Cache color parsing results for better performance
+            if (!this.colorCache) {
+                this.colorCache = new Map();
+            }
+            
+            // Return cached result if available
+            const cacheKey = `${color}:${colorShift}`;
+            if (this.colorCache.has(cacheKey)) {
+                return this.colorCache.get(cacheKey);
+            }
+            
+            // Handle missing color
             if (!color) {
-                return '#FF0000'; // Default to red if no color provided
+                const result = '#FF0000'; // Default to red
+                this.colorCache.set(cacheKey, result);
+                return result;
             }
             
-            // Check if it's a hex color and convert to RGB
-            if (color.startsWith('#')) {
-                const r = parseInt(color.slice(1, 3), 16);
-                const g = parseInt(color.slice(3, 5), 16);
-                const b = parseInt(color.slice(5, 7), 16);
-                return `rgb(${Math.min(255, Math.max(0, r + colorShift))}, 
-                           ${Math.min(255, Math.max(0, g + colorShift))}, 
-                           ${Math.min(255, Math.max(0, b + colorShift))})`;
-            }
+            let r, g, b;
             
-            // Otherwise try to parse as RGB
-            const rgb = color.match(/\d+/g);
-            if (!rgb || rgb.length < 3) {
-                return color; // Return original if can't parse
+            try {
+                // Handle hex colors
+                if (color.startsWith('#')) {
+                    // Handle both #RGB and #RRGGBB formats
+                    if (color.length === 4) {
+                        // #RGB format - expand to #RRGGBB
+                        r = parseInt(color.charAt(1) + color.charAt(1), 16);
+                        g = parseInt(color.charAt(2) + color.charAt(2), 16);
+                        b = parseInt(color.charAt(3) + color.charAt(3), 16);
+                    } else {
+                        // #RRGGBB format
+                        r = parseInt(color.slice(1, 3), 16);
+                        g = parseInt(color.slice(3, 5), 16);
+                        b = parseInt(color.slice(5, 7), 16);
+                    }
+                } 
+                // Handle rgb() format
+                else if (color.startsWith('rgb')) {
+                    const matches = color.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+                    if (matches && matches.length >= 4) {
+                        r = parseInt(matches[1], 10);
+                        g = parseInt(matches[2], 10);
+                        b = parseInt(matches[3], 10);
+                    } else {
+                        throw new Error("Invalid rgb format");
+                    }
+                } else {
+                    throw new Error("Unsupported color format");
+                }
+                
+                // Apply color shift with bounds checking
+                r = Math.min(255, Math.max(0, r + colorShift));
+                g = Math.min(255, Math.max(0, g + colorShift));
+                b = Math.min(255, Math.max(0, b + colorShift));
+                
+                // Use rgb format for consistency
+                const result = `rgb(${r},${g},${b})`;
+                this.colorCache.set(cacheKey, result);
+                return result;
+                
+            } catch (e) {
+                // On any error, return the original color
+                const fallback = color || '#FF0000';
+                this.colorCache.set(cacheKey, fallback);
+                return fallback;
             }
-            
-            return `rgb(${Math.min(255, Math.max(0, parseInt(rgb[0]) + colorShift))}, 
-                       ${Math.min(255, Math.max(0, parseInt(rgb[1]) + colorShift))}, 
-                       ${Math.min(255, Math.max(0, parseInt(rgb[2]) + colorShift))})`;
         };
         
         ctx.fillStyle = adjustColor(colors.main);

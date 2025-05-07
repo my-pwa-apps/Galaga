@@ -1,7 +1,6 @@
-class Game {
-    constructor(options) {
+class Game {    constructor(options) {
         this.canvas = document.getElementById('game-canvas');
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { alpha: false }); // Use non-alpha for performance
         this.width = 600;
         this.height = 800;
         this.frameCount = 0;
@@ -11,6 +10,14 @@ class Game {
         this.lastTime = 0;
         this.targetFPS = 60;
         this.frameInterval = 1000 / this.targetFPS;
+        
+        // Enable hardware acceleration hints
+        this.ctx.imageSmoothingEnabled = false; // Pixel-perfect rendering
+        
+        // Initialize optimized renderer
+        if (typeof GameRenderer !== 'undefined') {
+            this.renderer = new GameRenderer(this);
+        }
         
         // Set up the game
         this.resize();
@@ -121,34 +128,39 @@ class Game {
             });
         }
     }
-    
-    animate(timestamp) {
-        // Request the next frame first to ensure smooth animation loop
-        const nextFrameId = requestAnimationFrame((time) => this.animate(time));
+      animate(timestamp) {
+        // Request the next frame first for better performance
+        this.animationFrameId = requestAnimationFrame((time) => this.animate(time));
+        
+        // Skip update if paused
+        if (this.isPaused) return;
         
         // Calculate elapsed time since last frame
-        const deltaTime = timestamp - this.lastTime;
+        const deltaTime = timestamp - (this.lastTime || timestamp);
+        const maxDeltaTime = 200; // Cap deltaTime to prevent huge jumps after tab inactivity
+        const adjustedDeltaTime = Math.min(deltaTime, maxDeltaTime);
         
-        // Throttle the frame rate to target FPS to improve performance
-        if (deltaTime < this.frameInterval) return;
+        // Update timestamp for next frame
+        this.lastTime = timestamp;
         
-        // Store timestamp for next delta calculation
-        this.lastTime = timestamp - (deltaTime % this.frameInterval);
+        // Increment frame counter
+        this.frameCount++;
         
-        // Clear the canvas using fillRect for better performance than clearRect
-        this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        // Throttle updates based on target FPS
+        if (this.frameCount % 3 === 0) {
+            // Update background less frequently (every 3 frames) for performance
+            if (this.renderer) {
+                this.renderer.needsBackgroundUpdate = true;
+            }
+        }
         
-        // Update game state based on current game state
+        // Update game state
         if (this.gameState === 'playing') {
             this.update();
         }
         
         // Render the game
         this.render();
-        
-        // Increment frame counter
-        this.frameCount++;
     }
     
     update() {
@@ -182,8 +194,14 @@ class Game {
         // Check level completion
         this.levelManager.update();
     }
-    
-    render() {
+      render() {
+        // Use optimized renderer if available
+        if (this.renderer) {
+            this.renderer.render();
+            return;
+        }
+        
+        // Legacy rendering as fallback
         // Draw background
         this.drawBackground();
         
@@ -1013,9 +1031,58 @@ class Game {
     }
 }
 
-// Initialize the game when the page loads
+// Initialize the game with optimized asset loading
 window.addEventListener('load', () => {
-    window.game = new Game();
+    // Show loading screen first
+    const loadingScreen = document.getElementById('loading-screen');
+    const loadingBar = document.getElementById('loading-bar');
+    const loadingPercent = document.getElementById('loading-percent');
+    
+    // Preload game assets
+    const preloadAssets = () => {
+        // Load essential images
+        window.assetLoader.addImage('player', 'assets/images/player.png');
+        window.assetLoader.addImage('enemy1', 'assets/images/enemy1.png');
+        window.assetLoader.addImage('enemy2', 'assets/images/enemy2.png');
+        window.assetLoader.addImage('boss', 'assets/images/boss.png');
+        window.assetLoader.addImage('powerup', 'assets/images/powerup.png');
+        
+        // Preload audio assets
+        window.assetLoader.addSound('shoot', 'assets/sounds/shoot.mp3');
+        window.assetLoader.addSound('explosion', 'assets/sounds/explosion.mp3');
+        window.assetLoader.addSound('powerup', 'assets/sounds/powerup.mp3');
+        window.assetLoader.addSound('enemyShoot', 'assets/sounds/enemy-shoot.mp3');
+        window.assetLoader.addSound('lightspeed', 'assets/sounds/lightspeed.mp3');
+        
+        // Start preloading and update progress
+        window.assetLoader.preload(
+            // Progress callback
+            (progress) => {
+                loadingBar.style.width = `${progress}%`;
+                loadingPercent.textContent = `${progress}%`;
+            },
+            // Complete callback
+            () => {
+                // Simple delay to ensure smooth transition
+                setTimeout(() => {
+                    // Hide loading screen and show start screen
+                    loadingScreen.classList.add('hidden');
+                    document.getElementById('start-screen').classList.remove('hidden');
+                    
+                    // Initialize game
+                    window.game = new Game();
+                    
+                    // Initialize splash animation
+                    if (window.initSplashAnimation) {
+                        window.initSplashAnimation();
+                    }
+                }, 500); // Small delay for smoother transition
+            }
+        );
+    };
+    
+    // Start asset loading with a small delay to show loading screen
+    setTimeout(preloadAssets, 100);
 });
 
 // Add destroy method to properly clean up resources

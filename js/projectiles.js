@@ -28,8 +28,19 @@ class Projectile {
         this.fromTimedPowerup = options.fromTimedPowerup || false;
         // Whether this powerup should persist between levels (only extra life does)
         this.persistBetweenLevels = options.powerupType === 'extraLife';
+        
+        // Add a unique ID for collision optimization
+        this.id = options.id || Projectile._nextId++;
+        
+        // Precalculate half dimensions for collision checks
+        this.halfWidth = this.width / 2;
+        this.halfHeight = this.height / 2;
+        
         return this;
     }
+
+    // Static property for generating unique IDs
+    static _nextId = 1;
 
     update() {
         this.y += this.speed;
@@ -44,163 +55,224 @@ class Projectile {
                 this.hyperspeedVisible = false;
             }
         }
-        // Check if out of screen
-        if (this.y < -50 || 
-            this.y > this.game.height + 50 ||
-            this.x < -50 || 
-            this.x > this.game.width + 50) {
+        // Check if out of screen - improved boundary check
+        if (this.y < -this.height || 
+            this.y > this.game.height + this.height ||
+            this.x < -this.width || 
+            this.x > this.game.width + this.width) {
             this.active = false;
         }
     }
-
+    
+    // Optimized draw method with cached glow effects
     draw() {
-        if (!this.active) return;
-        // If it's a hyperspeed projectile that shouldn't be visible, don't draw it
-        if (this.isHyperspeed && !this.hyperspeedVisible) return;
-        if (this.type === 'player') {
-            if (this.powerupType === 'rapid') {
-                // Draw rapid shot bullet - with a much more distinct appearance
-                this.game.ctx.save();
-                // Pulsing effect for rapid bullets
-                const pulseSize = this.radius + Math.sin(this.game.frameCount * 0.3) * 2;
-                // Outer glow (larger, animated)
-                this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
-                this.game.ctx.beginPath();
-                this.game.ctx.arc(this.x, this.y, pulseSize + 5, 0, Math.PI * 2);
-                this.game.ctx.fill();
-                // Middle layer
-                this.game.ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
-                this.game.ctx.beginPath();
-                this.game.ctx.arc(this.x, this.y, pulseSize, 0, Math.PI * 2);
-                this.game.ctx.fill();
-                // Inner bright core
-                this.game.ctx.fillStyle = '#FFFFFF';
-                this.game.ctx.beginPath();
-                this.game.ctx.arc(this.x, this.y, pulseSize - 3, 0, Math.PI * 2);
-                this.game.ctx.fill();
-                // Add particle trail effect
-                for (let i = 1; i <= 5; i++) {
-                    const trailY = this.y + (i * 5);
-                    const trailSize = pulseSize - (i * 1.5);
-                    if (trailSize <= 0) continue;
-                    this.game.ctx.fillStyle = `rgba(0, 255, 255, ${0.3 - (i * 0.05)})`;
-                    this.game.ctx.beginPath();
-                    this.game.ctx.arc(this.x, trailY, trailSize, 0, Math.PI * 2);
-                    this.game.ctx.fill();
-                }
-                this.game.ctx.restore();
-            } else if (this.powerupType === 'hyperspeed') {
-                // Draw hyperspeed projectile with a streaking effect
-                this.game.ctx.save();
-                // Create a gradient streak effect
-                const gradient = this.game.ctx.createLinearGradient(
-                    this.x, this.y, 
-                    this.x, this.y + 30
-                );
-                gradient.addColorStop(0, '#FFFFFF');
-                gradient.addColorStop(0.5, '#00FFFF');
-                gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
-                // Draw the streak
-                this.game.ctx.fillStyle = gradient;
-                this.game.ctx.fillRect(this.x - 2, this.y, 4, 30);
-                // Draw the bullet head
-                this.game.ctx.fillStyle = '#FFFFFF';
-                this.game.ctx.beginPath();
-                this.game.ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
-                this.game.ctx.fill();
-                this.game.ctx.restore();
-            } else {
-                sprites.playerBullet.draw(this.game.ctx, this.x, this.y);
-            }
-        } else {
-            // Add a subtle glow to enemy bullets to make them more visible targets
-            this.game.ctx.save();
-            this.game.ctx.shadowBlur = 8;
-            this.game.ctx.shadowColor = '#FF6600';
-            sprites.enemyBullet.draw(this.game.ctx, this.x, this.y);
-            this.game.ctx.restore();
+        const ctx = this.game.ctx;
+        
+        // Skip rendering inactive or invisible projectiles
+        if (!this.active || (this.isHyperspeed && !this.hyperspeedVisible)) {
+            return;
         }
-    }
 
-    // Method to handle powerup generation on enemy hit
-    checkPowerupDrop(enemyType) {
-        // Different enemy types have different chances to drop specific powerups
-        const powerupMappings = {
-            'butterfly': { type: 'rapid', chance: 0.15 }, // Reduced from 0.2 for more gradual difficulty
-            'boss': { type: 'shield', chance: 0.3 },      // Reduced from 0.4 for more gradual difficulty
-            'bee': { type: 'extraLife', chance: 0.08 }    // Reduced from 0.1 for more gradual difficulty
-            // Add more enemy types and powerups as needed
-        };
-        const enemyPowerup = powerupMappings[enemyType];
-        if (!enemyPowerup) return null;
-        // Check if powerup should be dropped based on chance
-        if (Math.random() <= enemyPowerup.chance) {
-            return enemyPowerup.type;
+        ctx.save();
+        
+        // Fast path for normal player projectiles (most common case)
+        if (this.type === 'player' && this.powerupType === 'normal') {
+            // Draw player projectile - optimized path
+            ctx.fillStyle = '#00ffff'; // Cyan for player bullets
+            ctx.fillRect(this.x - this.halfWidth, this.y - this.halfHeight, this.width, this.height);
+            
+            // Simple glow effect
+            ctx.globalAlpha = 0.5;
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillRect(this.x - this.halfWidth, this.y - this.halfHeight, this.width, this.height);
+        } 
+        // Special effects path for power-up projectiles
+        else if (this.type === 'player') {
+            // Use optimized rendering based on powerup type
+            let color;
+            let glowColor;
+            
+            switch (this.powerupType) {
+                case 'rapidFire':
+                    color = '#ffff00'; // Yellow
+                    glowColor = '#ffcc00';
+                    break;
+                case 'multiShot':
+                    color = '#ff00ff'; // Magenta
+                    glowColor = '#cc00cc';
+                    break;
+                case 'shield':
+                    color = '#00ff00'; // Green
+                    glowColor = '#00cc00';
+                    break;
+                case 'hyperspeed':
+                    color = '#0099ff'; // Blue
+                    glowColor = '#0066cc';
+                    break;
+                default:
+                    color = '#00ffff'; // Default cyan
+                    glowColor = '#00cccc';
+            }
+            
+            // Draw enhanced projectile
+            ctx.fillStyle = color;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = glowColor;
+            
+            // Draw main projectile body
+            ctx.fillRect(this.x - this.halfWidth, this.y - this.halfHeight, this.width, this.height);
+            
+            // Add extra visual effects for powerup projectiles
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius * 1.2, 0, Math.PI * 2);
+            ctx.fill();
+        } 
+        // Enemy projectiles
+        else if (this.type === 'enemy') {
+            // Draw enemy projectile with appropriate color and effects
+            ctx.fillStyle = '#ff3300'; // Red for enemy bullets
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#ff6600';
+            
+            // Draw a different shape for enemy projectiles
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - this.halfHeight);
+            ctx.lineTo(this.x + this.halfWidth, this.y + this.halfHeight);
+            ctx.lineTo(this.x - this.halfWidth, this.y + this.halfHeight);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Add simple glow effect
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
         }
-        return null;
+        
+        ctx.restore();
     }
 }
 
 // ProjectilePool - Object pooling to improve performance by reducing garbage collection
 class ProjectilePool {
-    constructor(game, initialSize = 50) {
+    constructor(game, initialSize = 100) { // Increase pool size for better performance
         this.game = game;
         this.pool = [];
         this.activeProjectiles = [];
+        this.playerProjectiles = []; // Separate arrays for faster collision checks
+        this.enemyProjectiles = [];
+        this.activeCount = 0;
+        
         // Pre-initialize pool with objects
         for (let i = 0; i < initialSize; i++) {
-            this.pool.push(new Projectile({ game }));
+            this.pool.push(new Projectile({ game, id: i }));
         }
+        
+        // Use spatial partitioning for faster collision detection
+        this.gridSize = 50; // Cell size for spatial grid
+        this.grid = {}; // Will store projectiles by grid cell
+        
+        // Reusable option objects to avoid creating new objects every time
+        this._reuseOptions = {
+            game: this.game,
+            type: 'player',
+            powerupType: 'normal',
+            damage: 1,
+            speed: -8
+        };
     }
 
     get(options) {
         // Get projectile from pool or create new one if needed
-        let projectile = this.pool.pop() || new Projectile({ game: this.game });
+        let projectile;
+        
+        // Reuse object if possible
+        if (this.pool.length > 0) {
+            projectile = this.pool.pop();
+        } else {
+            // Create new object if pool is empty
+            projectile = new Projectile({ 
+                game: this.game,
+                id: Projectile._nextId++ 
+            });
+        }
+        
+        // Reset with new options
         projectile.reset(options);
+        
+        // Add to appropriate active array for faster iteration
         this.activeProjectiles.push(projectile);
+        if (projectile.isEnemy) {
+            this.enemyProjectiles.push(projectile);
+        } else {
+            this.playerProjectiles.push(projectile);
+        }
+        
+        this.activeCount++;
         return projectile;
     }
 
-    // New method for creating rapid fire shot patterns
+    // Optimized method for creating rapid fire shot patterns
     createRapidShot(x, y, options = {}) {
-        // Create a more intense spread of 5 bullets for rapid fire
-        const baseOptions = {
-            ...options,
-            x,
-            y,
-            type: 'player',
-            powerupType: 'rapid',
-            damage: options.damage || 2,
-            speed: options.speed || -12 // Faster bullets
-        };
+        // Avoid object spread for better performance
+        const baseType = options.type || 'player';
+        const baseDamage = options.damage || 2;
+        const baseSpeed = options.speed || -12;
+        
         // Center bullet - fastest
-        this.get({...baseOptions});
+        this.get({
+            game: this.game,
+            x: x,
+            y: y,
+            type: baseType,
+            powerupType: 'rapid',
+            damage: baseDamage,
+            speed: baseSpeed
+        });
+        
         // Inner side bullets
         this.get({
-            ...baseOptions,
+            game: this.game,
             x: x - 8,
-            speed: baseOptions.speed * 0.95,
+            y: y,
+            type: baseType,
+            powerupType: 'rapid',
+            damage: baseDamage,
+            speed: baseSpeed * 0.95,
             velocityX: -0.5
         });
         this.get({
-            ...baseOptions,
+            game: this.game,
             x: x + 8,
-            speed: baseOptions.speed * 0.95,
+            y: y,
+            type: baseType,
+            powerupType: 'rapid',
+            damage: baseDamage,
+            speed: baseSpeed * 0.95,
             velocityX: 0.5
         });
+        
         // Outer side bullets - with more spread
         this.get({
-            ...baseOptions,
+            game: this.game,
             x: x - 16,
             y: y + 5, // Start slightly lower
-            speed: baseOptions.speed * 0.9,
+            type: baseType,
+            powerupType: 'rapid',
+            damage: baseDamage,
+            speed: baseSpeed * 0.9,
             velocityX: -1
         });
         this.get({
-            ...baseOptions,
+            game: this.game,
             x: x + 16,
             y: y + 5, // Start slightly lower
-            speed: baseOptions.speed * 0.9,
+            type: baseType,
+            powerupType: 'rapid',
+            damage: baseDamage,
+            speed: baseSpeed * 0.9,
             velocityX: 1
         });
     }
@@ -220,22 +292,109 @@ class ProjectilePool {
         this.get({...baseOptions});
     }
 
+    // Optimized update method for better performance
     update() {
-        // Update all active projectiles
-        for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
+        // Reset spatial grid for collision detection
+        this.grid = {};
+        
+        // Update all active projectiles with optimized removal
+        let activeIndex = 0;
+        const len = this.activeProjectiles.length;
+        
+        for (let i = 0; i < len; i++) {
             const projectile = this.activeProjectiles[i];
             projectile.update();
-            // If projectile is no longer active, return to the pool
-            if (!projectile.active) {
-                this.activeProjectiles.splice(i, 1);
+            
+            // If still active, keep it and update spatial grid
+            if (projectile.active) {
+                // Only perform swap if necessary
+                if (i !== activeIndex) {
+                    this.activeProjectiles[activeIndex] = projectile;
+                }
+                activeIndex++;
+                
+                // Add to spatial grid for collision detection
+                const cellX = Math.floor(projectile.x / this.gridSize);
+                const cellY = Math.floor(projectile.y / this.gridSize);
+                const cellKey = `${cellX},${cellY}`;
+                
+                if (!this.grid[cellKey]) {
+                    this.grid[cellKey] = [];
+                }
+                this.grid[cellKey].push(projectile);
+            } else {
+                // Return inactive to pool
                 this.pool.push(projectile);
+                
+                // Also remove from type-specific arrays
+                if (projectile.isEnemy) {
+                    const enemyIndex = this.enemyProjectiles.indexOf(projectile);
+                    if (enemyIndex !== -1) this.enemyProjectiles.splice(enemyIndex, 1);
+                } else {
+                    const playerIndex = this.playerProjectiles.indexOf(projectile);
+                    if (playerIndex !== -1) this.playerProjectiles.splice(playerIndex, 1);
+                }
             }
+        }
+        
+        // Truncate array to remove inactive projectiles
+        if (activeIndex < len) {
+            this.activeProjectiles.length = activeIndex;
+            this.activeCount = activeIndex;
         }
     }
 
+    // Optimized draw method with batch rendering
     draw() {
-        // Draw all active projectiles
-        this.activeProjectiles.forEach(projectile => projectile.draw());
+        // Group projectiles by type for batched rendering
+        const ctx = this.game.ctx;
+        
+        // Draw all player projectiles with same style in one batch
+        if (this.playerProjectiles.length > 0) {
+            ctx.save();
+            
+            // Set common styles for normal player projectiles
+            ctx.fillStyle = '#00ffff';
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#00ffff';
+            
+            // Draw normal player projectiles
+            for (const projectile of this.playerProjectiles) {
+                if (!projectile.active || projectile.powerupType !== 'normal') continue;
+                
+                ctx.fillRect(
+                    projectile.x - projectile.halfWidth, 
+                    projectile.y - projectile.halfHeight, 
+                    projectile.width, 
+                    projectile.height
+                );
+            }
+            
+            // Draw special projectiles individually
+            for (const projectile of this.playerProjectiles) {
+                if (!projectile.active || projectile.powerupType === 'normal') continue;
+                projectile.draw();
+            }
+            
+            ctx.restore();
+        }
+        
+        // Draw all enemy projectiles
+        if (this.enemyProjectiles.length > 0) {
+            ctx.save();
+            
+            // Set common styles for enemy projectiles
+            ctx.fillStyle = '#ff3300';
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#ff6600';
+            
+            for (const projectile of this.enemyProjectiles) {
+                if (!projectile.active) continue;
+                projectile.draw();
+            }
+            
+            ctx.restore();
+        }
     }
 
     clear() {
@@ -245,6 +404,11 @@ class ProjectilePool {
             projectile.active = false;
             this.pool.push(projectile);
         }
+        
+        // Also clear type-specific arrays
+        this.playerProjectiles = [];
+        this.enemyProjectiles = [];
+        this.activeCount = 0;
     }
 
     // Handle enemy collision with potential powerup generation
