@@ -191,11 +191,19 @@ class WebGLRenderer {
         
         // Set resolution uniform
         this.gl.uniform2f(this.resolutionUniformLocation, this.canvas.width, this.canvas.height);
-    }
-      clear() {
-        // Clear the canvas with black background
+    }    clear() {
+        // Make sure we have a valid GL context
+        if (!this.gl) return;
+        
+        // Clear the canvas with black background and full opacity
         this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        
+        // Enable clearing of both color and depth buffers
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        
+        // Reset blend modes to avoid pixel accumulation
+        this.gl.enable(this.gl.BLEND);
+        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
     }
     
     render() {

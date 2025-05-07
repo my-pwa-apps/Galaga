@@ -342,9 +342,7 @@ class ProjectilePool {
             this.activeProjectiles.length = activeIndex;
             this.activeCount = activeIndex;
         }
-    }
-
-    // Optimized draw method with batch rendering
+    }    // Optimized draw method with batch rendering
     draw() {
         // Group projectiles by type for batched rendering
         const ctx = this.game.ctx;
@@ -357,6 +355,7 @@ class ProjectilePool {
             ctx.fillStyle = '#00ffff';
             ctx.shadowBlur = 6;
             ctx.shadowColor = '#00ffff';
+            ctx.globalAlpha = 1.0; // Ensure alpha is reset to avoid trails
             
             // Draw normal player projectiles
             for (const projectile of this.playerProjectiles) {
@@ -370,16 +369,15 @@ class ProjectilePool {
                 );
             }
             
+            ctx.restore(); // Restore context before individual projectile drawing
+            
             // Draw special projectiles individually
             for (const projectile of this.playerProjectiles) {
                 if (!projectile.active || projectile.powerupType === 'normal') continue;
                 projectile.draw();
             }
-            
-            ctx.restore();
         }
-        
-        // Draw all enemy projectiles
+          // Draw all enemy projectiles
         if (this.enemyProjectiles.length > 0) {
             ctx.save();
             
@@ -387,13 +385,30 @@ class ProjectilePool {
             ctx.fillStyle = '#ff3300';
             ctx.shadowBlur = 5;
             ctx.shadowColor = '#ff6600';
+            ctx.globalAlpha = 1.0; // Ensure alpha is reset to avoid trails
             
+            // Draw basic enemy projectiles first for batch optimization
             for (const projectile of this.enemyProjectiles) {
                 if (!projectile.active) continue;
-                projectile.draw();
+                
+                // Only draw simple projectiles in batch, handle special ones individually
+                if (!projectile.isSpecial) {
+                    ctx.fillRect(
+                        projectile.x - projectile.halfWidth,
+                        projectile.y - projectile.halfHeight,
+                        projectile.width,
+                        projectile.height
+                    );
+                }
             }
             
             ctx.restore();
+            
+            // Draw special projectiles individually to allow for special effects
+            for (const projectile of this.enemyProjectiles) {
+                if (!projectile.active || !projectile.isSpecial) continue;
+                projectile.draw();
+            }
         }
     }
 

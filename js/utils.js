@@ -18,6 +18,45 @@ function isMobileDevice() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
+// Color utilities for consistent rendering
+const ColorUtils = {
+    // Parse any color format to RGBA
+    parseColor: function(color, alpha = 1) {
+        if (!color) return 'rgba(0,0,0,1)';
+        
+        // Handle rgba format
+        if (color.startsWith('rgba')) {
+            return color;
+        }
+        
+        // Handle hex format
+        if (color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+        
+        // Handle rgb format
+        if (color.startsWith('rgb')) {
+            return color.replace('rgb', 'rgba').replace(')', `,${alpha})`);
+        }
+        
+        // Handle named colors
+        const tempEl = document.createElement('div');
+        tempEl.style.color = color;
+        document.body.appendChild(tempEl);
+        const rgbColor = getComputedStyle(tempEl).color;
+        document.body.removeChild(tempEl);
+        return rgbColor.replace('rgb', 'rgba').replace(')', `,${alpha})`);
+    },
+    
+    // Get a color with adjusted alpha
+    withAlpha: function(color, alpha) {
+        return this.parseColor(color, alpha);
+    }
+};
+
 // Add keyboard navigation detection
 function setupKeyboardNavigationDetection() {
     // Add a class to the body when user is navigating with keyboard

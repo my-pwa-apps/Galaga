@@ -86,6 +86,11 @@ class Game {    constructor(options) {
         this.canvas.width = this.width;
         this.canvas.height = this.height;
         
+        // Have renderer handle resizing of all canvas layers
+        if (this.renderer) {
+            this.renderer.handleResize(this.width, this.height);
+        }
+        
         // Set display size with CSS
         this.canvas.style.width = `${canvasWidth}px`;
         this.canvas.style.height = `${canvasHeight}px`;
@@ -131,20 +136,25 @@ class Game {    constructor(options) {
         // Request the next frame first for better performance
         this.animationFrameId = requestAnimationFrame((time) => this.animate(time));
         
-        // Skip update if paused - but still clear canvas to avoid artifacts
+        // Save canvas context state at the start of each frame
+        this.ctx.save();
+        
+        // Always clear the main canvas at the beginning of each frame
+        this.ctx.fillStyle = 'black';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Skip update if paused - but still render pause overlay
         if (this.isPaused) {
-            // Ensure pause overlay is still rendered
-            this.ctx.fillStyle = 'black';
-            this.ctx.fillRect(0, 0, this.width, this.height);
-            
+            // Ensure main canvas is fully cleared
             if (this.renderer) {
                 this.renderer.clearCanvas(this.renderer.mainCtx);
             }
             
             // Draw the pause overlay
-            if (this.isPaused) {
-                this.renderPauseOverlay();
-            }
+            this.renderPauseOverlay();
+            
+            // Restore context state at the end of the frame
+            this.ctx.restore();
             return;
         }
         
@@ -163,14 +173,16 @@ class Game {    constructor(options) {
         if (this.renderer) {
             this.renderer.needsBackgroundUpdate = true;
         }
-        
-        // Update game state
+          // Update game state
         if (this.gameState === 'playing') {
             this.update();
         }
         
         // Render the game
         this.render();
+        
+        // Restore canvas context state at the end of each frame
+        this.ctx.restore();
     }
     
     update() {
@@ -204,18 +216,19 @@ class Game {    constructor(options) {
         // Check level completion
         this.levelManager.update();
     }    render() {
-        // Always clear the canvas first to prevent pixel accumulation
-        this.ctx.fillStyle = 'black';
-        this.ctx.fillRect(0, 0, this.width, this.height);
-        
-        // Use optimized renderer if available
         if (this.renderer) {
+            // Use optimized renderer
+            // The renderer will handle clearing its own canvases
             this.renderer.render();
             return;
         }
         
         // Legacy rendering as fallback
-        // Draw background (starfield already has its own clearing)
+        // Always clear the canvas first to prevent pixel accumulation
+        this.ctx.fillStyle = 'black';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Draw background
         this.drawBackground();
         
         // Render game elements based on game state

@@ -1,6 +1,5 @@
 // Renderer class for optimized canvas rendering
-class GameRenderer {
-    constructor(game) {
+class GameRenderer {    constructor(game) {
         this.game = game;
         this.width = game.width;
         this.height = game.height;
@@ -16,9 +15,14 @@ class GameRenderer {
         this.needsBackgroundUpdate = true;
         this.needsEnemyUpdate = true;
         this.useRequestAnimationFrame = true;
+        this.isWindowFocused = true;
         
         // Track previous positions for partial rendering
         this.prevPlayerPos = { x: 0, y: 0 };
+        
+        // Add focus/blur event listeners to optimize rendering when window is inactive
+        window.addEventListener('focus', () => this.isWindowFocused = true);
+        window.addEventListener('blur', () => this.isWindowFocused = false);
     }
     
     createOffscreenCanvas() {
@@ -144,12 +148,17 @@ class GameRenderer {
         // Could implement UI rendering here if needed
     }
     
-    // Composite all layers to main canvas
+        // Composite all layers to main canvas
     compositeLayers() {
-        // Clear main canvas
-        this.clearCanvas(this.mainCtx);
+        // Completely clear main canvas with black fill to prevent pixel accumulation
+        this.mainCtx.fillStyle = 'black';
+        this.mainCtx.fillRect(0, 0, this.width, this.height);
         
-        // Draw all layers in order
+        // Save context state before drawing layers
+        this.mainCtx.save();
+        
+        // Draw all layers in order with full opacity
+        this.mainCtx.globalAlpha = 1.0;
         this.mainCtx.drawImage(this.bgCanvas, 0, 0);
         this.mainCtx.drawImage(this.enemyCanvas, 0, 0);
         this.mainCtx.drawImage(this.playerCanvas, 0, 0);
@@ -165,15 +174,16 @@ class GameRenderer {
         
         // Draw UI layer last
         this.mainCtx.drawImage(this.uiCanvas, 0, 0);
-        
-        // If paused, draw pause overlay directly on main canvas
+          // If paused, draw pause overlay directly on main canvas
         if (this.game.isPaused) {
             const originalCtx = this.game.ctx;
             this.game.ctx = this.mainCtx;
             this.game.renderPauseOverlay();
             this.game.ctx = originalCtx;
         }
-    }
+        
+        // Restore context state when finished
+        this.mainCtx.restore();    }
       // Main render method
     render() {
         // Always update background to prevent rendering artifacts
@@ -185,15 +195,86 @@ class GameRenderer {
         this.clearCanvas(this.playerCtx, 'transparent');
         this.clearCanvas(this.effectsCtx, 'transparent');
         this.clearCanvas(this.uiCtx, 'transparent');
-        
-        // Render each layer
-        this.renderBackground();
-        this.renderEnemies();
-        this.renderPlayer();
-        this.renderEffects();
-        this.renderUI();
+          // If window is not focused, render at reduced rate to save power
+        const shouldFullRender = this.isWindowFocused || 
+            (this.game.frameCount % 3 === 0); // Render every 3 frames when unfocused
+            
+        if (shouldFullRender) {
+            // Render each layer
+            this.renderBackground();
+            this.renderEnemies();
+            this.renderPlayer();
+            this.renderEffects();
+            this.renderUI();
+        } else {
+            // Just render essential elements when not focused
+            this.renderUI();
+        }
         
         // Composite layers to main canvas
         this.compositeLayers();
+        
+        if (shouldFullRender) {
+            // Render each layer
+            this.renderBackground();
+            this.renderEnemies();
+            this.renderPlayer();
+            this.renderEffects();
+            this.renderUI();
+        } else {
+            // Just render essential elements when not focused
+            this.renderUI();
+        }
+        
+        // Composite layers to main canvas
+        this.compositeLayers();
+    }
+    
+    // Resize all canvas elements to match the game size
+    handleResize(newWidth, newHeight) {
+        // Update internal dimensions
+        this.width = newWidth;
+        this.height = newHeight;
+        
+        // Resize main canvas
+        this.mainCanvas.width = this.width;
+        this.mainCanvas.height = this.height;
+        
+        // Resize all layer canvases
+        this.bgCanvas.width = this.width;
+        this.bgCanvas.height = this.height;
+        
+        this.enemyCanvas.width = this.width;
+        this.enemyCanvas.height = this.height;
+        
+        this.playerCanvas.width = this.width;
+        this.playerCanvas.height = this.height;
+        
+        this.effectsCanvas.width = this.width;
+        this.effectsCanvas.height = this.height;
+        
+        this.uiCanvas.width = this.width;
+        this.uiCanvas.height = this.height;
+        
+        // Reset context properties after resize
+        this.setupContexts();
+        
+        // Force a full redraw of all layers
+        this.needsBackgroundUpdate = true;
+        this.needsEnemyUpdate = true;
+    }
+    
+    // Setup context properties for optimal rendering
+    setupContexts() {
+        // Set properties for each context
+        this.bgCtx.imageSmoothingEnabled = false;
+        this.enemyCtx.imageSmoothingEnabled = true;
+        this.playerCtx.imageSmoothingEnabled = true;
+        this.effectsCtx.imageSmoothingEnabled = true;
+        this.uiCtx.imageSmoothingEnabled = false;
+        
+        // Optimize text rendering
+        this.uiCtx.textBaseline = 'middle';
+        this.uiCtx.textAlign = 'center';
     }
 }

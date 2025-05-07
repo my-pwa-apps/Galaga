@@ -1187,16 +1187,18 @@ class Enemy {
                 height
             );
         } else {
-            // Fallback to drawing enemy directly
-            // Draw the enemy with appropriate sprite based on type
-            if (this.type === 'boss') {
+            // Fallback to drawing enemy directly        // Draw the enemy with appropriate sprite based on type
+            if (this.type === 'boss' && sprites && sprites.bossEnemy) {
                 sprites.bossEnemy.draw(this.game.ctx, this.x, this.y, this.subType, this.hitFlash);
-            } else if (this.type === 'dive') {
+            } else if (this.type === 'dive' && sprites && sprites.diveEnemy) {
                 sprites.diveEnemy.draw(this.game.ctx, this.x, this.y, this.subType, this.hitFlash);
-            } else {
+            } else if (sprites && sprites.basicEnemy) {
                 sprites.basicEnemy.draw(this.game.ctx, this.x, this.y, this.subType, this.hitFlash);
             }
         }
+        
+        // Restore context state to prevent style leakage
+        ctx.restore();
         
         // Enhanced special behavior effects
         if (this.behavior === 'teleport') {
