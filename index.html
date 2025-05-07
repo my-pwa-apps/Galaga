@@ -161,6 +161,14 @@
     
     // Add event listeners for pause buttons
     document.addEventListener('DOMContentLoaded', function() {
+        // Ensure splash animation is started on load if on start screen
+        const startScreen = document.getElementById('start-screen');
+        if (!startScreen.classList.contains('hidden')) {
+            if (window.splashAnimation) {
+                window.splashAnimation.stopAnimation();
+            }
+            window.splashAnimation = new SplashAnimation();
+        }
         // Pause button click
         const pauseButton = document.getElementById('pause-button');
         if (pauseButton) {

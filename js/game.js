@@ -225,15 +225,13 @@ class Game {    constructor(options) {
             this.renderer.render();
             return;
         }
-        
         // Legacy rendering as fallback
-        // First, clear the canvas with clearRect for complete cleanup
+        // Always clear the canvas with clearRect to prevent trails
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset any transforms
         this.ctx.clearRect(0, 0, this.width, this.height);
-        
-        // Then fill with black
+        // Fill with black background
         this.ctx.fillStyle = 'black';
         this.ctx.fillRect(0, 0, this.width, this.height);
-        
         // Draw background
         this.drawBackground();
         

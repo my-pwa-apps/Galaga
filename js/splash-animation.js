@@ -1,6 +1,10 @@
 // Splash screen animations for Galaga
-class SplashAnimation {
-    constructor() {
+class SplashAnimation {    constructor() {
+        // Stop any existing animation
+        if (window.splashAnimation && window.splashAnimation !== this) {
+            window.splashAnimation.stopAnimation();
+        }
+        
         // Create and initialize canvas
         this.initCanvas();
         
