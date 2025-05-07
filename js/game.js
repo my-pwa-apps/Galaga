@@ -136,6 +136,9 @@ class Game {    constructor(options) {
         // Request the next frame first for better performance
         this.animationFrameId = requestAnimationFrame((time) => this.animate(time));
         
+        // Clear the canvas at the start of each frame
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        
         // Save canvas context state at the start of each frame
         this.ctx.save();
         

@@ -195,7 +195,8 @@ class GameRenderer {    constructor(game) {
         this.clearCanvas(this.playerCtx, 'transparent');
         this.clearCanvas(this.effectsCtx, 'transparent');
         this.clearCanvas(this.uiCtx, 'transparent');
-          // If window is not focused, render at reduced rate to save power
+        
+        // If window is not focused, render at reduced rate to save power
         const shouldFullRender = this.isWindowFocused || 
             (this.game.frameCount % 3 === 0); // Render every 3 frames when unfocused
             
