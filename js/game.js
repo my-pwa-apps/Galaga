@@ -127,13 +127,26 @@ class Game {    constructor(options) {
                 this.startGame();
             });
         }
-    }
-      animate(timestamp) {
+    }    animate(timestamp) {
         // Request the next frame first for better performance
         this.animationFrameId = requestAnimationFrame((time) => this.animate(time));
         
-        // Skip update if paused
-        if (this.isPaused) return;
+        // Skip update if paused - but still clear canvas to avoid artifacts
+        if (this.isPaused) {
+            // Ensure pause overlay is still rendered
+            this.ctx.fillStyle = 'black';
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            
+            if (this.renderer) {
+                this.renderer.clearCanvas(this.renderer.mainCtx);
+            }
+            
+            // Draw the pause overlay
+            if (this.isPaused) {
+                this.renderPauseOverlay();
+            }
+            return;
+        }
         
         // Calculate elapsed time since last frame
         const deltaTime = timestamp - (this.lastTime || timestamp);
@@ -146,12 +159,9 @@ class Game {    constructor(options) {
         // Increment frame counter
         this.frameCount++;
         
-        // Throttle updates based on target FPS
-        if (this.frameCount % 3 === 0) {
-            // Update background less frequently (every 3 frames) for performance
-            if (this.renderer) {
-                this.renderer.needsBackgroundUpdate = true;
-            }
+        // Always mark background for update to prevent trails
+        if (this.renderer) {
+            this.renderer.needsBackgroundUpdate = true;
         }
         
         // Update game state
@@ -193,8 +203,11 @@ class Game {    constructor(options) {
         
         // Check level completion
         this.levelManager.update();
-    }
-      render() {
+    }    render() {
+        // Always clear the canvas first to prevent pixel accumulation
+        this.ctx.fillStyle = 'black';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
         // Use optimized renderer if available
         if (this.renderer) {
             this.renderer.render();
@@ -202,7 +215,7 @@ class Game {    constructor(options) {
         }
         
         // Legacy rendering as fallback
-        // Draw background
+        // Draw background (starfield already has its own clearing)
         this.drawBackground();
         
         // Render game elements based on game state

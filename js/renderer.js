@@ -89,24 +89,15 @@ class GameRenderer {
         this.game.enemyManager.draw();
         this.game.ctx = originalCtx;
     }
-    
-    // Render player
+      // Render player
     renderPlayer() {
         if (!this.game.player) return;
         
-        // Clear player canvas only in area around player
-        const player = this.game.player;
-        const radius = player.width * 2; // Clear area larger than player
-        
-        this.playerCtx.clearRect(
-            Math.min(this.prevPlayerPos.x, player.x) - radius,
-            Math.min(this.prevPlayerPos.y, player.y) - radius,
-            Math.abs(this.prevPlayerPos.x - player.x) + radius * 2,
-            Math.abs(this.prevPlayerPos.y - player.y) + radius * 2
-        );
+        // Clear entire player canvas to prevent trails
+        this.clearCanvas(this.playerCtx, 'transparent');
         
         // Store current position for next frame
-        this.prevPlayerPos = { x: player.x, y: player.y };
+        this.prevPlayerPos = { x: this.game.player.x, y: this.game.player.y };
         
         // Draw player on player canvas
         const originalCtx = this.game.ctx;
@@ -183,13 +174,17 @@ class GameRenderer {
             this.game.ctx = originalCtx;
         }
     }
-    
-    // Main render method
+      // Main render method
     render() {
-        // Mark background for update if needed (e.g., every few frames)
-        if (this.game.frameCount % 3 === 0) {
-            this.needsBackgroundUpdate = true;
-        }
+        // Always update background to prevent rendering artifacts
+        this.needsBackgroundUpdate = true;
+        
+        // Clear all layer canvases first to prevent pixel accumulation
+        this.clearCanvas(this.bgCtx, 'black');
+        this.clearCanvas(this.enemyCtx, 'transparent');
+        this.clearCanvas(this.playerCtx, 'transparent');
+        this.clearCanvas(this.effectsCtx, 'transparent');
+        this.clearCanvas(this.uiCtx, 'transparent');
         
         // Render each layer
         this.renderBackground();

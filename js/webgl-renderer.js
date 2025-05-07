@@ -192,29 +192,38 @@ class WebGLRenderer {
         // Set resolution uniform
         this.gl.uniform2f(this.resolutionUniformLocation, this.canvas.width, this.canvas.height);
     }
-    
-    clear() {
-        // Clear the canvas
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+      clear() {
+        // Clear the canvas with black background
+        this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
     }
     
     render() {
         if (!this.initialized) return;
         
-        // Clear the canvas
+        // Always clear the canvas first to prevent pixel accumulation
         this.clear();
         
         // Set canvas size if needed
         this.resize();
         
-        // Render background (stars)
-        this.renderStars();
-        
-        // Render sprites (enemies, player, projectiles)
-        this.renderSprites();
-        
-        // Render UI elements (score, lives, etc.)
-        this.renderUI();
+        // Only render game elements if initialized properly
+        if (this.gl && this.program) {
+            // Render background (stars)
+            this.renderStars();
+            
+            // Render sprites (enemies, player, projectiles)
+            this.renderSprites();
+            
+            // Render UI elements (score, lives, etc.)
+            this.renderUI();
+        } else {
+            // If WebGL isn't working, fall back to the main renderer
+            console.warn("WebGL rendering failed, falling back to canvas renderer");
+            if (this.game.renderer) {
+                this.game.renderer.render();
+            }
+        }
     }
     
     renderStars() {
