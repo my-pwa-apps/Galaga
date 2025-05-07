@@ -227,7 +227,10 @@ class Game {    constructor(options) {
         }
         
         // Legacy rendering as fallback
-        // Always clear the canvas first to prevent pixel accumulation
+        // First, clear the canvas with clearRect for complete cleanup
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        
+        // Then fill with black
         this.ctx.fillStyle = 'black';
         this.ctx.fillRect(0, 0, this.width, this.height);
         

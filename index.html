@@ -125,8 +125,8 @@
                     <p>Loading high scores...</p>
                 </div>
             </div>
-            
-            <button id="restart-button">PLAY AGAIN</button>
+              <button id="restart-button">PLAY AGAIN</button>
+            <button id="return-to-menu-button">RETURN TO MENU</button>
         </div>
         
         <!-- Audio Controls -->
@@ -192,8 +192,7 @@
                 }
             });
         }
-        
-        // Exit to menu button
+          // Exit to menu button
         const exitToMenu = document.getElementById('exit-to-menu');
         if (exitToMenu) {
             exitToMenu.addEventListener('click', function() {
@@ -208,6 +207,28 @@
                         window.splashAnimation.stopAnimation();
                         window.splashAnimation = new SplashAnimation();
                     }
+                }
+            });
+        }
+        
+        // Return to menu button (from game over screen)
+        const returnToMenuButton = document.getElementById('return-to-menu-button');
+        if (returnToMenuButton) {
+            returnToMenuButton.addEventListener('click', function() {
+                if (window.game) {
+                    // Hide game over screen
+                    document.getElementById('game-over-screen').classList.add('hidden');
+                    // Show start screen
+                    document.getElementById('start-screen').classList.remove('hidden');
+                    
+                    // Restart splash animation
+                    if (window.splashAnimation) {
+                        window.splashAnimation.stopAnimation();
+                        window.splashAnimation = new SplashAnimation();
+                    }
+                }
+            });
+        
                 }
             });
         }

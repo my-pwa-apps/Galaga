@@ -400,8 +400,7 @@ class SplashAnimation {
     }
     
     // Main animation loop
-    animate(currentTime = 0) {
-        // Calculate delta time for consistent animation speed
+    animate(currentTime = 0) {        // Calculate delta time for consistent animation speed
         const deltaTime = currentTime - this.lastFrameTime;
         this.lastFrameTime = currentTime;
         
@@ -413,6 +412,9 @@ class SplashAnimation {
         
         // Adjust speed based on time passed
         const timeMultiplier = deltaTime / this.targetDeltaTime;
+        
+        // Make sure to clear the entire canvas completely to prevent ghosting
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // Clear canvas - use fillRect for better performance with alpha disabled
         this.ctx.fillStyle = '#000000';
@@ -854,8 +856,7 @@ class SplashAnimation {
         }
         ctx.stroke();
     }
-    
-    // Clean up resources and stop animation
+      // Clean up resources and stop animation
     stopAnimation() {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
@@ -864,6 +865,20 @@ class SplashAnimation {
         
         if (this.resizeTimeout) {
             clearTimeout(this.resizeTimeout);
+        }
+        
+        // Clean up all active elements
+        this.activeProjectiles = [];
+        
+        // Clean up the canvas completely before removal
+        if (this.ctx && this.canvas) {
+            // Clear the entire canvas
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            
+            // If the canvas is still in the DOM, remove it
+            if (this.canvas.parentNode) {
+                this.canvas.parentNode.removeChild(this.canvas);
+            }
         }
         
         window.removeEventListener('resize', this.debouncedResize);
