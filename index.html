@@ -223,17 +223,20 @@
         const returnToMenuButton = document.getElementById('return-to-menu-button');
         if (returnToMenuButton) {
             returnToMenuButton.addEventListener('click', function() {
-                if (window.game) {
-                    // Hide game over screen
-                    document.getElementById('game-over-screen').classList.add('hidden');
-                    // Show start screen
-                    document.getElementById('start-screen').classList.remove('hidden');
-                    
-                    // Restart splash animation
+                // Hide game over screen
+                document.getElementById('game-over-screen').classList.add('hidden');
+                // Show start screen
+                document.getElementById('start-screen').classList.remove('hidden');
+                // (Re)create splash animation
+                const animationContainer = document.getElementById('animation-container');
+                if (animationContainer) {
+                    while (animationContainer.firstChild) {
+                        animationContainer.removeChild(animationContainer.firstChild);
+                    }
                     if (window.splashAnimation) {
                         window.splashAnimation.stopAnimation();
-                        window.splashAnimation = new SplashAnimation();
                     }
+                    window.splashAnimation = new SplashAnimation();
                 }
             });
         
