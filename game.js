@@ -335,6 +335,7 @@ function resetGame() {
     spawnEnemies();
 }
 
+function updateGame() {
     // Player movement
     let moveSpeed = player.speed + (player.power === 'speed' ? 2 : 0);
     if (keys['ArrowLeft'] && player.x > 20) player.x -= moveSpeed;
