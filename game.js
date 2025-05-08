@@ -154,13 +154,41 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+let database; // Declare globally
+try {
+    if (typeof firebase !== 'undefined' && typeof firebase.initializeApp === 'function') {
+        firebase.initializeApp(firebaseConfig);
+        if (typeof firebase.database === 'function') {
+            database = firebase.database();
+        } else {
+            console.error("Firebase database service is not available.");
+            database = null;
+        }
+    } else {
+        console.error("Firebase core SDK is not loaded.");
+        database = null;
+    }
+} catch (e) {
+    console.error("Firebase initialization failed:", e);
+    database = null; // Ensure database is null on error
+}
+
 let firebaseHighScores = [];
 const MAX_HIGH_SCORES = 10; // Max number of scores to store/display
 
 // Function to fetch high scores from Firebase
 function fetchHighScores(callback) {
+    if (!database) { // Check if database was initialized or available
+        console.warn("Firebase database not available. Skipping high score fetch.");
+        firebaseHighScores = []; // Ensure it's an empty array
+        highScore = 0;
+        if (callback) {
+            // Call callback asynchronously to maintain consistent behavior
+            setTimeout(() => callback(), 0);
+        }
+        return;
+    }
+
     database.ref('highscores').orderByChild('score').limitToLast(MAX_HIGH_SCORES).once('value', (snapshot) => {
         const scores = [];
         snapshot.forEach((childSnapshot) => {
@@ -170,18 +198,31 @@ function fetchHighScores(callback) {
                 score: childSnapshot.val().score
             });
         });
-        firebaseHighScores = scores.sort((a, b) => b.score - a.score); // Sort descending
+        firebaseHighScores = scores.sort((a, b) => b.score - a.score);
         if (firebaseHighScores.length > 0) {
-            highScore = firebaseHighScores[0].score; // Update local high score
+            highScore = firebaseHighScores[0].score;
         } else {
             highScore = 0;
         }
         if (callback) callback();
+    }, (error) => { // Error callback for .once()
+        console.error("Error fetching high scores from Firebase:", error);
+        firebaseHighScores = []; // Reset or handle as appropriate
+        highScore = 0;
+        if (callback) callback(); // IMPORTANT: Still call the main callback to allow game to proceed
     });
 }
 
 // Function to save a high score to Firebase
 function saveHighScore(name, score) {
+    if (!database) {
+        console.warn("Firebase database not available. Cannot save high score.");
+        // Optionally, save to localStorage as a fallback or inform the user.
+        // For now, just log and don't save.
+        fetchHighScores(); // Still call fetch to update local list (which will be empty or from previous successful fetches)
+        return;
+    }
+
     const newScoreRef = database.ref('highscores').push();
     newScoreRef.set({
         name: name,
