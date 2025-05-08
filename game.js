@@ -1297,42 +1297,256 @@ function spawnEnemies() {
     enemies = [];
     formationSpots = [];
     attackQueue = [];
-    // Galaga: fixed formation spots
-    let baseCols = 4 + Math.floor(level/2);
-    let baseRows = 2 + Math.floor(level/4);
-    let cols = Math.min(baseCols, 8);
-    let rows = Math.min(baseRows, 5);
-    let xSpacing = (canvas.width-80)/(cols-1);
-    let yStart = 60;
-    // Enemy types unlocked by level
+    
+    // Create authentic Galaga butterfly/bee formation pattern
+    const classicFormation = (level <= 10);
+    
+    // Galaga uses different layouts based on level
+    let baseCols, baseRows, xSpacing, yStart;
+    
+    if (classicFormation) {
+        // Classic Galaga formation - dual wings with a center column
+        baseCols = 8;
+        baseRows = 5;
+        xSpacing = 40;
+        yStart = 60;
+    } else {
+        // Higher level formations get more complex and dense
+        baseCols = 5 + Math.floor(level/3);
+        baseRows = 3 + Math.floor(level/4);
+        baseCols = Math.min(baseCols, 10);
+        baseRows = Math.min(baseRows, 6);
+        xSpacing = (canvas.width-100)/(baseCols);
+        yStart = 50;
+    }
+    
+    // Enemy types with authentic Galaga specifications
     let types = [
-        {name: 'basic', color: '#0f0', fireRate: 0.7, speed: 0.7, hp: 1},
-        {name: 'fast', color: '#ff0', fireRate: 0.3, speed: 1.2, hp: 1},
-        {name: 'tank', color: '#0ff', fireRate: 0.9, speed: 0.5, hp: 3},
-        {name: 'sniper', color: '#f0f', fireRate: 0.15, speed: 0.7, hp: 1},
-        {name: 'zigzag', color: '#f00', fireRate: 0.4, speed: 1.0, hp: 1}
+        {name: 'basic', color: '#0f8', fireRate: 0.5, speed: 0.9, hp: 1, points: 80},   // Base enemies (bees)
+        {name: 'fast', color: '#ff0', fireRate: 0.25, speed: 1.3, hp: 1, points: 100},  // Fast enemies (butterflies)
+        {name: 'tank', color: '#0ff', fireRate: 0.7, speed: 0.6, hp: 2, points: 150},   // Tanky enemies (galaxian)
+        {name: 'sniper', color: '#f0f', fireRate: 0.1, speed: 0.8, hp: 1, points: 120}, // Precise enemies (hornets)
+        {name: 'zigzag', color: '#f00', fireRate: 0.3, speed: 1.1, hp: 1, points: 150}  // Erratic enemies (scorpions)
     ];
+    
+    // Enemy types unlocked gradually by level
     let maxType = 1;
     if (level >= 3) maxType = 2;
     if (level >= 5) maxType = 3;
     if (level >= 7) maxType = 4;
-    // Set up formation spots
-    for (let i=0; i<cols; i++) {
-        for (let j=0; j<rows; j++) {
-            let fx = 40 + i*xSpacing;
-            let fy = yStart + j*44;
-            formationSpots.push({x: fx, y: fy, taken: false});
+    
+    // Special challenge stage every 3 levels
+    challengeStage = (level % 3 === 0 && level > 0);
+    
+    if (challengeStage) {
+        // Challenge stage has unique formation and behavior
+        setupChallengeStage();
+        return;
+    }
+    
+    // Set up authentic Galaga formation
+    if (classicFormation) {
+        // Classic butterfly wing formation from the original game
+        const centerX = canvas.width / 2;
+        
+        // Top row - command ships (higher tier enemies)
+        for (let i = 0; i < 4; i++) {
+            const offset = i < 2 ? (i - 1.5) * xSpacing * 1.6 : (i - 2) * xSpacing * 1.6;
+            formationSpots.push({
+                x: centerX + offset,
+                y: yStart,
+                taken: false,
+                row: 0,
+                col: i,
+                type: 'command'
+            });
+        }
+        
+        // Middle rows - escort ships in classic wing formation
+        for (let j = 1; j < 4; j++) {
+            for (let i = 0; i < 8; i++) {
+                // Skip the center positions to create wing shape
+                if ((j === 2 || j === 3) && (i === 3 || i === 4)) continue;
+                
+                let offset = (i - 3.5) * xSpacing;
+                formationSpots.push({
+                    x: centerX + offset,
+                    y: yStart + j * 36,
+                    taken: false,
+                    row: j,
+                    col: i,
+                    type: 'escort'
+                });
+            }
+        }
+        
+        // Bottom row - wide spread of basic enemies
+        for (let i = 0; i < 8; i++) {
+            const offset = (i - 3.5) * xSpacing;
+            formationSpots.push({
+                x: centerX + offset,
+                y: yStart + 4 * 36,
+                taken: false,
+                row: 4,
+                col: i,
+                type: 'guard'
+            });
+        }
+    } else {
+        // Higher level formations - more complex patterns
+        // Center-heavy diamond formation
+        const centerX = canvas.width / 2;
+        
+        for (let j = 0; j < baseRows; j++) {
+            // Diamond pattern gets wider in middle rows
+            const rowWidth = Math.min(j, baseRows - j - 1) + 3;
+            const startCol = Math.floor((baseCols - rowWidth) / 2);
+            const endCol = Math.ceil((baseCols + rowWidth) / 2);
+            
+            for (let i = startCol; i < endCol; i++) {
+                const offset = (i - baseCols/2) * xSpacing;
+                formationSpots.push({
+                    x: centerX + offset,
+                    y: yStart + j * 40,
+                    taken: false,
+                    row: j,
+                    col: i,
+                    type: j === 0 ? 'command' : (j < 2 ? 'escort' : 'guard')
+                });
+            }
         }
     }
-    // Spawn enemies offscreen, assign them a formation spot
-    let spotIdx = 0;
-    for (let i=0; i<cols; i++) {
-        for (let j=0; j<rows; j++) {
-            let t = types[Math.min((i+j+level)%Math.min(types.length, maxType+1), maxType)];
-            let entrySide = (i%2 === 0) ? 'left' : 'right';
-            let ex = (entrySide === 'left') ? -40 : canvas.width+40;
-            let ey = 40 + j*30 + Math.random()*30;
-            let spot = formationSpots[spotIdx++];
+    
+    // Spawn boss Galaga (appears in level 3 and above)
+    if (level >= 3 && !bossGalaga && Math.random() < 0.7) {
+        bossGalaga = {
+            x: canvas.width + 60,
+            y: 40,
+            w: 40,
+            h: 30,
+            targetX: canvas.width / 2,
+            targetY: 40,
+            hp: 5,
+            state: 'entering',
+            hasCaptured: false,
+            tractorBeam: false,
+            captureTimer: 0
+        };
+    }
+    
+    // Spawn enemies offscreen with authentic Galaga entrance patterns
+    for (let spotIdx = 0; spotIdx < formationSpots.length; spotIdx++) {
+        const spot = formationSpots[spotIdx];
+        
+        // Determine enemy type based on position and level
+        let enemyTypeIdx;
+        if (spot.type === 'command') {
+            // Top row bosses - higher tier enemies
+            enemyTypeIdx = Math.min(maxType, 4);
+        } else if (spot.type === 'escort') {
+            // Middle row escorts - mid tier enemies
+            enemyTypeIdx = Math.min(Math.max(1, maxType-1), 3);
+        } else {
+            // Bottom row guards - basic enemies with some variation
+            enemyTypeIdx = Math.min(Math.floor(Math.random() * (maxType+1)), 2);
+        }
+        
+        // Get enemy properties
+        const t = types[enemyTypeIdx];
+        
+        // Classic Galaga entrance paths based on column
+        const pathType = spotIdx % 4;
+        let entrancePath;
+        
+        switch(pathType) {
+            case 0:
+                entrancePath = 'loop_left';
+                break;
+            case 1:
+                entrancePath = 'dive_right';
+                break;
+            case 2:
+                entrancePath = 'spiral';
+                break;
+            case 3:
+                entrancePath = 'loop_right';
+                break;
+        }
+        
+        // Starting position based on entrance path
+        let ex, ey;
+        if (entrancePath.includes('left')) {
+            ex = -40;
+            ey = canvas.height * 0.3 + Math.random() * 40;
+        } else {
+            ex = canvas.width + 40;
+            ey = canvas.height * 0.3 + Math.random() * 40;
+        }
+        
+        // Delay entry based on formation position - recreates the classic Galaga entrance timing
+        const entryDelay = spotIdx * 0.1;
+        
+        // Create the enemy with enhanced properties
+        enemies.push({
+            x: ex,
+            y: ey,
+            w: 32,
+            h: 24,
+            dx: 0,
+            dy: 0,
+            alive: true,
+            color: t.color,
+            type: t.name,
+            hp: t.hp,
+            points: t.points,
+            row: spot.row,
+            col: spot.col,
+            zigzagPhase: Math.random() * Math.PI * 2,
+            state: ENEMY_STATE.ENTRANCE,
+            formationX: spot.x,
+            formationY: spot.y,
+            entranceT: -entryDelay, // Negative for delayed start
+            entrancePath: entrancePath,
+            speed: t.speed,
+            fireRate: t.fireRate,
+            fireCooldown: 60 + Math.random() * 60,
+            attackTimer: 0,
+            attackDelay: 0,
+            attackPattern: spotIdx % 3, // Different attack patterns
+            formationIndex: spotIdx
+        });
+    }
+}
+
+// Set up a special challenge stage with authentic Galaga mechanics
+function setupChallengeStage() {
+    // Challenge stages have special formations that fly in set patterns
+    const centerX = canvas.width / 2;
+    const rows = 3;
+    const enemiesPerRow = 8;
+    const xSpacing = 40;
+    const yStart = 60;
+    
+    // No attacking in challenge stage, just formation flying
+    for (let j = 0; j < rows; j++) {
+        for (let i = 0; i < enemiesPerRow; i++) {
+            // Distribute enemies in a grid
+            const x = centerX + (i - enemiesPerRow/2 + 0.5) * xSpacing;
+            const y = yStart + j * 40;
+            
+            // Challenge stage uses 3 different enemy types in rows
+            const rowEnemyType = j % 3;
+            const t = [
+                {name: 'basic', color: '#0f8', hp: 1, points: 100},
+                {name: 'fast', color: '#ff0', hp: 1, points: 100},
+                {name: 'sniper', color: '#f0f', hp: 1, points: 100}
+            ][rowEnemyType];
+            
+            // Starting positions for challenge stage swarm
+            let ex = (Math.random() > 0.5) ? -40 : canvas.width + 40;
+            let ey = canvas.height * 0.2 + Math.random() * 40;
+            
+            // Add to enemy array with challenge stage properties
             enemies.push({
                 x: ex,
                 y: ey,
@@ -1344,13 +1558,18 @@ function spawnEnemies() {
                 color: t.color,
                 type: t.name,
                 hp: t.hp,
-                zigzagPhase: Math.random()*Math.PI*2,
+                points: t.points * 2, // Double points in challenge stages
+                row: j,
+                col: i,
+                zigzagPhase: Math.random() * Math.PI * 2,
                 state: ENEMY_STATE.ENTRANCE,
-                formationX: spot.x,
-                formationY: spot.y,
-                entranceT: 0,
-                fireCooldown: 60+Math.random()*60,
-                attackTimer: 0
+                formationX: x,
+                formationY: y,
+                entranceT: -i * 0.05 - j * 0.2, // Timing for wave entrance
+                entrancePath: 'challenge',
+                isChallenge: true,
+                patternPhase: 0,
+                patternTimer: 0
             });
         }
     }
@@ -1652,27 +1871,93 @@ function updateGame() {
     bullets.forEach((b, bi) => {
         enemies.forEach((e, ei) => {
             if (e.alive && Math.abs(b.x - e.x) < 18 && Math.abs(b.y - e.y) < 16) {
-                e.hp--;
-                if (e.hp <= 0) {
+                e.hp--;                if (e.hp <= 0) {
                     e.alive = false;
                     score += 100 + level * 10;
                     playExplosionSound();
-                    // Spawn particles on enemy destruction
-                    for (let i = 0; i < 12; i++) {
+                    
+                    // Create spectacular explosion with multiple particle types
+                    // 1. Core explosion particles
+                    for (let i = 0; i < 15; i++) {
                         particles.push({
                             x: e.x,
                             y: e.y,
                             vx: (Math.random() - 0.5) * 4,
                             vy: (Math.random() - 0.5) * 4,
+                            size: 3 + Math.random() * 3,
+                            alpha: 1,
+                            color: e.color,
+                            type: 'explosion',
+                            shape: Math.random() < 0.5 ? 'circle' : 'irregular',
+                            life: 30 + Math.random() * 20,
+                            initialLife: 30 + Math.random() * 20
+                        });
+                    }
+                    
+                    // 2. Bright sparks - energy particles
+                    for (let i = 0; i < 8; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 3 + Math.random() * 5;
+                        particles.push({
+                            x: e.x,
+                            y: e.y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            size: 1 + Math.random() * 2,
+                            alpha: 1,
+                            color: '#fff',
+                            type: 'spark',
+                            life: 15 + Math.random() * 10,
+                            initialLife: 15 + Math.random() * 10
+                        });
+                    }
+                    
+                    // 3. Ship debris - parts of the enemy
+                    for (let i = 0; i < 6; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 1 + Math.random() * 3;
+                        particles.push({
+                            x: e.x,
+                            y: e.y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
                             size: 2 + Math.random() * 2,
                             alpha: 1,
                             color: e.color,
-                            life: 30 + Math.random() * 20
+                            type: 'debris',
+                            rotation: Math.random() * Math.PI * 2,
+                            rotationSpeed: (Math.random() - 0.5) * 0.2,
+                            life: 40 + Math.random() * 20,
+                            initialLife: 40 + Math.random() * 20
                         });
                     }
-                    e.alive = false;
-                    score += 100 + level * 10;
-                    playExplosionSound();
+                    
+                    // 4. Smoke cloud
+                    for (let i = 0; i < 4; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 0.5 + Math.random() * 1;
+                        particles.push({
+                            x: e.x,
+                            y: e.y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            size: 6 + Math.random() * 8,
+                            alpha: 0.7,
+                            color: '#888',
+                            type: 'smoke',
+                            life: 50 + Math.random() * 20,
+                            initialLife: 50 + Math.random() * 20
+                        });
+                    }
+                    
+                    // Add screen shake based on enemy type
+                    if (e.type === 'tank' || e.type === 'boss') {
+                        screenShake = 8;
+                    } else {
+                        screenShake = 3;
+                    }
+                    
+                    // Add power-up drops
                     if (Math.random() < 0.2) {
                         powerups.push({ x: e.x, y: e.y, type: ['double', 'shield', 'speed'][Math.floor(Math.random() * 3)] });
                     }
@@ -1747,41 +2032,198 @@ function updateGame() {
     }
 }
 
-// Enhanced particle effects for explosions
+// Enhanced particle system for visually spectacular explosions and effects
 function drawParticles() {
     for (let i = 0; i < particles.length; i++) {
         let p = particles[i];
         
-        ctx.save();
-        ctx.globalAlpha = p.alpha;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
+        // Apply more realistic physics
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.96;
+        p.vy *= 0.96;
         
-        // Add glow effect to some particles
-        if (Math.random() < 0.3) {
-            ctx.globalAlpha = p.alpha * 0.5;
+        // Update particle life and properties
+        p.life--;
+        p.alpha = p.life / p.initialLife;
+        
+        // Skip drawing completely faded particles
+        if (p.alpha <= 0) {
+            particles.splice(i, 1);
+            i--;
+            continue;
+        }
+        
+        ctx.save();
+        
+        // Different rendering based on particle type
+        if (p.type === 'explosion') {
+            // Core explosion particle
+            ctx.globalAlpha = p.alpha;
+            
+            // Create realistic explosion gradient
+            const particleGradient = ctx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, p.size * 2
+            );
+            
+            if (p.color === '#f00' || p.color === '#f80' || p.color === '#ff0') {
+                // Fire explosion colors
+                particleGradient.addColorStop(0, '#fff');
+                particleGradient.addColorStop(0.4, p.color);
+                particleGradient.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.fillStyle = particleGradient;
+                ctx.beginPath();
+                
+                // Random shapes for fire particles
+                if (p.shape === 'circle') {
+                    ctx.arc(p.x, p.y, p.size * (0.5 + p.alpha), 0, Math.PI * 2);
+                } else {
+                    // Irregular shape for flames
+                    ctx.beginPath();
+                    const sides = 5;
+                    const variation = 0.5;
+                    
+                    for (let j = 0; j < sides; j++) {
+                        const angle = (j / sides) * Math.PI * 2;
+                        const radius = p.size * (1 + Math.sin(p.life / 5 + j) * variation);
+                        const ptX = p.x + Math.cos(angle) * radius;
+                        const ptY = p.y + Math.sin(angle) * radius;
+                        
+                        if (j === 0) {
+                            ctx.moveTo(ptX, ptY);
+                        } else {
+                            ctx.lineTo(ptX, ptY);
+                        }
+                    }
+                    ctx.closePath();
+                }
+            } else {
+                // Energy/tech explosion colors
+                particleGradient.addColorStop(0, '#fff');
+                particleGradient.addColorStop(0.3, p.color);
+                particleGradient.addColorStop(0.8, p.color);
+                particleGradient.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.fillStyle = particleGradient;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * (0.6 + p.alpha * 0.6), 0, Math.PI * 2);
+            }
+            
+            ctx.fill();
+            
+            // Outer glow for dramatic effect
+            ctx.globalAlpha = p.alpha * 0.4;
             ctx.shadowColor = p.color;
-            ctx.shadowBlur = 5;
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+        } else if (p.type === 'spark') {
+            // High-energy sparks
+            ctx.globalAlpha = p.alpha * 1.2; // Brighter than normal
+            ctx.strokeStyle = p.color === '#f00' ? '#ff0' : '#fff';
+            ctx.lineWidth = p.size / 2;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 10;
+            
+            // Draw tracer line
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - p.vx * 2, p.y - p.vy * 2);
+            ctx.stroke();
+            
+            // Tip of the spark
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+        } else if (p.type === 'debris') {
+            // Debris/shrapnel particles
+            ctx.globalAlpha = p.alpha * 0.8;
+            ctx.fillStyle = p.color;
+            
+            // Rotate for tumbling effect
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            
+            if (Math.random() < 0.5) {
+                // Some debris is rectangular
+                ctx.fillRect(-p.size, -p.size/2, p.size * 2, p.size);
+            } else {
+                // Some is triangular
+                ctx.beginPath();
+                ctx.moveTo(p.size, 0);
+                ctx.lineTo(-p.size, -p.size);
+                ctx.lineTo(-p.size, p.size);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+        } else if (p.type === 'smoke') {
+            // Smoke effect
+            ctx.globalAlpha = p.alpha * 0.3;
+            const smokeGradient = ctx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, p.size * 2
+            );
+            smokeGradient.addColorStop(0, p.color);
+            smokeGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            
+            ctx.fillStyle = smokeGradient;
+            ctx.beginPath();
+            
+            // Irregular cloud shape
+            ctx.beginPath();
+            const sides = 8;
+            
+            for (let j = 0; j < sides; j++) {
+                const angle = (j / sides) * Math.PI * 2;
+                const wobble = Math.sin(p.life / 10 + j * 2) * 0.3;
+                const radius = p.size * (1 + wobble);
+                const ptX = p.x + Math.cos(angle) * radius;
+                const ptY = p.y + Math.sin(angle) * radius;
+                
+                if (j === 0) {
+                    ctx.moveTo(ptX, ptY);
+                } else {
+                    ctx.lineTo(ptX, ptY);
+                }
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+            
+        } else {
+            // Default particle behavior
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add simple glow
+            ctx.globalAlpha = p.alpha * 0.4;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
             ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
         
         ctx.restore();
         
-        // Update particle
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vx *= 0.98;
-        p.vy *= 0.98;
-        p.alpha -= 0.02;
-        
-        // Remove faded particles
-        if (p.alpha <= 0) {
-            particles.splice(i, 1);
-            i--;
+        // Update rotation for 3D effect on certain particles
+        if (p.rotation !== undefined) {
+            p.rotation += p.rotationSpeed;
         }
+    }
+    
+    // Create particles in bulk for performance if needed
+    if (particles.length > 200) {
+        particles = particles.filter(p => p.alpha > 0.2 || p.type === 'explosion');
     }
 }
 
