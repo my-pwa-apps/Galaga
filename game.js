@@ -1776,320 +1776,586 @@ function handleResume() {
     }
 }
 
-// Function to update player position and actions
-function updatePlayer() {
-    if (!player.alive) return;
+// --- Core Game Logic Functions (Should be placed before initGame) ---
+
+// Reset game state
+function resetGame() {
+    player.x = PLAYER_START_X;
+    player.y = PLAYER_START_Y;
+    player.alive = true;
+    player.power = 'normal';
+    player.powerTimer = 0;
+    player.shield = false;
+    player.speed = 250;
+    player.highScoreSubmitted = false; // Reset submission flag
+
+    bullets = [];
+    enemies = [];
+    enemyBullets = [];
+    powerups = [];
+    particles = []; // Clear particles
+
+    score = 0;
+    lives = 3;
+    level = 1;
+    levelTransition = 0;
+    bossGalaga = null;
+    capturedShip = false;
+    dualShip = false;
+    challengeStage = false;
     
-    // Determine movement direction
-    let moveX = 0;
-    
-    // Handle keyboard controls
-    if (keys['ArrowLeft']) moveX -= 1;
-    if (keys['ArrowRight']) moveX += 1;
-    
-    // Handle touch controls
-    if (isTouchDevice) {
-        if (touchControls.buttons.left.pressed) moveX -= 1;
-        if (touchControls.buttons.right.pressed) moveX += 1;
+    // Reset object pools by marking all objects as inactive
+    POOL.bullets.forEach(b => b.active = false);
+    POOL.enemyBullets.forEach(b => b.active = false);
+    POOL.particles.forEach(p => p.active = false);
+
+    spawnEnemies();
+}
+
+// Create explosion particles
+function createExplosion(x, y, color = '#ff0', count = 20, size = 2, speed = 150) {
+    for (let i = 0; i < count; i++) {
+        const p = getPoolObject('particles');
+        if (p) {
+            p.x = x;
+            p.y = y;
+            const angle = Math.random() * Math.PI * 2;
+            const currentSpeed = Math.random() * speed + 50;
+            p.vx = Math.cos(angle) * currentSpeed;
+            p.vy = Math.sin(angle) * currentSpeed;
+            p.size = Math.random() * size + 1;
+            p.color = color;
+            p.initialLife = Math.random() * 0.5 + 0.3; // Shorter life for explosions
+            p.life = p.initialLife;
+            p.active = true;
+            particles.push(p);
+        }
     }
-    
-    // Move player with speed factored by delta time
-    player.x += moveX * player.speed * dt;
-    
-    // Keep player within bounds
-    if (player.x < player.w / 2) player.x = player.w / 2;
-    if (player.x > CANVAS_WIDTH - player.w / 2) player.x = CANVAS_WIDTH - player.w / 2;
-    
-    // Handle shooting with cooldown
-    if (player.cooldown > 0) {
-        player.cooldown -= dt;
-    }
-    
-    // Determine if player should fire
-    let shouldFire = false;
-    
-    // Check keyboard
-    if (keys['Space']) shouldFire = true;
-    
-    // Check touch controls
-    if (isTouchDevice && (touchControls.buttons.fire.pressed || autoShootActive)) {
-        shouldFire = true;
-    }
-    
-    // Fire if conditions met
-    if (shouldFire && player.cooldown <= 0) {
-        // Reset cooldown based on powerups
-        player.cooldown = player.power === 'double' ? 0.20 : 0.35;
-        
-        // Create bullet from object pool
-        const bullet = getPoolObject('bullets');
-        if (bullet) {
-            bullet.x = player.x;
-            bullet.y = player.y - 15;
-            bullet.w = 3;
-            bullet.h = 12;
-            bullet.speed = 600;
-            bullet.type = player.power === 'double' ? 'double' : 'normal';
-            bullet.from = 'player';
-            bullet.active = true;
-            
-            bullets.push(bullet);
-            
-            // Create dual ship bullet if active
-            if (dualShip) {
-                const dualBullet = getPoolObject('bullets');
-                if (dualBullet) {
-                    dualBullet.x = player.x - 24;
-                    dualBullet.y = player.y - 15;
-                    dualBullet.w = 3;
-                    dualBullet.h = 12;
-                    dualBullet.speed = 600;
-                    dualBullet.type = 'normal';
-                    dualBullet.from = 'dual';
-                    dualBullet.active = true;
-                    
-                    bullets.push(dualBullet);
-                }
-            }
+    screenShake = 5 + Math.random() * 5; // Add screen shake on explosion
+}
+
+// Spawn powerup
+function spawnPowerup(x, y) {
+    const types = ['double', 'shield', 'speed'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    powerups.push({
+        x: x,
+        y: y,
+        w: 16,
+        h: 16,
+        type: type,
+        speed: 80 // Speed at which powerup falls
+    });
+}
+
+// Update bullets
+function updateBullets() {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        if (!b.active) { // Remove inactive bullets from active list
+            bullets.splice(i,1);
+            continue;
+        }
+        b.y -= b.speed * dt;
+        if (b.y < 0) {
+            b.active = false; // Deactivate when off-screen
+            bullets.splice(i, 1);
         }
     }
 }
 
-// Function to update enemies
-function updateEnemies() {
-    // Check if level is completed
-    if (enemies.length === 0) {
-        if (levelTransition <= 0) {
-            levelTransition = 3; // Show message for 3 seconds
-        } else {
-            levelTransition -= dt;
-            if (levelTransition <= 0) {
-                level++;
-                spawnEnemies(); // Spawn next wave
-            }
+// Update enemy bullets
+function updateEnemyBullets() {
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const eb = enemyBullets[i];
+         if (!eb.active) { // Remove inactive bullets from active list
+            enemyBullets.splice(i,1);
+            continue;
         }
-        return;
-    }
-    
-    // Update enemy positions and behaviors based on their state
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        
-        // Skip if marked for removal
-        if (enemy.markedForRemoval) continue;
-        
-        // Update based on state
-        if (enemy.state === ENEMY_STATE.ENTRANCE) {
-            // Move along entrance path
-            enemy.pathTime += dt;
-            const t = Math.min(1, enemy.pathTime / 3); // Complete path in 3 seconds
-            
-            // Move along entrance curve
-            const curveX = (1-t) * (1-t) * enemy.startX + 2 * (1-t) * t * enemy.controlX + t * t * enemy.targetX;
-            const curveY = (1-t) * (1-t) * enemy.startY + 2 * (1-t) * t * enemy.controlY + t * t * enemy.targetY;
-            
-            enemy.x = curveX;
-            enemy.y = curveY;
-            
-            // Check if arrived at formation position
-            if (t >= 1) {
-                enemy.state = ENEMY_STATE.FORMATION;
-            }
-        } else if (enemy.state === ENEMY_STATE.FORMATION) {
-            // Hover in formation
-            const hoverSpeed = 0.5 + (level * 0.1); // Increase with level
-            const hoverX = Math.sin(Date.now() / 1000 + enemy.index) * 10;
-            const hoverY = Math.cos(Date.now() / 1500 + enemy.index) * 5;
-            
-            // Move toward target with slight hover
-            enemy.x = enemy.x * 0.95 + (enemy.targetX + hoverX) * 0.05;
-            enemy.y = enemy.y * 0.95 + (enemy.targetY + hoverY) * 0.05;
-            
-            // Random chance to enter attack state
-            const attackChance = 0.001 + (level * 0.0005); // Increases with level
-            if (Math.random() < attackChance) {
-                // Add to attack queue - only attacks if not too many are already attacking
-                if (attackQueue.filter(e => e.state === ENEMY_STATE.ATTACK).length < 3) {
-                    enemy.state = ENEMY_STATE.ATTACK;
-                    attackQueue.push(enemy);
-                }
-            }
-            
-            // Random chance to fire
-            const fireChance = 0.002 + (level * 0.0005); // Increases with level
-            if (Math.random() < fireChance) {
-                fireEnemyBullet(enemy);
-            }
-        } else if (enemy.state === ENEMY_STATE.ATTACK) {
-            // Dive attack toward player
-            const attackSpeed = 250 + (level * 20); // Increases with level
-            
-            // Calculate direction to player with some prediction
-            let targetX = player.alive ? player.x : CANVAS_WIDTH / 2;
-            const dx = targetX - enemy.x;
-            const dy = CANVAS_HEIGHT - enemy.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            // Normalize and apply speed
-            const vx = dx / dist * attackSpeed;
-            const vy = dy / dist * attackSpeed;
-            
-            enemy.x += vx * dt;
-            enemy.y += vy * dt;
-            
-            // Fire at player occasionally during dive
-            const diveFireChance = 0.02 + (level * 0.005);
-            if (Math.random() < diveFireChance) {
-                fireEnemyBullet(enemy);
-            }
-            
-            // Check if enemy is offscreen - return to formation or remove
-            if (isOffScreen(enemy)) {
-                // If enemy has a formation spot, return to it
-                if (typeof enemy.targetX !== 'undefined' && typeof enemy.targetY !== 'undefined') {
-                    // Find a path back to formation
-                    enemy.state = ENEMY_STATE.ENTRANCE;
-                    enemy.startX = enemy.x;
-                    enemy.startY = enemy.y;
-                    enemy.pathTime = 0;
-                    
-                    // Random control point for path
-                    enemy.controlX = enemy.startX + (Math.random() - 0.5) * 200;
-                    enemy.controlY = enemy.startY - 100 - Math.random() * 100;
+
+        eb.age += dt;
+
+        // Movement patterns
+        switch (eb.type) {
+            case 'zigzag':
+                eb.x += Math.sin(eb.age * 10 + eb.wobble) * 100 * dt; // eb.wobble for variation
+                eb.y += eb.speed * dt;
+                break;
+            case 'homing': // Simple homing
+                if (player.alive) {
+                    const dx = player.x - eb.x;
+                    const dy = player.y - eb.y;
+                    const angle = Math.atan2(dy, dx);
+                    eb.x += Math.cos(angle) * eb.speed * dt;
+                    eb.y += Math.sin(angle) * eb.speed * dt;
                 } else {
-                    // If no formation spot, remove
-                    enemies.splice(i, 1);
+                    eb.y += eb.speed * dt; // Fall straight if player is dead
                 }
-            }
+                break;
+            case 'split':
+                eb.y += eb.speed * dt;
+                // Split condition (e.g., after some time or at certain y)
+                if (eb.age > 0.5 && !eb.hasSplit) {
+                    eb.hasSplit = true;
+                    eb.active = false; // Original bullet deactivates
+                    for (let j = -1; j <= 1; j += 2) { // Create two new bullets
+                        const splitBullet = getPoolObject('enemyBullets');
+                        if(splitBullet){
+                            splitBullet.x = eb.x;
+                            splitBullet.y = eb.y;
+                            splitBullet.speed = eb.speed * 1.2;
+                            splitBullet.type = 'fast'; // Or another type
+                            splitBullet.color = '#f80'; // Orange
+                            splitBullet.angle = Math.atan2(player.y - eb.y, player.x - eb.x) + j * 0.3; // Spread angle
+                            splitBullet.from = 'enemy';
+                            splitBullet.active = true;
+                            enemyBullets.push(splitBullet);
+                        }
+                    }
+                }
+                break;
+            case 'fast':
+                 eb.x += Math.cos(eb.angle) * eb.speed * dt;
+                 eb.y += Math.sin(eb.angle) * eb.speed * dt;
+                break;
+            default: // Straight
+                eb.y += eb.speed * dt;
         }
-    }
-    
-    // Update boss Galaga if present
-    if (bossGalaga) {
-        bossGalaga.timer -= dt;
-        
-        if (bossGalaga.timer <= 0) {
-            // Fire pattern based on state
-            if (bossGalaga.state === 'attacking') {
-                fireEnemyBullet(bossGalaga);
-                bossGalaga.timer = 0.5; // Reset timer
-            } else {
-                bossGalaga.timer = 0.2; // Idle timer
-            }
+
+        if (eb.y > CANVAS_HEIGHT || eb.x < -eb.w || eb.x > CANVAS_WIDTH + eb.w) {
+            eb.active = false;
+            enemyBullets.splice(i, 1);
         }
     }
 }
 
-// Function to spawn enemies for current level
-function spawnEnemies() {
-    // Reset formation and attack queue
-    setupFormation();
-    attackQueue = [];
-    
-    // Define wave properties based on level
-    let numEnemies = 16 + Math.min(32, level * 2); // Increases with level, caps at 48
-    const enemyTypes = [
-        ENEMY_TYPE.BASIC,
-        ENEMY_TYPE.FAST,
-        ENEMY_TYPE.TANK,
-        ENEMY_TYPE.ZIGZAG,
-        ENEMY_TYPE.SNIPER
-    ];
-    
-    // Add boss every 5 levels
-    let hasBoss = level % 5 === 0;
-    
-    // Spawn enemies
-    for (let i = 0; i < numEnemies; i++) {
-        // Get formation spot
-        const spot = getEmptyFormationSpot();
-        if (!spot) break; // Stop if no more spots
-        
-        // Mark spot as taken
-        spot.taken = true;
-        
-        // Create enemy with type based on level
-        const enemyTypeIndex = Math.min(
-            Math.floor(Math.random() * (2 + Math.floor(level / 2))), 
-            enemyTypes.length - 1
-        );
-        
-        const enemyType = enemyTypes[enemyTypeIndex];
-        
-        // Set enemy color based on type
-        let enemyColor = '#0f0'; // Default green
-        switch (enemyType) {
-            case ENEMY_TYPE.FAST:
-                enemyColor = '#0ff';
-                break;
-            case ENEMY_TYPE.TANK:
-                enemyColor = '#f00';
-                break;
-            case ENEMY_TYPE.ZIGZAG:
-                enemyColor = '#f0f';
-                break;
-            case ENEMY_TYPE.SNIPER:
-                enemyColor = '#ff0';
-                break;
+
+// Update powerups
+function updatePowerups() {
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const p = powerups[i];
+        p.y += p.speed * dt;
+        if (p.y > CANVAS_HEIGHT) {
+            powerups.splice(i, 1);
         }
-        
-        // Create enemy with entrance path
-        const startSide = Math.random() > 0.5 ? -50 : CANVAS_WIDTH + 50;
-        const startY = -50;
-        
-        // Enemy size based on type
-        let enemyW = 24;
-        let enemyH = 24;
-        
-        if (enemyType === ENEMY_TYPE.TANK) {
-            enemyW = 28;
-            enemyH = 28;
-        } else if (enemyType === ENEMY_TYPE.FAST) {
-            enemyW = 22;
-            enemyH = 22;
-        }
-        
-        // Create the enemy
-        const enemy = {
-            x: startSide,
-            y: startY,
-            w: enemyW,
-            h: enemyH,
-            type: enemyType,
-            color: enemyColor,
-            state: ENEMY_STATE.ENTRANCE,
-            startX: startSide,
-            startY: startY,
-            targetX: spot.x,
-            targetY: spot.y,
-            controlX: CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200,
-            controlY: CANVAS_HEIGHT / 3,
-            pathTime: 0,
-            index: i
-        };
-        
-        enemies.push(enemy);
-        
-        // Add delay between enemy spawns
-        spot.taken = true;
-    }
-    
-    // Add boss for boss levels
-    if (hasBoss) {
-        // Add boss Galaga
-        bossGalaga = {
-            x: CANVAS_WIDTH / 2,
-            y: 50,
-            w: 60,
-            h: 50,
-            color: '#f0f',
-            health: 10,
-            timer: 2,
-            state: 'idle',
-            hasCaptured: false
-        };
     }
 }
+
+// Update particles
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        if (!p.active) {
+             particles.splice(i,1); // Remove inactive from active list
+             continue;
+        }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) {
+            p.active = false;
+            particles.splice(i, 1);
+        }
+    }
+}
+
+// Draw particle
+function drawParticle(p) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life / p.initialLife); // Fade out
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+
+// Collision detection
+function checkCollisions() {
+    // Player bullets vs enemies
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        if (!b.active) continue;
+
+        for (let j = enemies.length - 1; j >= 0; j--) {
+            const e = enemies[j];
+            if (e.markedForRemoval) continue;
+
+            if (b.x < e.x + e.w && b.x + b.w > e.x &&
+                b.y < e.y + e.h && b.y + b.h > e.y) {
+                b.active = false; // Deactivate bullet
+                handleEnemyHit(e, j);
+                break; 
+            }
+        }
+        // Player bullets vs boss Galaga
+        if (bossGalaga && b.active &&
+            b.x < bossGalaga.x + bossGalaga.w/2 && b.x + b.w > bossGalaga.x - bossGalaga.w/2 &&
+            b.y < bossGalaga.y + bossGalaga.h/2 && b.y + b.h > bossGalaga.y - bossGalaga.h/2) {
+            b.active = false;
+            bossGalaga.health--;
+            createExplosion(b.x, b.y, bossGalaga.color, 10, 1.5);
+            if (bossGalaga.health <= 0) {
+                score += 1500; // Boss score
+                createExplosion(bossGalaga.x, bossGalaga.y, bossGalaga.color, 50, 3);
+                if (bossGalaga.hasCaptured) {
+                    dualShip = true; // Rescue captured ship
+                    capturedShip = false;
+                }
+                bossGalaga = null;
+            }
+        }
+    }
+
+    // Enemy bullets vs player
+    if (player.alive && !player.shield) {
+        for (let i = enemyBullets.length - 1; i >= 0; i--) {
+            const eb = enemyBullets[i];
+            if (!eb.active) continue;
+
+            if (eb.x < player.x + player.w/2 && eb.x + eb.w > player.x - player.w/2 &&
+                eb.y < player.y + player.h/2 && eb.y + eb.h > player.y - player.h/2) {
+                eb.active = false;
+                handlePlayerDeath();
+                break; 
+            }
+        }
+    }
+
+    // Enemies vs player (collision)
+    if (player.alive && !player.shield) {
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            if (e.markedForRemoval) continue;
+
+            if (player.x - player.w/2 < e.x + e.w && player.x + player.w/2 > e.x &&
+                player.y - player.h/2 < e.y + e.h && player.y + player.h/2 > e.y) {
+                handleEnemyHit(e, i); // Enemy also dies
+                handlePlayerDeath();
+                break;
+            }
+        }
+        // Boss Galaga vs player
+        if (bossGalaga && player.alive && !player.shield &&
+            player.x - player.w/2 < bossGalaga.x + bossGalaga.w/2 && player.x + player.w/2 > bossGalaga.x - bossGalaga.w/2 &&
+            player.y - player.h/2 < bossGalaga.y + bossGalaga.h/2 && player.y + player.h/2 > bossGalaga.y - bossGalaga.h/2) {
+            handlePlayerDeath();
+        }
+    }
+    
+    // Player vs powerups
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const p = powerups[i];
+        if (player.x - player.w/2 < p.x + p.w && player.x + player.w/2 > p.x &&
+            player.y - player.h/2 < p.y + p.h && player.y + player.h/2 > p.y) {
+            
+            player.power = p.type;
+            player.powerTimer = 10; // 10 seconds
+            if (p.type === 'shield') player.shield = true;
+            if (p.type === 'speed') player.speed = 350; // Increase speed
+            
+            powerups.splice(i, 1);
+            score += 50; // Score for powerup
+        }
+    }
+}
+
+// Handle enemy getting hit
+function handleEnemyHit(enemy, index) {
+    score += 100; // Base score
+    if (enemy.type === ENEMY_TYPE.FAST) score += 50;
+    if (enemy.type === ENEMY_TYPE.TANK) score += 100;
+    if (enemy.state === ENEMY_STATE.ATTACK) score += 100; // Bonus for attacking enemy
+
+    createExplosion(enemy.x, enemy.y, enemy.color);
+    
+    // Release formation spot
+    const spot = formationSpots.find(s => s.x === enemy.targetX && s.y === enemy.targetY);
+    if (spot) spot.taken = false;
+
+    // Chance to drop powerup
+    if (Math.random() < 0.1) { // 10% chance
+        spawnPowerup(enemy.x, enemy.y);
+    }
+    
+    // Mark for removal instead of immediate splice if iterating
+    enemy.markedForRemoval = true; 
+    enemies.splice(index, 1); // Or splice directly if safe
+}
+
+// Handle player death
+function handlePlayerDeath() {
+    if (!player.alive) return; // Already dead
+
+    createExplosion(player.x, player.y, '#f00', 30, 2.5);
+    player.alive = false;
+    lives--;
+    dualShip = false; // Lose dual ship on death
+    capturedShip = false; // Lose captured ship status
+
+    if (lives < 0) {
+        state = GAME_STATE.GAME_OVER;
+        player.highScoreSubmitted = false; // Ensure can submit new score
+    } else {
+        // Respawn delay or visual effect
+        setTimeout(() => {
+            player.x = PLAYER_START_X;
+            player.y = PLAYER_START_Y;
+            player.alive = true;
+            player.shield = true; // Brief invincibility
+            player.powerTimer = 2; // 2 seconds shield
+        }, 2000); // 2 second respawn delay
+    }
+}
+
+// Fire enemy bullet
+function fireEnemyBullet(enemy) {
+    const bullet = getPoolObject('enemyBullets');
+    if (bullet) {
+        bullet.x = enemy.x;
+        bullet.y = enemy.y + enemy.h / 2;
+        bullet.w = 4;
+        bullet.h = 12;
+        bullet.from = 'enemy';
+        bullet.active = true;
+        bullet.age = 0; // Reset age for patterns
+        bullet.hasSplit = false; // Reset split flag
+
+        // Determine bullet type and properties based on enemy type or state
+        if (enemy === bossGalaga) {
+            bullet.speed = 200;
+            bullet.color = '#f0f';
+            bullet.type = Math.random() < 0.3 ? 'split' : 'straight'; // Boss fires varied shots
+        } else {
+            switch (enemy.type) {
+                case ENEMY_TYPE.SNIPER:
+                    bullet.speed = 300;
+                    bullet.color = '#ff0'; // Yellow
+                    bullet.type = 'fast';
+                    // Aim at player
+                    const dx = player.x - enemy.x;
+                    const dy = player.y - enemy.y;
+                    bullet.angle = Math.atan2(dy, dx);
+                    break;
+                case ENEMY_TYPE.ZIGZAG:
+                    bullet.speed = 120;
+                    bullet.color = '#f0f'; // Magenta
+                    bullet.type = 'zigzag';
+                    bullet.wobble = Math.random() * Math.PI; // For variation in zigzag
+                    break;
+                case ENEMY_TYPE.FAST:
+                    bullet.speed = 250;
+                    bullet.color = '#0ff'; // Cyan
+                    bullet.type = 'fast';
+                    bullet.angle = Math.PI / 2; // Shoots straight down initially
+                    break;
+                default: // Basic, Tank
+                    bullet.speed = 150;
+                    bullet.color = '#fff'; // White
+                    bullet.type = 'straight';
+            }
+        }
+        enemyBullets.push(bullet);
+    }
+}
+
+// Check if an entity is off-screen
+function isOffScreen(entity) {
+    return entity.y > CANVAS_HEIGHT + entity.h || 
+           entity.y < -entity.h || 
+           entity.x > CANVAS_WIDTH + entity.w || 
+           entity.x < -entity.w;
+}
+
+// Setup enemy formation spots
+function setupFormation() {
+    formationSpots = [];
+    const rows = 4;
+    const cols = 8;
+    const spacingX = 40;
+    const spacingY = 30;
+    const startX = (CANVAS_WIDTH - (cols - 1) * spacingX) / 2;
+    const startY = 60;
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            formationSpots.push({
+                x: startX + c * spacingX,
+                y: startY + r * spacingY,
+                taken: false
+            });
+        }
+    }
+}
+
+// Get an empty spot in the formation
+function getEmptyFormationSpot() {
+    const availableSpots = formationSpots.filter(s => !s.taken);
+    if (availableSpots.length > 0) {
+        return availableSpots[Math.floor(Math.random() * availableSpots.length)];
+    }
+    return null; // No spot available
+}
+
+
+// Update game logic
+function updateGameplay() {
+    // console.log("updateGameplay called"); // LOGGING - Can be removed if too noisy
+    updatePlayer();
+    updateEnemies();
+    updateBullets();
+    updateEnemyBullets();
+    updatePowerups();
+    updateParticles(); // Update particles
+    checkCollisions();
+
+    // Update powerup timer
+    if (player.powerTimer > 0) {
+        player.powerTimer -= dt;
+        if (player.powerTimer <= 0) {
+            player.power = 'normal';
+            player.shield = false; // Ensure shield is off when timer ends
+            player.speed = 250; // Reset speed
+        }
+    }
+
+    // Update screen shake - use exponential decay for smoother effect
+    if (screenShake > 0) {
+        screenShake *= Math.pow(0.85, 60 * dt); // 60 * dt provides consistent decay rate
+        if (screenShake < 0.5) screenShake = 0;
+    }
+    // console.log("updateGameplay finished"); // LOGGING - Can be removed
+}
+
+// Draw game elements - optimized for fewer context state changes
+function drawGameplay() {
+    // Background can be more dynamic (e.g., starfield)
+    // For now, it's cleared in gameLoop
+
+    // Draw particles first (background elements)
+    particles.forEach(p => {
+        if (p.active) drawParticle(p);
+    });
+
+    powerups.forEach(drawPowerup);
+    
+    // Draw bullets - player and enemy
+    bullets.forEach(b => {
+        if (b.active) drawBullet(b);
+    });
+    enemyBullets.forEach(b => {
+        if (b.active) drawBullet(b);
+    });
+
+    enemies.forEach(drawEnemy);
+    
+    if (bossGalaga) drawBossGalaga(bossGalaga);
+    
+    drawPlayer();
+    drawHUD();
+
+    // Level transition message
+    if (levelTransition > 0) {
+        ctx.font = 'bold 30px monospace';
+        ctx.fillStyle = '#ff0';
+        ctx.textAlign = 'center';
+        ctx.fillText(`LEVEL ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    }
+}
+
+// Optimized game loop with better timing
+function gameLoop() {
+    console.log("gameLoop called, state:", state); // LOGGING
+    const currentTime = performance.now();
+    // Delta time in seconds, capped to prevent spiral of death
+    dt = Math.min(0.1, (currentTime - lastTime) / 1000);
+    lastTime = currentTime;
+
+    // Clear canvas with a dark color
+    ctx.fillStyle = '#000'; // Base background
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Apply screen shake if active
+    if (screenShake > 0) {
+        const shakeX = (Math.random() - 0.5) * screenShake * 2;
+        const shakeY = (Math.random() - 0.5) * screenShake * 2;
+        ctx.translate(shakeX, shakeY);
+    }
+
+    // Game state machine
+    switch (state) {
+        case GAME_STATE.SPLASH:
+            drawArcadeSplash();
+            break;
+        case GAME_STATE.PLAYING:
+            updateGameplay();
+            drawGameplay();
+            break;
+        case GAME_STATE.PAUSED:
+            // Draw the underlying game state (e.g., gameplay) then the pause overlay
+            drawGameplay(); // Draw the game as it was
+            drawPauseScreen();
+            break;
+        case GAME_STATE.GAME_OVER:
+            drawGameOver();
+            break;
+        case GAME_STATE.ENTER_HIGH_SCORE:
+            drawEnterHighScoreScreen();
+            break;
+    }
+
+    // Reset translation if screen shake was applied
+    if (screenShake > 0) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to default transform
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// --- Event Listeners ---
+window.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    
+    // Handle pause toggle with 'P' key
+    if (e.code === 'KeyP' && (state === GAME_STATE.PLAYING || state === GAME_STATE.PAUSED)) {
+        if (state === GAME_STATE.PLAYING) {
+            handlePause();
+        } else {
+            handleResume();
+        }
+    }
+
+    if (state === GAME_STATE.ENTER_HIGH_SCORE) {
+        e.preventDefault(); // Prevent default browser actions for keys like Backspace
+        if (e.key.length === 1 && e.key.match(/[a-z0-9]/i) && currentInitialIndex < playerInitials.length) {
+            playerInitials[currentInitialIndex] = e.key.toUpperCase();
+            currentInitialIndex++;
+        } else if (e.key === 'Backspace' && currentInitialIndex > 0) {
+            currentInitialIndex--;
+            playerInitials[currentInitialIndex] = "_";
+        } else if (e.key === 'Enter' && currentInitialIndex > 0) { // Allow submit if at least one initial
+            const finalInitials = playerInitials.join("").replace(/_/g, " ").trim(); // Clean up
+            if (finalInitials.length > 0) {
+                 saveHighScore(finalInitials, score);
+                 player.highScoreSubmitted = true; // Mark as submitted
+                 state = GAME_STATE.GAME_OVER; // Go back to game over to show scores
+                 fetchHighScores(); // Re-fetch to show the new score immediately
+            }
+        }
+    } else if (state === GAME_STATE.SPLASH && e.code === 'Space') {
+        state = GAME_STATE.PLAYING;
+        resetGame();
+    } else if (state === GAME_STATE.GAME_OVER && e.code === 'Space') {
+        state = GAME_STATE.SPLASH;
+        fetchHighScores(); // Fetch scores when returning to splash
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+});
+
 
 // Initialize the game
 function initGame() {
