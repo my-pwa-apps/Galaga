@@ -7,6 +7,7 @@ const ctx = canvas.getContext('2d');
 const GAME_STATE = {
     SPLASH: 'splash',
     PLAYING: 'playing',
+    PAUSED: 'paused', // New state for pausing
     GAME_OVER: 'gameover',
     ENTER_HIGH_SCORE: 'enterhighscore', // New state for entering high score
 };
@@ -14,6 +15,7 @@ const GAME_STATE = {
 let state = GAME_STATE.SPLASH;
 let splashTimer = 0;
 let keys = {};
+let previousStateBeforePause = null; // To store state before pausing
 
 // Arcade splash colors
 const arcadeColors = ['#0ff', '#f0f', '#ff0', '#fff', '#0f0', '#f00', '#00f'];
@@ -1336,28 +1338,25 @@ function drawHUD() {
     ctx.save();
     
     // Draw score
-    ctx.font = '16px monospace';
+    ctx.font = '14px monospace'; // Smaller font
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'left';
-    ctx.fillText(`SCORE: ${score}`, 20, 30);
+    ctx.fillText(`SCORE: ${score}`, 15, 25); // Adjusted position
     
     // Draw high score
     ctx.textAlign = 'center';
-    ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width / 2, 30);
+    ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width / 2, 25); // Adjusted position
     
-    // Draw level - Adjusted X to give more space from lives icons
+    // Draw level
     ctx.textAlign = 'right';
-    ctx.fillText(`LEVEL: ${level}`, canvas.width - 100, 30); 
+    ctx.fillText(`LEVEL: ${level}`, canvas.width - 80, 25); // Adjusted position and space for lives
     
     // Draw lives (moved to top right)
-    ctx.textAlign = 'right';
-    // ctx.fillText(`LIVES: ${lives}`, canvas.width - 20, 30); // Textual lives count
-    
-    // Draw ship icons for lives (top right)
+    // Ship icons for lives (top right)
     for (let i = 0; i < lives; i++) {
         ctx.save();
-        ctx.translate(canvas.width - 70 + i * 25, 22); // Adjusted position
-        ctx.scale(0.5, 0.5);
+        ctx.translate(canvas.width - 60 + i * 20, 20); // Adjusted position and spacing
+        ctx.scale(0.4, 0.4); // Smaller icons
         
         // Draw mini ships for lives
         ctx.fillStyle = '#fff';
@@ -1486,6 +1485,25 @@ function drawEnterHighScoreScreen() {
     ctx.restore();
 }
 
+function drawPauseScreen() {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent overlay
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = 'bold 40px monospace';
+    ctx.fillStyle = '#ff0';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+
+    ctx.font = '18px monospace';
+    ctx.fillStyle = '#fff';
+    if (!isTouchDevice) {
+        ctx.fillText('PRESS P TO RESUME', canvas.width / 2, canvas.height / 2 + 40);
+    } else {
+        ctx.fillText('TAP SCREEN OR FOCUS WINDOW TO RESUME', canvas.width / 2, canvas.height / 2 + 40);
+    }
+    ctx.restore();
+}
 
 // Add event listeners for keyboard input
 document.addEventListener('keydown', (event) => {
@@ -1519,6 +1537,12 @@ document.addEventListener('keydown', (event) => {
                 state = GAME_STATE.GAME_OVER; // Go back to game over to show updated scores
                 fetchHighScores(); // Fetch scores immediately to update display
             }
+        }
+    } else if (event.code === 'KeyP') { // Pause and Resume with 'P' key
+        if (state === GAME_STATE.PLAYING) {
+            handlePause();
+        } else if (state === GAME_STATE.PAUSED) {
+            handleResume();
         }
     }
 });
@@ -1952,6 +1976,12 @@ function updateGameplay() {
 
     // Update particles
     updateParticles();
+    
+    // Update screen shake
+    if (screenShake > 0) {
+        screenShake *= 0.9; // Reduce shake effect over time
+        if (screenShake < 0.5) screenShake = 0;
+    }
 
     // Debug info for development (uncomment when needed)
     // ctx.save();
@@ -1962,78 +1992,82 @@ function updateGameplay() {
     // ctx.restore();
 }
 
-// Update game loop to include gameplay logic
+// This function will draw all common elements for PLAYING and PAUSED states
+function drawGameScreenElements() {
+    // Screen shake transformation is applied before drawing these elements if state is PLAYING
+    let shakeAppliedThisFrame = false;
+    if (state === GAME_STATE.PLAYING && screenShake > 0) {
+        ctx.save();
+        ctx.translate(
+            Math.random() * screenShake - screenShake / 2,
+            Math.random() * screenShake - screenShake / 2
+        );
+        shakeAppliedThisFrame = true;
+    }
+
+    // Draw bullets (both player and enemy)
+    for (const bullet of bullets) {
+        drawBullet(bullet);
+    }
+    for (const bullet of enemyBullets) {
+        drawBullet(bullet);
+    }
+    
+    // Draw enemies explicitly
+    for (const enemy of enemies) {
+        drawEnemy(enemy);
+    }
+
+    // Draw powerups
+    for (const powerup of powerups) {
+        drawPowerup(powerup);
+    }
+
+    // Draw boss if present
+    if (bossGalaga) {
+        drawBossGalaga(bossGalaga);
+    }
+
+    // Draw player
+    if (player.alive) {
+        drawPlayer();
+    }
+
+    // Draw level transition message if applicable (only when playing)
+    if (state === GAME_STATE.PLAYING && levelTransition > 0 && enemies.length === 0) {
+        ctx.font = 'bold 30px monospace';
+        ctx.fillStyle = '#ff0';
+        ctx.textAlign = 'center';
+        ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
+        ctx.font = '20px monospace';
+        ctx.fillStyle = '#0ff';
+        ctx.fillText(`PREPARING LEVEL ${level + 1}...`, canvas.width / 2, canvas.height / 2 + 40);
+    }
+
+    if (shakeAppliedThisFrame) {
+        ctx.restore();
+    }
+}
+
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (state === GAME_STATE.SPLASH) {
         drawArcadeSplash();
     } else if (state === GAME_STATE.PLAYING) {
-        // Apply screen shake if active
-        if (screenShake > 0) {
-            ctx.save();
-            ctx.translate(
-                Math.random() * screenShake - screenShake / 2,
-                Math.random() * screenShake - screenShake / 2
-            );
-            screenShake *= 0.9; // Reduce shake effect over time
-            if (screenShake < 0.5) screenShake = 0;
-        }
-
-        // Update all gameplay elements
-        updateGameplay(); // This will now call the consolidated function above
-
-        // Draw bullets (both player and enemy)
-        for (const bullet of bullets) {
-            drawBullet(bullet);
-        }
-        for (const bullet of enemyBullets) {
-            drawBullet(bullet);
-        }
-        
-        // Draw enemies explicitly
-        for (const enemy of enemies) {
-            drawEnemy(enemy);
-        }
-
-        // Draw powerups
-        for (const powerup of powerups) {
-            drawPowerup(powerup);
-        }
-
-        // Draw boss if present
-        if (bossGalaga) {
-            drawBossGalaga(bossGalaga);
-        }
-
-        // Draw player
-        if (player.alive) {
-            drawPlayer();
-        }
-
-        // Draw level transition message if applicable
-        if (levelTransition > 0 && enemies.length === 0) { // Message shows when transitioning and old wave is cleared
-            ctx.font = 'bold 30px monospace';
-            ctx.fillStyle = '#ff0';
-            ctx.textAlign = 'center';
-            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
-            ctx.font = '20px monospace';
-            ctx.fillStyle = '#0ff';
-            ctx.fillText(`PREPARING LEVEL ${level + 1}...`, canvas.width / 2, canvas.height / 2 + 40);
-        }
-
-        if (screenShake > 0) {
-            ctx.restore();
-        }
-
-        // Game HUD (score, lives, etc.)
-        drawHUD();
-
-        // Draw touch controls if on a touch device
-        if (isTouchDevice) {
+        updateGameplay(); // Update game logic only when playing
+        drawGameScreenElements(); // Draw all game elements
+        drawHUD(); // Draw HUD
+        if (isTouchDevice) { // Draw touch controls if applicable
             drawTouchControls();
         }
-
+    } else if (state === GAME_STATE.PAUSED) {
+        drawGameScreenElements(); // Draw game elements as they were
+        drawHUD(); // Draw HUD
+        if (isTouchDevice) { // Also draw touch controls if they were visible
+            drawTouchControls();
+        }
+        drawPauseScreen(); // Overlay pause message
     } else if (state === GAME_STATE.GAME_OVER) {
         drawGameOver();
     } else if (state === GAME_STATE.ENTER_HIGH_SCORE) { // Add this condition
@@ -2538,6 +2572,10 @@ function initTouchControls() {
         // Listener for splash/game over taps
         canvas.addEventListener('touchend', handleCanvasTap);
     }
+    
+    // Add event listeners for window focus/blur to pause/resume
+    window.addEventListener('blur', handlePause);
+    window.addEventListener('focus', handleResume);
 }
 
 function pointInRect(px, py, rect) {
@@ -2587,8 +2625,29 @@ function handleTouch(event) {
     
     const changedTouches = event.changedTouches; // Use changedTouches for tap detection
 
+    if (state === GAME_STATE.PAUSED && (event.type === 'touchend' || event.type === 'touchcancel')) {
+        // If paused and screen is tapped (and not on a control button), resume.
+        const touchX = changedTouches[0].clientX - canvas.offsetLeft;
+        const touchY = changedTouches[0].clientY - canvas.offsetTop;
+        let tappedOnButton = false;
+        for (const btnKey in touchControls.buttons) {
+            if (pointInRect(touchX, touchY, touchControls.buttons[btnKey])) {
+                tappedOnButton = true;
+                break;
+            }
+        }
+        if (!tappedOnButton) {
+            handleResume();
+            // We might still want to process the touch for other buttons if the tap was on one
+            // but for a general screen tap to unpause, this is fine.
+        }
+    }
+
+
     if (event.type === 'touchstart' || event.type === 'touchmove') {
-        processTouches(event.touches);
+        if (state !== GAME_STATE.PAUSED) { // Process touches for controls only if not paused
+            processTouches(event.touches);
+        }
     } else if (event.type === 'touchend' || event.type === 'touchcancel') {
         // Check if any of the ended touches were on the auto-shoot button
         for (let i = 0; i < changedTouches.length; i++) {
@@ -2605,7 +2664,9 @@ function handleTouch(event) {
             }
         }
         // After processing taps, update based on remaining active touches
-        processTouches(event.touches);
+        if (state !== GAME_STATE.PAUSED) { // Process touches for controls only if not paused
+            processTouches(event.touches);
+        }
     }
 }
 
@@ -2641,6 +2702,7 @@ function handleCanvasTap(event) {
             fetchHighScores();
         }
     }
+    // Do not resume from pause here, handleTouch and window focus will manage it.
 }
 
 
@@ -2663,4 +2725,23 @@ function drawTouchControls() {
         ctx.fillText(button.label, button.x + button.w / 2, button.y + button.h / 2);
     }
     ctx.restore();
+}
+
+// --- Pause/Resume Logic ---
+function handlePause() {
+    if (state === GAME_STATE.PLAYING) {
+        previousStateBeforePause = state;
+        state = GAME_STATE.PAUSED;
+        console.log("Game paused");
+    }
+}
+
+function handleResume() {
+    if (state === GAME_STATE.PAUSED && previousStateBeforePause === GAME_STATE.PLAYING) {
+        state = GAME_STATE.PLAYING;
+        previousStateBeforePause = null;
+        console.log("Game resumed");
+        // Request a new animation frame to ensure smooth resume after focus gain
+        requestAnimationFrame(gameLoop);
+    }
 }
