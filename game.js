@@ -62,6 +62,65 @@ let highScore = 0;
 let challengeStage = false;
 let screenShake = 0; // Initialize screen shake variable
 
+// --- Firebase Setup ---
+const firebaseConfig = {
+    apiKey: "AIzaSyB6VUKC89covzLlhUO7UMeILVCJVy1SPdc",
+    authDomain: "galaga-e7527.firebaseapp.com",
+    databaseURL: "https://galaga-e7527-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "galaga-e7527",
+    storageBucket: "galaga-e7527.appspot.com", // Corrected storageBucket name
+    messagingSenderId: "983420615265",
+    appId: "1:983420615265:web:77861c68c1b93f92dd4820",
+    measurementId: "G-R9Z2YFQ30C"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+let firebaseHighScores = [];
+const MAX_HIGH_SCORES = 10; // Max number of scores to store/display
+
+// Function to fetch high scores from Firebase
+function fetchHighScores(callback) {
+    database.ref('highscores').orderByChild('score').limitToLast(MAX_HIGH_SCORES).once('value', (snapshot) => {
+        const scores = [];
+        snapshot.forEach((childSnapshot) => {
+            scores.push({
+                key: childSnapshot.key,
+                name: childSnapshot.val().name,
+                score: childSnapshot.val().score
+            });
+        });
+        firebaseHighScores = scores.sort((a, b) => b.score - a.score); // Sort descending
+        if (firebaseHighScores.length > 0) {
+            highScore = firebaseHighScores[0].score; // Update local high score
+        } else {
+            highScore = 0;
+        }
+        if (callback) callback();
+    });
+}
+
+// Function to save a high score to Firebase
+function saveHighScore(name, score) {
+    const newScoreRef = database.ref('highscores').push();
+    newScoreRef.set({
+        name: name,
+        score: score,
+        timestamp: firebase.database.ServerValue.TIMESTAMP // Optional: for ordering or info
+    }).then(() => {
+        console.log("High score saved!");
+        fetchHighScores(); // Re-fetch to update the list
+    }).catch((error) => {
+        console.error("Error saving high score: ", error);
+    });
+
+    // Optional: Prune older/lower scores if list exceeds MAX_HIGH_SCORES
+    // This is more complex and might be better handled with Firebase rules or cloud functions
+    // For simplicity, we'll rely on limitToLast for fetching.
+}
+
+
 function drawArcadeSplash() {
     ctx.save();
     ctx.fillStyle = '#111';
@@ -78,6 +137,20 @@ function drawArcadeSplash() {
     ctx.font = '20px monospace';
     ctx.fillStyle = '#fff';
     ctx.fillText('ARCADE TRIBUTE', canvas.width/2, 160);
+
+    // Display High Scores on Splash Screen
+    ctx.font = '16px monospace';
+    ctx.fillStyle = '#ff0';
+    ctx.fillText('HIGH SCORES:', canvas.width / 2, 220);
+    if (firebaseHighScores.length > 0) {
+        firebaseHighScores.slice(0, 5).forEach((entry, index) => { // Display top 5
+            ctx.fillText(`${index + 1}. ${entry.name.substring(0, 3)} - ${entry.score}`, canvas.width / 2, 250 + index * 25);
+        });
+    } else {
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('No scores yet!', canvas.width / 2, 250);
+    }
+
     // Insert coin
     ctx.font = '18px monospace';
     ctx.fillStyle = arcadeColors[Math.floor(Date.now()/100)%arcadeColors.length];
@@ -1300,11 +1373,39 @@ function drawGameOver() {
     ctx.fillStyle = '#fff';
     ctx.fillText(`FINAL SCORE: ${score}`, canvas.width/2, 260);
     
-    if (score > highScore) {
-        ctx.fillStyle = '#ff0';
-        ctx.fillText('NEW HIGH SCORE!', canvas.width/2, 300);
+    // Check if it's a new high score eligible for the table
+    let isNewHighScore = firebaseHighScores.length < MAX_HIGH_SCORES || score > firebaseHighScores[firebaseHighScores.length - 1].score;
+    if (firebaseHighScores.length === MAX_HIGH_SCORES && score <= firebaseHighScores[firebaseHighScores.length -1].score) {
+        isNewHighScore = false;
+    }
+
+
+    if (isNewHighScore && !player.highScoreSubmitted) { // Check a flag to prevent multiple prompts
+        const playerName = prompt("New High Score! Enter your initials (3 chars):", "AAA");
+        if (playerName && playerName.trim() !== "") {
+            saveHighScore(playerName.substring(0, 3).toUpperCase(), score);
+            player.highScoreSubmitted = true; // Set flag
+        }
+    } else if (score > highScore && firebaseHighScores.length === 0) { // Case for first ever high score
+         const playerName = prompt("New High Score! Enter your initials (3 chars):", "AAA");
+        if (playerName && playerName.trim() !== "") {
+            saveHighScore(playerName.substring(0, 3).toUpperCase(), score);
+            player.highScoreSubmitted = true; // Set flag
+        }
+    }
+
+
+    // Display High Scores on Game Over Screen
+    ctx.font = '16px monospace';
+    ctx.fillStyle = '#ff0';
+    ctx.fillText('HIGH SCORES:', canvas.width / 2, 330); // Adjusted Y position
+    if (firebaseHighScores.length > 0) {
+        firebaseHighScores.slice(0, 5).forEach((entry, index) => { // Display top 5
+            ctx.fillText(`${index + 1}. ${entry.name.substring(0,3)} - ${entry.score}`, canvas.width / 2, 360 + index * 25);
+        });
     } else {
-        ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width/2, 300);
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('No scores yet. Yours could be the first!', canvas.width / 2, 360);
     }
     
     // Restart instructions
@@ -1317,7 +1418,7 @@ function drawGameOver() {
     // Listen for space to restart
     if (keys['Space']) {
         state = GAME_STATE.SPLASH;
-        if (score > highScore) highScore = score;
+        // highScore is now managed by fetchHighScores
     }
 }
 
@@ -1347,6 +1448,7 @@ function resetGame() {
     player.alive = true;
     player.shield = false;
     player.power = 'normal';
+    player.highScoreSubmitted = false; // Reset flag for new game
     
     // Clear arrays
     bullets = [];
@@ -1373,6 +1475,12 @@ function resetGame() {
     
     // Spawn initial wave of enemies
     spawnEnemies();
+
+    // Fetch high scores when game resets
+    fetchHighScores(() => {
+        console.log("High scores fetched on reset.");
+        // highScore variable is updated within fetchHighScores
+    });
 }
 
 // Function to set up enemy formation positions
@@ -1879,7 +1987,7 @@ function spawnEnemies() {
         [
             {x: -50, y: -50}, // Start off-screen top-left
             {x: 100, y: 150},  // Control point 1
-            {x: 200, y: 50}, // Control point 2
+            {x: 200, y:  50}, // Control point 2
             {x: 250, y: 150}  // End point (formation spot)
         ],
         // Path 5: Figure-8 from top-right
