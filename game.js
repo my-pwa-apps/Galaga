@@ -1758,7 +1758,7 @@ function gameLoop() {
         }
 
         // Update all gameplay elements
-        updateGameplay();
+        updateGameplay();        
 
         // Draw bullets (both player and enemy)
         for (const bullet of bullets) {
@@ -1789,14 +1789,14 @@ function gameLoop() {
         }
 
         // Draw level transition message if applicable
-        if (levelTransition > 0) {
+        if (levelTransition > 0 && enemies.length === 0) { // Message shows when transitioning and old wave is cleared
             ctx.font = 'bold 30px monospace';
             ctx.fillStyle = '#ff0';
             ctx.textAlign = 'center';
             ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
             ctx.font = '20px monospace';
             ctx.fillStyle = '#0ff';
-            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText(`PREPARING LEVEL ${level + 1}...`, canvas.width / 2, canvas.height / 2 + 40);
         }
 
         if (screenShake > 0) {
@@ -1823,9 +1823,9 @@ function spawnEnemies() {
     // Clear any existing enemies first
     enemies = [];
     
-    // Reset attack queue and ensure no leftover state
+    // Reset attack queue
     attackQueue = [];
-    levelTransition = 0;
+    // Ensure levelTransition is NOT reset here; it's handled by the calling logic in updateEnemies
     
     // Setup fresh formation for the new wave
     setupFormation();
@@ -1923,7 +1923,10 @@ function spawnEnemies() {
         console.log(`Spawned enemy #${i}: type=${enemyType} at (${enemy.x},${enemy.y}) → (${spot.x},${spot.y})`);
     }
 
-    console.log(`Total enemies created: ${enemies.length}`);
+    console.log(`Total enemies created: ${enemies.length} for level ${level}. Expected: ${totalEnemies}. Formation spots: ${formationSpots.length}`);
+    if (totalEnemies > 0 && enemies.length === 0) {
+        console.error(`CRITICAL ERROR: Expected to spawn ${totalEnemies} enemies, but enemies array is empty after spawning attempt for level ${level}.`);
+    }
 }
 
 function spawnEnemyWave(waveSize) {
@@ -2155,17 +2158,18 @@ function updateEnemies() {
     // Check if all enemies are cleared to transition to the next level
     // This logging will help us diagnose the issue
     if (enemies.length === 0) {
-        console.log("All enemies cleared, checking level transition state:", levelTransition);
+        // console.log("All enemies cleared, checking level transition state:", levelTransition); // Keep for debugging if needed
         
-        if (levelTransition === 0) {
-            console.log("Starting level transition to level " + (level + 1));
-            levelTransition = 60; // Add a delay before transitioning to the next level
+        if (levelTransition === 0) { // Only start a new transition if one isn't already active
+            console.log("Starting level transition. Current level: " + level + ". Next level: " + (level + 1));
+            levelTransition = 120; // Duration for the "LEVEL COMPLETE" message (e.g., 2 seconds at 60fps)
+            
             setTimeout(() => {
                 level++;
-                console.log("Spawning enemies for level " + level);
-                spawnEnemies();
-                levelTransition = 0;
-            }, 2000); // 2-second delay before the next level starts
+                console.log("setTimeout: Spawning enemies for level " + level);
+                spawnEnemies(); // This should populate the enemies array
+                levelTransition = 0; // Reset transition flag *after* new level setup is complete
+            }, 2000); // 2-second delay
         }
     }
 }
@@ -2194,8 +2198,18 @@ function updatePlayer() {
             from: dualShip ? 'dual' : 'player'
         };
         bullets.push(bullet);
-        updateBullets();
+        
         // Dual ship fires an additional bullet
+        if (dualShip) {
+            const dualBullet = { ...bullet, x: player.x - 24 }; // Adjust x for the second ship
+            bullets.push(dualBullet);
+        }
+
+        player.cooldown = 15; // Cooldown period before next shot
+    }
+
+    // Reduce cooldown timer
+    if (player.cooldown > 0) {
         player.cooldown--;
     }
 }
@@ -2208,82 +2222,19 @@ function updateGameplay() {
     // Update enemies
     updateEnemies();
     
-    // Update player development (uncomment when needed)
+    // Update player
     updatePlayer();
-        // ctx.font = '12px monospace';
+    
     // Update powerups
     updatePowerups();
-}
-
-// Main game loop
-function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (state === GAME_STATE.SPLASH) {
-        drawArcadeSplash();
-    } else if (state === GAME_STATE.PLAYING) {
-        // Apply screen shake if active
-        if (screenShake > 0) {
-            ctx.save();
-            ctx.translate(
-                Math.random() * screenShake - screenShake / 2,
-                Math.random() * screenShake - screenShake / 2
-            );
-            screenShake *= 0.9; // Reduce shake effect over time
-            if (screenShake < 0.5) screenShake = 0;
-        }
-
-        // Update all gameplay elements
-        updateGameplay();        
-
-        // Draw bullets (both player and enemy)
-        for (const bullet of bullets) {
-            drawBullet(bullet);
-        }
-        for (const bullet of enemyBullets) {
-            drawBullet(bullet);
-        }
-        
-        // Draw enemies explicitly
-        for (const enemy of enemies) {
-            drawEnemy(enemy);
-        }
-
-        // Draw powerups
-        for (const powerup of powerups) {
-            drawPowerup(powerup);
-        }
-
-        // Draw boss if present
-        if (bossGalaga) {
-            drawBossGalaga(bossGalaga);
-        }
-
-        // Draw player
-        if (player.alive) {
-            drawPlayer();
-        }
-
-        // Draw level transition message if applicable
-        if (levelTransition > 0) {
-            ctx.font = 'bold 30px monospace';
-            ctx.fillStyle = '#ff0';
-            ctx.textAlign = 'center';
-            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
-            ctx.font = '20px monospace';
-            ctx.fillStyle = '#0ff';
-            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);
-        }
-
-        if (screenShake > 0) {
-            ctx.restore();
-        }
-
-        // Game HUD (score, lives, etc.)
-        drawHUD();
-    } else if (state === GAME_STATE.GAME_OVER) {
-        drawGameOver();
-    }
-
-    requestAnimationFrame(gameLoop);
+    
+    // Update particles
+    updateParticles();
+    
+    // Debug info for development (uncomment when needed)
+    // ctx.save();
+    // ctx.font = '12px monospace';
+    // ctx.fillStyle = '#fff';
+    // ctx.fillText(`FPS: ${Math.round(1000 / (performance.now() - lastFrameTime))}`, 10, 20);
+    // ctx.restore();
 }
