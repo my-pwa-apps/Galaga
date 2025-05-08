@@ -242,6 +242,7 @@ function saveHighScore(name, score) {
 
 
 function drawArcadeSplash() {
+    console.log("drawArcadeSplash called"); // LOGGING
     // Cached color calculation outside the rendering loop
     const colorIndex = Math.floor(Date.now() / 200) % arcadeColors.length;
     const titleColorIndex = Math.floor(Date.now() / 400) % arcadeColors.length;
@@ -249,6 +250,7 @@ function drawArcadeSplash() {
     
     ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    console.log("Background drawn in drawArcadeSplash"); // LOGGING
     
     // Neon border
     ctx.strokeStyle = arcadeColors[colorIndex];
@@ -289,6 +291,7 @@ function drawArcadeSplash() {
     ctx.font = '18px monospace';
     ctx.fillStyle = arcadeColors[textColorIndex];
     ctx.fillText(isTouchDevice ? 'TAP SCREEN TO START' : 'PRESS SPACE TO START', centerX, CANVAS_HEIGHT - 100);
+    console.log("Text drawn in drawArcadeSplash"); // LOGGING
 }
 
 // Enhanced Player ship drawing with authentic Galaga fighter style and thruster animation
@@ -2087,3 +2090,18 @@ function spawnEnemies() {
         };
     }
 }
+
+// Initialize the game
+function initGame() {
+    console.log("initGame called"); // LOGGING
+    initObjectPools();
+    initTouchControls();
+    lastTime = performance.now(); // Initialize lastTime here
+    fetchHighScores(() => {
+        console.log("Game initialized and ready to start. FetchHighScores callback executed."); // LOGGING
+        gameLoop(); // Start the game loop
+    });
+}
+
+// Start the game
+initGame();
