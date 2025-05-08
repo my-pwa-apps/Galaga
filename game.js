@@ -1310,59 +1310,245 @@ function setupFormation() {
     }
 }
 
-// Function to handle player movement
-function updatePlayer() {
-    if (!player.alive) return;
+// Function to find an empty spot in the formation
+function getEmptyFormationSpot() {
+    const emptySpots = formationSpots.filter(spot => !spot.taken);
+    if (emptySpots.length > 0) {
+        return emptySpots[Math.floor(Math.random() * emptySpots.length)];
+    }
+    return null;
+}
+
+// Function for enemies to fire bullets
+function fireEnemyBullet(enemy) {
+    const bullet = {
+        x: enemy.x,
+        y: enemy.y + 20,
+        w: 3,
+        h: 12,
+        speed: 6,
+        damage: 1,
+        type: 'enemy',
+        from: 'enemy'
+    };
     
-    // Handle player movement with proper boundaries
-    if (keys['ArrowLeft'] || keys['KeyA']) {
-        player.x = Math.max(player.x - player.speed, 16); // 16 is half the player width
-    }
-    if (keys['ArrowRight'] || keys['KeyD']) {
-        player.x = Math.min(player.x + player.speed, canvas.width - 16); // 16 is half the player width
-    }
-    if (keys['ArrowUp'] || keys['KeyW']) {
-        player.y = Math.max(player.y - player.speed, 16); // Allow vertical movement but limit to screen
-    }
-    if (keys['ArrowDown'] || keys['KeyS']) {
-        player.y = Math.min(player.y + player.speed, canvas.height - 60); // Limit bottom movement
-    }
+    enemyBullets.push(bullet);
 }
 
-// Function to spawn enemies periodically
-function spawnEnemies() {
-    if (enemies.length < 10 && Math.random() < 0.02) {
-        const enemyTypes = ['basic', 'fast', 'zigzag'];
-        const randomType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-        const enemy = {
-            x: Math.random() * (canvas.width - 40) + 20,
-            y: -20,
-            w: 32,
-            h: 32,
-            speed: 2,
-            type: randomType,
-            state: ENEMY_STATE.ENTRANCE,
-            color: randomType === 'basic' ? '#0f8' : 
-                   randomType === 'fast' ? '#f80' : '#f0f',
-        };
-        enemies.push(enemy);
+// Function to update all bullets
+function updateBullets() {
+    // Update player bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+        
+        // Move bullet
+        bullet.y -= bullet.speed;
+        
+        // Check if bullet is offscreen
+        if (bullet.y < -20) {
+            bullets.splice(i, 1);
+            continue;
+        }
+        
+        // Check for collision with enemies
+        for (let j = enemies.length - 1; j >= 0; j--) {
+            const enemy = enemies[j];
+            
+            if (checkCollision(bullet, enemy)) {
+                // Create explosion effect
+                createExplosion(enemy.x, enemy.y, enemy.color);
+                
+                // Add score
+                score += 100;
+                
+                // Random chance for powerup
+                if (Math.random() < 0.1) {
+                    const powerupTypes = ['double', 'shield', 'speed'];
+                    const randomType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+                    
+                    powerups.push({
+                        x: enemy.x,
+                        y: enemy.y,
+                        w: 20,
+                        h: 16,
+                        speed: 2,
+                        type: randomType
+                    });
+                }
+                
+                // Remove bullet and enemy
+                bullets.splice(i, 1);
+                
+                // If enemy was in formation, free up the spot
+                if (enemy.targetX && enemy.targetY) {
+                    for (const spot of formationSpots) {
+                        if (spot.x === enemy.targetX && spot.y === enemy.targetY) {
+                            spot.taken = false;
+                            break;
+                        }
+                    }
+                }
+                
+                enemies.splice(j, 1);
+                break;
+            }
+        }
     }
-}
-
-// Function to update and draw enemies
-function updateEnemies() {
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        enemy.y += enemy.speed;
-        if (enemy.y > canvas.height) {
-            enemies.splice(i, 1); // Remove enemy if it goes off-screen
-        } else {
-            drawEnemy(enemy);
+    
+    // Update enemy bullets
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const bullet = enemyBullets[i];
+        
+        // Move bullet
+        bullet.y += bullet.speed;
+        
+        // Check if bullet is offscreen
+        if (bullet.y > canvas.height + 20) {
+            enemyBullets.splice(i, 1);
+            continue;
+        }
+        
+        // Check for collision with player
+        if (player.alive && !player.shield && checkCollision(bullet, player)) {
+            // Create explosion effect
+            createExplosion(player.x, player.y, '#f00');
+            
+            // Remove bullet
+            enemyBullets.splice(i, 1);
+            
+            // Reduce lives
+            lives--;
+            
+            if (lives <= 0) {
+                // Game over
+                state = GAME_STATE.GAME_OVER;
+            } else {
+                // Player hit but not dead
+                player.alive = false;
+                
+                // Respawn player after delay
+                setTimeout(() => {
+                    player.alive = true;
+                    player.x = canvas.width / 2;
+                    player.y = canvas.height - 60;
+                    player.shield = true; // Brief invulnerability
+                    
+                    // Disable shield after a short time
+                    setTimeout(() => {
+                        player.shield = false;
+                    }, 2000);
+                }, 1000);
+            }
         }
     }
 }
 
-// Update gameplay logic
+// Function to update powerups
+function updatePowerups() {
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const powerup = powerups[i];
+        
+        // Move powerup down
+        powerup.y += powerup.speed;
+        
+        // Check if powerup is offscreen
+        if (powerup.y > canvas.height + 20) {
+            powerups.splice(i, 1);
+            continue;
+        }
+        
+        // Check for collision with player
+        if (player.alive && checkCollision(powerup, player)) {
+            // Apply powerup effect
+            if (powerup.type === 'double') {
+                player.power = 'double';
+                player.powerTimer = 500; // 500 frames ~ 8.3 seconds at 60fps
+            } else if (powerup.type === 'shield') {
+                player.shield = true;
+                player.powerTimer = 600; // 600 frames = 10 seconds
+            } else if (powerup.type === 'speed') {
+                player.power = 'speed';
+                player.speed = 8; // Temporary speed boost
+                player.powerTimer = 450; // 450 frames = 7.5 seconds
+            }
+            
+            // Remove powerup
+            powerups.splice(i, 1);
+        }
+    }
+    
+    // Update power timer
+    if (player.powerTimer > 0) {
+        player.powerTimer--;
+        
+        if (player.powerTimer <= 0) {
+            // Reset power
+            player.power = 'normal';
+            player.speed = 5;
+            player.shield = false;
+        }
+    }
+}
+
+// Simple collision detection function
+function checkCollision(a, b) {
+    return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+    );
+}
+
+// Function to create explosion particles
+function createExplosion(x, y, color) {
+    // Add screen shake effect for explosions
+    screenShake = 5;
+    
+    // Create particles
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 0.5) * 5,
+            size: Math.random() * 4 + 2,
+            color: color,
+            life: Math.random() * 30 + 10
+        });
+    }
+}
+
+// Function to update particles
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        
+        // Move particle
+        p.x += p.vx;
+        p.y += p.vy;
+        
+        // Reduce life
+        p.life--;
+        
+        // Remove if dead
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+            continue;
+        }
+        
+        // Draw particle
+        ctx.globalAlpha = p.life / 40; // Fade out as life decreases
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    ctx.globalAlpha = 1; // Reset alpha
+}
+
+// Function to update gameplay
 // Main update function for gameplay
 function updateGameplay() {
     // This function is called once per frame to update all game elements
@@ -1386,6 +1572,15 @@ function gameLoop() {
             screenShake *= 0.9; // Reduce shake effect over time
             if (screenShake < 0.5) screenShake = 0;
         }
+        
+        // Update bullets - both player and enemy
+        updateBullets();
+        
+        // Update powerups
+        updatePowerups();
+        
+        // Update particles
+        updateParticles();
         
         // Draw and update enemies
         updateEnemies();
@@ -1434,3 +1629,53 @@ function gameLoop() {
 
 // Start the game loop
 gameLoop();
+
+// Function to spawn enemies in Galaga style
+function spawnEnemies() {
+    // Classic Galaga spawns enemies in waves that form a formation
+    const maxEnemies = 20 + level * 5; // More enemies in higher levels
+    
+    // Calculate empty formation spots
+    const emptySpots = formationSpots.filter(spot => !spot.taken);
+    
+    // If we have empty spots and fewer enemies than our max, spawn a wave
+    if (emptySpots.length > 0 && enemies.length < maxEnemies && Math.random() < 0.05) {
+        spawnEnemyWave();
+    }
+}
+
+// Function to spawn a wave of enemies in Galaga style
+function spawnEnemyWave() {
+    const waveSize = Math.min(5, Math.floor(Math.random() * 3) + 2); // 2-4 enemies per wave
+    const startX = Math.random() > 0.5 ? -30 : canvas.width + 30; // Start from left or right side
+    const entryY = -30;
+    
+    // Choose a primary enemy type for this wave
+    const enemyTypes = ['basic', 'fast', 'zigzag'];
+    const waveType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+    
+    // Spawn enemies in this wave
+    for (let i = 0; i < waveSize; i++) {
+        // Have a chance for variety in the wave
+        let enemyType = waveType;
+        if (Math.random() < 0.2) {
+            enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+        }
+        
+        const enemy = {
+            x: startX,
+            y: entryY - i * 40, // Space them out vertically
+            w: 32,
+            h: 32,
+            speed: enemyType === 'fast' ? 3 : 2,
+            type: enemyType,
+            state: ENEMY_STATE.ENTRANCE,
+            color: enemyType === 'basic' ? '#0f8' : 
+                   enemyType === 'fast' ? '#f80' : '#f0f',
+            entranceDelay: i * 15, // Delay each enemy in the wave
+            waveIndex: i
+        };
+        
+        enemies.push(enemy);
+    }
+}
