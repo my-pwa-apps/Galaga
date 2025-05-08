@@ -32,6 +32,7 @@ const player = {
 };
 
 // Bullets
+
 let bullets = [];
 let enemies = [];
 let enemyBullets = [];
@@ -40,6 +41,15 @@ let score = 0;
 let lives = 3;
 let level = 1;
 let levelTransition = 0;
+
+// Galaga-style enemy states
+const ENEMY_STATE = {
+    ENTRANCE: 'entrance',
+    FORMATION: 'formation',
+    ATTACK: 'attack',
+};
+let formationSpots = [];
+let attackQueue = [];
 
 
 function drawArcadeSplash() {
@@ -281,11 +291,15 @@ function drawHUD() {
 
 function spawnEnemies() {
     enemies = [];
-    // Gradual difficulty: start with fewer, slower, less aggressive enemies
+    formationSpots = [];
+    attackQueue = [];
+    // Galaga: fixed formation spots
     let baseCols = 4 + Math.floor(level/2);
     let baseRows = 2 + Math.floor(level/4);
     let cols = Math.min(baseCols, 8);
     let rows = Math.min(baseRows, 5);
+    let xSpacing = (canvas.width-80)/(cols-1);
+    let yStart = 60;
     // Enemy types unlocked by level
     let types = [
         {name: 'basic', color: '#0f0', fireRate: 0.7, speed: 0.7, hp: 1},
@@ -298,23 +312,41 @@ function spawnEnemies() {
     if (level >= 3) maxType = 2;
     if (level >= 5) maxType = 3;
     if (level >= 7) maxType = 4;
+    // Set up formation spots
     for (let i=0; i<cols; i++) {
         for (let j=0; j<rows; j++) {
-            // Pick type based on level and position
+            let fx = 40 + i*xSpacing;
+            let fy = yStart + j*44;
+            formationSpots.push({x: fx, y: fy, taken: false});
+        }
+    }
+    // Spawn enemies offscreen, assign them a formation spot
+    let spotIdx = 0;
+    for (let i=0; i<cols; i++) {
+        for (let j=0; j<rows; j++) {
             let t = types[Math.min((i+j+level)%Math.min(types.length, maxType+1), maxType)];
+            let entrySide = (i%2 === 0) ? 'left' : 'right';
+            let ex = (entrySide === 'left') ? -40 : canvas.width+40;
+            let ey = 40 + j*30 + Math.random()*30;
+            let spot = formationSpots[spotIdx++];
             enemies.push({
-                x: 40 + i*((canvas.width-80)/(cols-1)),
-                y: 60 + j*44,
+                x: ex,
+                y: ey,
                 w: 32,
                 h: 24,
-                dx: (Math.random()-0.5)*t.speed*(0.6+level*0.07),
+                dx: 0,
                 dy: 0,
                 alive: true,
-                fireCooldown: Math.random()*(160-Math.min(level*8,80))+80/t.fireRate,
                 color: t.color,
                 type: t.name,
                 hp: t.hp,
-                zigzagPhase: Math.random()*Math.PI*2
+                zigzagPhase: Math.random()*Math.PI*2,
+                state: ENEMY_STATE.ENTRANCE,
+                formationX: spot.x,
+                formationY: spot.y,
+                entranceT: 0,
+                fireCooldown: 60+Math.random()*60,
+                attackTimer: 0
             });
         }
     }
@@ -365,35 +397,89 @@ function updateGame() {
     // Bullets
     bullets.forEach(b => b.y += b.vy);
     bullets = bullets.filter(b => b.y > -20);
-    // Enemies
-    enemies.forEach(e => {
-        // Diverse movement
-        if (e.type === 'zigzag') {
-            e.x += Math.sin(Date.now()/200 + e.zigzagPhase) * (2.0 + 0.1*level);
-            e.y += Math.cos(Date.now()/300 + e.zigzagPhase) * (0.5 + 0.05*level);
-        } else if (e.type === 'fast') {
-            e.x += e.dx * 1.2;
-        } else if (e.type === 'tank') {
-            e.x += e.dx * 0.5;
-        } else {
-            e.x += e.dx;
-        }
-        if (e.type === 'sniper' && player.alive && Math.random() < 0.008 + 0.001*level) {
-            // Sniper aims at player
-            let dx = player.x - e.x;
-            let dy = player.y - e.y;
-            let mag = Math.sqrt(dx*dx + dy*dy);
-            enemyBullets.push({x: e.x, y: e.y+10, vy: 2.5 + level*0.1, vx: dx/mag*2, type: 'sniper'});
-        }
-        // Sine wave movement for higher levels
-        if (level > 2 && e.type === 'basic') e.y += Math.sin(Date.now()/400 + e.x/40) * 0.5 * (level-1);
-        if (e.x < 30 || e.x > canvas.width-30) e.dx *= -1;
-        e.fireCooldown--;
-        if (e.fireCooldown < 0 && e.alive && e.type !== 'sniper') {
-            enemyBullets.push({x: e.x, y: e.y+10, vy: 1.8 + level*0.08, vx: 0, type: e.type});
-            e.fireCooldown = Math.random()*(160-Math.min(level*8,80))+80/(e.type==='fast'?1.5:1);
+
+    // --- Galaga-style enemy logic ---
+    // 1. ENTRANCE: Enemies fly in a curve to their formation spot
+    let allInFormation = true;
+    enemies.forEach((e, idx) => {
+        if (!e.alive) return;
+        if (e.state === ENEMY_STATE.ENTRANCE) {
+            e.entranceT += 0.018 + 0.002*level;
+            // Swoop: parametric curve from (e.x, e.y) to (formationX, formationY)
+            let t = e.entranceT;
+            let sx = (idx%2===0) ? -40 : canvas.width+40;
+            let sy = e.formationY + Math.sin(idx)*30;
+            // Swoop in a loop
+            e.x = sx + (e.formationX-sx)*0.5*(1-Math.cos(Math.PI*t));
+            e.y = sy + (e.formationY-sy)*0.5*(1-Math.cos(Math.PI*t)) + Math.sin(Math.PI*t*2+idx)*10;
+            if (t >= 1) {
+                e.x = e.formationX;
+                e.y = e.formationY;
+                e.state = ENEMY_STATE.FORMATION;
+            } else {
+                allInFormation = false;
+            }
         }
     });
+    // 2. FORMATION: Enemies hold position, some break off to attack
+    if (allInFormation) {
+        // Attack queue: pick a few enemies to attack at a time
+        if (attackQueue.length === 0 && Math.random() < 0.03 + 0.01*level) {
+            let candidates = enemies.filter(e => e.state === ENEMY_STATE.FORMATION && e.alive);
+            if (candidates.length > 0) {
+                let nAttackers = Math.min(1+Math.floor(level/2), candidates.length);
+                for (let i=0; i<nAttackers; i++) {
+                    let pick = candidates[Math.floor(Math.random()*candidates.length)];
+                    pick.state = ENEMY_STATE.ATTACK;
+                    pick.attackTimer = 0;
+                    attackQueue.push(pick);
+                }
+            }
+        }
+    }
+    // 3. ATTACK: Enemies dive toward the player, then return to formation
+    attackQueue = attackQueue.filter(e => e.alive && e.state === ENEMY_STATE.ATTACK);
+    attackQueue.forEach(e => {
+        if (!e.alive) return;
+        e.attackTimer++;
+        // Swoop down toward player, then curve back up
+        let t = e.attackTimer/90;
+        let px = player.x;
+        let py = player.y;
+        if (t < 1) {
+            // Dive
+            e.x += (px-e.x)*0.04 + Math.sin(t*6+e.zigzagPhase)*2;
+            e.y += (py-e.y)*0.04 + Math.abs(Math.sin(t*3+e.zigzagPhase))*2.5;
+            // Shoot at player
+            if (e.fireCooldown <= 0 && Math.abs(e.x-px)<40 && Math.random()<0.2) {
+                let dx = px-e.x;
+                let dy = py-e.y;
+                let mag = Math.sqrt(dx*dx+dy*dy);
+                enemyBullets.push({x: e.x, y: e.y+10, vy: 2.5+level*0.1, vx: dx/mag*2, type: e.type});
+                e.fireCooldown = 40+Math.random()*30;
+            }
+        } else {
+            // Curve back to formation
+            e.x += (e.formationX-e.x)*0.07;
+            e.y += (e.formationY-e.y)*0.07;
+            if (Math.abs(e.x-e.formationX)<2 && Math.abs(e.y-e.formationY)<2) {
+                e.x = e.formationX;
+                e.y = e.formationY;
+                e.state = ENEMY_STATE.FORMATION;
+            }
+        }
+        e.fireCooldown--;
+    });
+    // 4. FORMATION: Enemies wiggle in place
+    enemies.forEach(e => {
+        if (!e.alive) return;
+        if (e.state === ENEMY_STATE.FORMATION) {
+            e.x = e.formationX + Math.sin(Date.now()/400 + e.formationY/30)*4;
+            e.y = e.formationY + Math.sin(Date.now()/300 + e.formationX/40)*2;
+        }
+    });
+
+    // --- End Galaga logic ---
     // Enemy bullets
     enemyBullets.forEach(b => {
         b.y += b.vy;
