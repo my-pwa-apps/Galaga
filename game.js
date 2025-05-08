@@ -1848,6 +1848,121 @@ function spawnPowerup(x, y) {
     });
 }
 
+// Spawns a new wave of enemies based on the current level
+function spawnEnemies() {
+    setupFormation();
+    enemies = [];
+    let numEnemies = 16 + Math.min(32, level * 2); // Increases with level, caps at 48
+    const enemyTypes = [
+        ENEMY_TYPE.BASIC,
+        ENEMY_TYPE.FAST,
+        ENEMY_TYPE.TANK,
+        ENEMY_TYPE.ZIGZAG,
+        ENEMY_TYPE.SNIPER
+    ];
+    for (let i = 0; i < numEnemies; i++) {
+        const spot = getEmptyFormationSpot();
+        if (!spot) break;
+        spot.taken = true;
+        const enemyTypeIndex = Math.min(
+            Math.floor(Math.random() * (2 + Math.floor(level / 2))),
+            enemyTypes.length - 1
+        );
+        const enemyType = enemyTypes[enemyTypeIndex];
+        let enemyColor = '#0f0';
+        switch (enemyType) {
+            case ENEMY_TYPE.FAST: enemyColor = '#0ff'; break;
+            case ENEMY_TYPE.TANK: enemyColor = '#f00'; break;
+            case ENEMY_TYPE.ZIGZAG: enemyColor = '#f0f'; break;
+            case ENEMY_TYPE.SNIPER: enemyColor = '#ff0'; break;
+        }
+        let enemyW = 24, enemyH = 24;
+        if (enemyType === ENEMY_TYPE.TANK) { enemyW = 28; enemyH = 28; }
+        if (enemyType === ENEMY_TYPE.FAST) { enemyW = 22; enemyH = 22; }
+        const startSide = Math.random() > 0.5 ? -50 : CANVAS_WIDTH + 50;
+        const startY = -50;
+        enemies.push({
+            x: startSide,
+            y: startY,
+            w: enemyW,
+            h: enemyH,
+            type: enemyType,
+            color: enemyColor,
+            state: ENEMY_STATE.ENTRANCE,
+            startX: startSide,
+            startY: startY,
+            targetX: spot.x,
+            targetY: spot.y,
+            controlX: CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200,
+            controlY: CANVAS_HEIGHT / 3,
+            pathTime: 0,
+            index: i
+        });
+    }
+    // Add boss every 5 levels
+    if (level % 5 === 0) {
+        bossGalaga = {
+            x: CANVAS_WIDTH / 2,
+            y: 50,
+            w: 60,
+            h: 50,
+            color: '#f0f',
+            health: 10,
+            timer: 2,
+            state: 'idle',
+            hasCaptured: false
+        };
+    }
+}
+
+// Updates player movement and powerup timers
+function updatePlayer() {
+    if (!player.alive) return;
+    let moveX = 0;
+    if (keys['ArrowLeft']) moveX -= 1;
+    if (keys['ArrowRight']) moveX += 1;
+    if (isTouchDevice) {
+        if (touchControls.buttons.left.pressed) moveX -= 1;
+        if (touchControls.buttons.right.pressed) moveX += 1;
+    }
+    player.x += moveX * player.speed * dt;
+    if (player.x < player.w / 2) player.x = player.w / 2;
+    if (player.x > CANVAS_WIDTH - player.w / 2) player.x = CANVAS_WIDTH - player.w / 2;
+    if (player.cooldown > 0) player.cooldown -= dt;
+    let shouldFire = false;
+    if (keys['Space']) shouldFire = true;
+    if (isTouchDevice && (touchControls.buttons.fire.pressed || autoShootActive)) shouldFire = true;
+    if (shouldFire && player.cooldown <= 0) {
+        player.cooldown = player.power === 'double' ? 0.20 : 0.35;
+        const bullet = getPoolObject('bullets');
+        if (bullet) {
+            bullet.x = player.x;
+            bullet.y = player.y - 15;
+            bullet.w = 3;
+            bullet.h = 12;
+            bullet.speed = 600;
+            bullet.type = player.power === 'double' ? 'double' : 'normal';
+            bullet.from = 'player';
+            bullet.active = true;
+            bullets.push(bullet);
+            if (dualShip) {
+                const dualBullet = getPoolObject('bullets');
+                if (dualBullet) {
+                    dualBullet.x = player.x - 24;
+                    dualBullet.y = player.y - 15;
+                    dualBullet.w = 3;
+                    dualBullet.h = 12;
+                    dualBullet.speed = 600;
+                    dualBullet.type = 'normal';
+                    dualBullet.from = 'dual';
+                    dualBullet.active = true;
+                    bullets.push(dualBullet);
+                }
+            }
+        }
+    }
+}
+
 // Update bullets
 function updateBullets() {
     for (let i = bullets.length - 1; i >= 0; i--) {
@@ -1971,7 +2086,6 @@ function drawParticle(p) {
 }
 
 
-// Collision detection
 function checkCollisions() {
     // Player bullets vs enemies
     for (let i = bullets.length - 1; i >= 0; i--) {
