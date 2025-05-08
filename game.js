@@ -976,9 +976,90 @@ function drawBullet(b) {
         ctx.beginPath();
         ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
         ctx.fill();
+          } else if (b.from === 'enemy') {
+        // Enemy bullet - use the bullet's color
+        const color = b.color || '#f00'; // Default to red if no color specified
         
+        // Extract color components for gradient
+        let baseColor = color;
+        let lightColor = '#fff';
+        
+        bulletGradient.addColorStop(0, lightColor);
+        bulletGradient.addColorStop(0.5, baseColor);
+        bulletGradient.addColorStop(1, baseColor);
+        
+        ctx.shadowColor = baseColor;
+        ctx.shadowBlur = 8;
+        
+        // Create enemy bullet based on type
+        ctx.fillStyle = bulletGradient;
+        
+        if (b.type === 'zigzag') {
+            // Zigzag bullet has rhombus shape
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y - 6);
+            ctx.lineTo(b.x + 4, b.y);
+            ctx.lineTo(b.x, b.y + 6);
+            ctx.lineTo(b.x - 4, b.y);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Trailing effect
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y - 3);
+            ctx.lineTo(b.x + 2, b.y);
+            ctx.lineTo(b.x, b.y + 8);
+            ctx.lineTo(b.x - 2, b.y);
+            ctx.closePath();
+            ctx.fill();
+        } else if (b.type === 'split') {
+            // Split bullet has triangular shape
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y - 8);
+            ctx.lineTo(b.x + 5, b.y + 4);
+            ctx.lineTo(b.x - 5, b.y + 4);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Pulsing glow effect
+            ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 100);
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (b.type === 'fast') {
+            // Fast bullet has a streamlined shape
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y - 8);
+            ctx.lineTo(b.x + 3, b.y);
+            ctx.lineTo(b.x, b.y + 8);
+            ctx.lineTo(b.x - 3, b.y);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Motion blur
+            ctx.globalAlpha = 0.4;
+            for (let i = 1; i <= 3; i++) {
+                ctx.fillRect(b.x - 1, b.y - 8 - i * 3, 2, 2);
+            }
+        } else {
+            // Default enemy bullet (circular with trail)
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Trailing effect
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y - 6, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y - 12, 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
     } else {
-        // Regular bullet - classic Galaga yellow shot
+        // Regular player bullet - classic Galaga yellow shot
         bulletGradient.addColorStop(0, '#fff');
         bulletGradient.addColorStop(0.5, '#ff0');
         bulletGradient.addColorStop(1, '#fb0');
@@ -1326,18 +1407,68 @@ function getEmptyFormationSpot() {
 
 // Function for enemies to fire bullets
 function fireEnemyBullet(enemy) {
+    // Don't fire if already too many bullets on screen (performance optimization)
+    if (enemyBullets.length >= 15) return;
+    
+    // Different bullet properties based on enemy type
+    let bulletSpeed = 5;
+    let bulletColor = '#fff';
+    let bulletType = 'straight'; // Default bullet type
+    
+    // Customize bullet based on enemy type
+    switch(enemy.type) {
+        case 'basic':
+            bulletSpeed = 5;
+            bulletColor = '#ff0'; // Yellow bullet
+            break;
+        case 'fast':
+            bulletSpeed = 7;
+            bulletColor = '#0ff'; // Cyan bullet
+            bulletType = 'fast';
+            break;
+        case 'zigzag':
+            bulletSpeed = 4;
+            bulletColor = '#f0f'; // Purple bullet
+            bulletType = 'zigzag';
+            break;
+        case 'tank':
+            bulletSpeed = 4;
+            bulletColor = '#f00'; // Red bullet
+            bulletType = 'split';
+            break;
+        default:
+            bulletSpeed = 5;
+            bulletColor = '#fff';
+    }
+    
+    // Create the bullet
     const bullet = {
         x: enemy.x,
         y: enemy.y + 20,
-        w: 3,
+        w: 4,
         h: 12,
-        speed: 6,
+        speed: bulletSpeed + (level * 0.3), // Speed increases with level
         damage: 1,
-        type: 'enemy',
-        from: 'enemy'
+        type: bulletType,
+        from: 'enemy',
+        color: bulletColor,
+        age: 0, // Track bullet age for special patterns
+        angle: Math.atan2(player.y - enemy.y, player.x - enemy.x), // Angle towards player
+        wobble: Math.random() * Math.PI * 2 // Random starting phase for wobble movement
     };
     
-    enemyBullets.push(bullet);
+    // For split bullet type, create multiple bullets in a spread pattern
+    if (bulletType === 'split' && Math.random() < 0.3) {
+        // Create a spread of 3 bullets
+        for (let i = -1; i <= 1; i++) {
+            const splitBullet = { ...bullet };
+            splitBullet.angle += i * 0.3; // Add spread angle
+            enemyBullets.push(splitBullet);
+        }
+    } else {
+        // Just push the single bullet
+        enemyBullets.push(bullet);
+    }
 }
 
 // Function to update all bullets
@@ -1399,16 +1530,51 @@ function updateBullets() {
             }
         }
     }
-    
-    // Update enemy bullets
+      // Update enemy bullets
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const bullet = enemyBullets[i];
         
-        // Move bullet
-        bullet.y += bullet.speed;
+        // Increment bullet age
+        bullet.age++;
+        
+        // Move bullet based on its type
+        switch(bullet.type) {
+            case 'straight':
+                // Standard straight-line movement
+                bullet.y += bullet.speed;
+                break;
+            
+            case 'fast':
+                // Faster bullet that slightly adjusts towards player
+                bullet.y += bullet.speed;
+                // Slight homing effect every 10 frames
+                if (bullet.age % 10 === 0 && player.alive) {
+                    const angle = Math.atan2(player.y - bullet.y, player.x - bullet.x);
+                    const targetX = bullet.x + Math.cos(angle) * bullet.speed;
+                    bullet.x = bullet.x * 0.9 + targetX * 0.1; // 10% adjustment towards player
+                }
+                break;
+            
+            case 'zigzag':
+                // Zig-zag movement pattern
+                bullet.y += bullet.speed;
+                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 2;
+                break;
+            
+            case 'split':
+                // Movement based on angle
+                bullet.x += Math.cos(bullet.angle) * bullet.speed * 0.5;
+                bullet.y += Math.sin(bullet.angle) * bullet.speed * 0.5;
+                break;
+                
+            default:
+                // Default straight movement
+                bullet.y += bullet.speed;
+        }
         
         // Check if bullet is offscreen
-        if (bullet.y > canvas.height + 20) {
+        if (bullet.x < -20 || bullet.x > canvas.width + 20 || 
+            bullet.y < -20 || bullet.y > canvas.height + 20) {
             enemyBullets.splice(i, 1);
             continue;
         }
@@ -1423,6 +1589,9 @@ function updateBullets() {
             
             // Reduce lives
             lives--;
+            
+            // Add screen shake for impact
+            screenShake = 10;
             
             if (lives <= 0) {
                 // Game over
@@ -1649,37 +1818,91 @@ function spawnEnemies() {
     
     const totalEnemies = Math.min(5 + level * 2, formationSpots.length); // Limit to available formation spots
 
+    // Create entrance paths in authentic Galaga style
+    // Each path is a series of bezier curve control points
+    const entrancePaths = [
+        // Path 1: Swooping in from left
+        [
+            {x: -50, y: 100}, // Start off-screen left
+            {x: 100, y: 50},  // Control point 1
+            {x: 200, y: 200}, // Control point 2
+            {x: 300, y: 100}  // End point (formation spot)
+        ],
+        // Path 2: Swooping in from right
+        [
+            {x: canvas.width + 50, y: 100}, // Start off-screen right
+            {x: canvas.width - 100, y: 50},  // Control point 1
+            {x: canvas.width - 200, y: 200}, // Control point 2
+            {x: canvas.width - 300, y: 100}  // End point (formation spot)
+        ],
+        // Path 3: Loop from top
+        [
+            {x: canvas.width / 2, y: -50}, // Start off-screen top
+            {x: canvas.width / 2 - 100, y: 100},  // Control point 1
+            {x: canvas.width / 2 + 100, y: 200}, // Control point 2
+            {x: canvas.width / 2, y: 120}  // End point (formation spot)
+        ],
+        // Path 4: Figure-8 from top-left
+        [
+            {x: -50, y: -50}, // Start off-screen top-left
+            {x: 100, y: 150},  // Control point 1
+            {x: 200, y: 50}, // Control point 2
+            {x: 250, y: 150}  // End point (formation spot)
+        ],
+        // Path 5: Figure-8 from top-right
+        [
+            {x: canvas.width + 50, y: -50}, // Start off-screen top-right
+            {x: canvas.width - 100, y: 150},  // Control point 1
+            {x: canvas.width - 200, y: 50}, // Control point 2
+            {x: canvas.width - 250, y: 150}  // End point (formation spot)
+        ]
+    ];
+
     for (let i = 0; i < totalEnemies; i++) {
         const spot = formationSpots[i];
         spot.taken = true;
 
-        // All enemies are basic in level 1 for easier difficulty
+        // Assign enemy types with more variety as level increases
         let enemyType = 'basic';
         if (level > 1) {
             const typeRoll = Math.random();
             if (level >= 3 && typeRoll > 0.7) {
                 enemyType = 'fast';
+            } else if (level >= 4 && typeRoll > 0.85) {
+                enemyType = 'tank';
             } else if (level >= 2 && typeRoll > 0.4) {
                 enemyType = 'zigzag';
             }
         }
 
-    // Create the enemy with assigned formation spot
+        // Choose an entrance path for this enemy
+        const pathIndex = i % entrancePaths.length;
+        const entrancePath = entrancePaths[pathIndex];
+        
+        // Create the enemy with assigned formation spot and path
         const enemy = {
-            // More predictable entry pattern for better visibility
-            x: i % 2 === 0 ? -50 : canvas.width + 50, // Alternate left/right
-            y: 0, // Make sure it's visible at the top of the screen
+            x: entrancePath[0].x, // Start position from path
+            y: entrancePath[0].y,
             w: 32,
             h: 32,
-            speed: 2, // Fixed speed for more consistent movement
+            speed: 2 + (level * 0.2), // Increase speed slightly with level
             type: enemyType,
             state: ENEMY_STATE.ENTRANCE,
             targetX: spot.x,
             targetY: spot.y,
             color: enemyType === 'basic' ? '#0f8' : 
-                   enemyType === 'fast' ? '#f80' : '#f0f',
-            entranceDelay: i * 10, // Slightly shorter delay
-            id: i // Unique ID for debugging
+                   enemyType === 'fast' ? '#f80' :
+                   enemyType === 'tank' ? '#f44' : '#f0f',
+            entranceDelay: i * 15, // Stagger the entrance
+            id: i, // Unique ID for debugging
+            path: entrancePath, // Store the path for this enemy
+            pathProgress: 0, // Progress along the path (0.0 to 1.0)
+            pathSpeed: 0.01 + (Math.random() * 0.005), // Variable speed for more natural movement
+            attackCooldown: 0, // Cooldown before this enemy can attack
+            attackChance: enemyType === 'basic' ? 0.002 : 
+                          enemyType === 'fast' ? 0.005 :
+                          enemyType === 'tank' ? 0.003 : 0.004, // Chance to break formation and attack
+            attackPattern: Math.floor(Math.random() * 3) // Random attack pattern (0, 1, or 2)
         };
 
         enemies.push(enemy);
@@ -1718,12 +1941,72 @@ function spawnEnemyWave(waveSize) {
     }
 }
 
+// Function to calculate a point along a cubic bezier curve
+function bezierPoint(p0, p1, p2, p3, t) {
+    const mt = 1 - t;
+    return {
+        x: mt*mt*mt*p0.x + 3*mt*mt*t*p1.x + 3*mt*t*t*p2.x + t*t*t*p3.x,
+        y: mt*mt*mt*p0.y + 3*mt*mt*t*p1.y + 3*mt*t*t*p2.y + t*t*t*p3.y
+    };
+}
+
 // Function to update all enemies
 function updateEnemies() {
     let allEnemiesInFormation = true; // Track if all enemies are in formation
+    
+    // Pick a random enemy to potentially break formation and attack
+    if (Math.random() < 0.01 + (level * 0.005)) {
+        const formationEnemies = enemies.filter(e => e.state === ENEMY_STATE.FORMATION);
+        if (formationEnemies.length > 0) {
+            const randomEnemy = formationEnemies[Math.floor(Math.random() * formationEnemies.length)];
+            // Only attack if cooldown is zero
+            if (randomEnemy.attackCooldown <= 0) {
+                console.log(`Enemy #${randomEnemy.id} breaking formation to attack`);
+                randomEnemy.state = ENEMY_STATE.ATTACK;
+                randomEnemy.attackStage = 0; // Start of attack sequence
+                randomEnemy.attackTime = 0; // Track the attack time
+                randomEnemy.attackPath = []; // Will store the attack path
+                
+                // Generate attack path based on enemy type and pattern
+                switch (randomEnemy.attackPattern) {
+                    case 0: // Direct dive at player
+                        randomEnemy.attackPath = [
+                            {x: randomEnemy.x, y: randomEnemy.y}, // Current position
+                            {x: randomEnemy.x, y: randomEnemy.y + 50}, // Move down
+                            {x: player.x, y: canvas.height / 2}, // Aim towards player
+                            {x: player.x, y: canvas.height + 50} // Exit bottom
+                        ];
+                        break;
+                    case 1: // S-curve attack
+                        randomEnemy.attackPath = [
+                            {x: randomEnemy.x, y: randomEnemy.y}, // Current position
+                            {x: randomEnemy.x - 100, y: randomEnemy.y + 100}, // Curve left/down
+                            {x: randomEnemy.x + 100, y: randomEnemy.y + 200}, // Curve right/down
+                            {x: randomEnemy.x, y: canvas.height + 50} // Exit bottom
+                        ];
+                        break;
+                    case 2: // Loop attack
+                        randomEnemy.attackPath = [
+                            {x: randomEnemy.x, y: randomEnemy.y}, // Current position
+                            {x: randomEnemy.x + 100, y: randomEnemy.y + 100}, // Loop right
+                            {x: randomEnemy.x, y: randomEnemy.y + 200}, // Loop bottom
+                            {x: randomEnemy.x - 100, y: randomEnemy.y + 100}, // Loop left
+                            {x: randomEnemy.x, y: randomEnemy.y}, // Return to start position
+                            {x: randomEnemy.x, y: canvas.height + 50} // Exit bottom
+                        ];
+                        break;
+                }
+            }
+        }
+    }
 
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
+        
+        // Decrement attack cooldown
+        if (enemy.attackCooldown > 0) {
+            enemy.attackCooldown--;
+        }
 
         // Handle enemy entrance
         if (enemy.state === ENEMY_STATE.ENTRANCE) {
@@ -1733,35 +2016,117 @@ function updateEnemies() {
                 continue;
             }
 
-            // Move enemy towards its formation spot
-            const dx = enemy.targetX - enemy.x;
-            const dy = enemy.targetY - enemy.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance > 1) {
-                enemy.x += (dx / distance) * enemy.speed;
-                enemy.y += (dy / distance) * enemy.speed;
+            // Move along the bezier path
+            if (enemy.pathProgress < 1) {
+                // Get point along the path
+                const point = bezierPoint(
+                    enemy.path[0], enemy.path[1], enemy.path[2], enemy.path[3], 
+                    enemy.pathProgress
+                );
+                
+                // Update position
+                enemy.x = point.x;
+                enemy.y = point.y;
+                
+                // Advance along the path
+                enemy.pathProgress += enemy.pathSpeed;
                 allEnemiesInFormation = false; // Not all enemies are in formation
             } else {
-                enemy.x = enemy.targetX;
-                enemy.y = enemy.targetY;
-                enemy.state = ENEMY_STATE.FORMATION;
+                // Path completed, move directly to formation spot
+                const dx = enemy.targetX - enemy.x;
+                const dy = enemy.targetY - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > enemy.speed) {
+                    enemy.x += dx / distance * enemy.speed;
+                    enemy.y += dy / distance * enemy.speed;
+                    allEnemiesInFormation = false; // Not all enemies are in formation
+                } else {
+                    // Reached formation position
+                    enemy.x = enemy.targetX;
+                    enemy.y = enemy.targetY;
+                    enemy.state = ENEMY_STATE.FORMATION;
+                    enemy.attackCooldown = Math.floor(Math.random() * 120) + 60; // Random cooldown
+                }
             }
         }
-
-        // Handle enemy attack behavior
-        if (enemy.state === ENEMY_STATE.ATTACK) {
-            const fireChance = level === 1 ? 0.001 : (0.01 + level * 0.002);
-            if (Math.random() < fireChance) {
+        // Handle enemy in formation - subtle hover movement
+        else if (enemy.state === ENEMY_STATE.FORMATION) {
+            // Add slight hover movement in formation
+            enemy.x = enemy.targetX + Math.sin(Date.now() / 1000 + enemy.id) * 3;
+            enemy.y = enemy.targetY + Math.sin(Date.now() / 1500 + enemy.id * 2) * 2;
+            
+            // Chance to fire while in formation
+            if (Math.random() < enemy.attackChance / 2) {
                 fireEnemyBullet(enemy);
+            }
+        }
+        // Handle enemy attack behavior
+        else if (enemy.state === ENEMY_STATE.ATTACK) {
+            enemy.attackTime++;
+            
+            // Calculate the position on the attack path
+            const pathLength = enemy.attackPath.length - 1; // Number of segments
+            const segmentTime = 100; // Time to complete each segment
+            const totalPathTime = pathLength * segmentTime;
+            
+            if (enemy.attackTime < totalPathTime) {
+                // Determine which segment we're in
+                const segment = Math.min(Math.floor(enemy.attackTime / segmentTime), pathLength - 1);
+                const segmentProgress = (enemy.attackTime % segmentTime) / segmentTime;
+                
+                // Get start and end points for the current segment
+                const p0 = enemy.attackPath[segment];
+                const p3 = enemy.attackPath[segment + 1];
+                
+                // Generate control points for smooth movement
+                const p1 = {
+                    x: p0.x + (p3.x - p0.x) * 0.3,
+                    y: p0.y + (p3.y - p0.y) * 0.1
+                };
+                const p2 = {
+                    x: p0.x + (p3.x - p0.x) * 0.7,
+                    y: p0.y + (p3.y - p0.y) * 0.9
+                };
+                
+                // Calculate the current position
+                const point = bezierPoint(p0, p1, p2, p3, segmentProgress);
+                enemy.x = point.x;
+                enemy.y = point.y;
+                
+                // Higher chance to fire during attack
+                if (Math.random() < enemy.attackChance * 2) {
+                    fireEnemyBullet(enemy);
+                }
+            } else {
+                // Path completed
+                // If we're at the end of a looping path, return to formation
+                if (enemy.attackPattern === 2 && enemy.attackTime < totalPathTime + 100) {
+                    // Continue along path to return to formation position
+                    const returnProgress = (enemy.attackTime - totalPathTime) / 100;
+                    enemy.x = enemy.x * (1 - returnProgress) + enemy.targetX * returnProgress;
+                    enemy.y = enemy.y * (1 - returnProgress) + enemy.targetY * returnProgress;
+                    
+                    if (returnProgress >= 0.99) {
+                        enemy.state = ENEMY_STATE.FORMATION;
+                        enemy.x = enemy.targetX;
+                        enemy.y = enemy.targetY;
+                        enemy.attackCooldown = Math.floor(Math.random() * 180) + 120; // Longer cooldown after attack
+                    }
+                }
+                // For non-looping paths, just continue downwards
             }
         }
 
         // Remove enemy if it goes offscreen (safety check)
         if (enemy.y > canvas.height + 50) {
             enemies.splice(i, 1);
+            console.log(`Enemy #${enemy.id} exited bottom of screen`);
+            continue;
         }
-    }// Check if all enemies are cleared to transition to the next level
+    }
+    
+    // Check if all enemies are cleared to transition to the next level
     if (enemies.length === 0 && levelTransition === 0) {
         console.log("All enemies cleared, transitioning to next level");
         levelTransition = 60; // Add a delay before transitioning to the next level
@@ -1830,6 +2195,14 @@ function updateGameplay() {
     
     // Update particles
     updateParticles();
+    
+    // Debug info for development (uncomment when needed)
+    // ctx.save();
+    // ctx.font = '12px monospace';
+    // ctx.fillStyle = '#fff';
+    // ctx.textAlign = 'left';
+    // ctx.fillText(`Enemies: ${enemies.length}, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
+    // ctx.restore();
 }
 
 // Main game loop
