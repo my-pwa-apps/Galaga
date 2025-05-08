@@ -1453,7 +1453,7 @@ function fireEnemyBullet(enemy) {
         from: 'enemy',
         color: bulletColor,
         age: 0, // Track bullet age for special patterns
-        angle: Math.atan2(player.y - enemy.y, player.x - enemy.x), // Angle towards player
+        angle: Math.atan2(player.y - enemy.y, player.x - enemy.y), // Angle towards player
         wobble: Math.random() * Math.PI * 2 // Random starting phase for wobble movement
     };
     
@@ -1974,7 +1974,7 @@ function updateEnemies() {
             const randomEnemy = formationEnemies[Math.floor(Math.random() * formationEnemies.length)];
             // Only attack if cooldown is zero
             if (randomEnemy.attackCooldown <= 0) {
-                console.log(`Enemy #${randomEnemy #${randomEnemy.id} breaking formation to attack`);
+                console.log(`Enemy #${randomEnemy.id} breaking formation to attack`); // Corrected template literal
                 randomEnemy.state = ENEMY_STATE.ATTACK;
                 randomEnemy.attackStage = 0; // Start of attack sequence
                 randomEnemy.attackTime = 0; // Track the attack time
@@ -2185,75 +2185,64 @@ function updatePlayer() {
     // Handle player firing
     if (keys['Space'] && player.cooldown <= 0 && player.alive) {
         const bullet = {
-            x: player.x,// Reduce cooldown timer
-            y: player.y - player.h / 2,wn > 0) {
-            w: 3,own--;
-            h: 12,}
+            x: player.x,
+            y: player.y - player.h / 2,
+            w: 3,
+            h: 12,
             speed: 10,
             type: player.power === 'double' ? 'double' : 'normal',
-            from: dualShip ? 'dual' : 'player'unction to update all gameplay elements
-        };y() {
+            from: dualShip ? 'dual' : 'player'
+        };
         bullets.push(bullet);
         updateBullets();
         // Dual ship fires an additional bullet
         player.cooldown--;
-    }updateEnemies();
+    }
 }
-er
+
 // Function to update all gameplay elements
 function updateGameplay() {
     // Update bullets
     updateBullets();
     
-    // Update enemies   // Update particles
-    updateEnemies();    updateParticles();
+    // Update enemies
+    updateEnemies();
     
     // Update player development (uncomment when needed)
     updatePlayer();
         // ctx.font = '12px monospace';
     // Update powerups
-    updatePowerups();t';
-    }, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
-    // Update particles
-    updateParticles();
-    
-    // Debug info for development (uncomment when needed)
-    // ctx.save();
-    // ctx.font = '12px monospace';
-    // ctx.fillStyle = '#fff';
-    // ctx.textAlign = 'left';
-    // ctx.fillText(`Enemies: ${enemies.length}, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
-    // ctx.restore();e if (state === GAME_STATE.PLAYING) {
-}        // Apply screen shake if active
+    updatePowerups();
+}
 
 // Main game loop
-function gameLoop() {            ctx.translate(
-    ctx.clearRect(0, 0, canvas.width, canvas.height);creenShake / 2,
-hake - screenShake / 2
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     if (state === GAME_STATE.SPLASH) {
-        drawArcadeSplash();   screenShake *= 0.9; // Reduce shake effect over time
-    } else if (state === GAME_STATE.PLAYING) {ke = 0;
+        drawArcadeSplash();
+    } else if (state === GAME_STATE.PLAYING) {
         // Apply screen shake if active
         if (screenShake > 0) {
-            ctx.save();// Update all gameplay elements
+            ctx.save();
             ctx.translate(
                 Math.random() * screenShake - screenShake / 2,
-                Math.random() * screenShake - screenShake / 2 player and enemy)
-            );or (const bullet of bullets) {
-            screenShake *= 0.9; // Reduce shake effect over time            drawBullet(bullet);
+                Math.random() * screenShake - screenShake / 2
+            );
+            screenShake *= 0.9; // Reduce shake effect over time
             if (screenShake < 0.5) screenShake = 0;
-        }) {
+        }
 
         // Update all gameplay elements
         updateGameplay();        
-tly
-        // Draw bullets (both player and enemy)of enemies) {
+
+        // Draw bullets (both player and enemy)
         for (const bullet of bullets) {
             drawBullet(bullet);
         }
-        for (const bullet of enemyBullets) {ps
-            drawBullet(bullet);of powerups) {
-        }owerup);
+        for (const bullet of enemyBullets) {
+            drawBullet(bullet);
+        }
         
         // Draw enemies explicitly
         for (const enemy of enemies) {
@@ -2266,24 +2255,29 @@ tly
         }
 
         // Draw boss if present
-        if (bossGalaga) {        // Draw level transition message if applicable
-            drawBossGalaga(bossGalaga);0) {
-        }ld 30px monospace';
-   ctx.fillStyle = '#ff0';
-        // Draw player            ctx.textAlign = 'center';
-        if (player.alive) { COMPLETE!`, canvas.width / 2, canvas.height / 2);
-            drawPlayer();nt = '20px monospace';
+        if (bossGalaga) {
+            drawBossGalaga(bossGalaga);
         }
-t(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);
-        // Draw level transition message if applicable   }
+
+        // Draw player
+        if (player.alive) {
+            drawPlayer();
+        }
+
+        // Draw level transition message if applicable
         if (levelTransition > 0) {
             ctx.font = 'bold 30px monospace';
-            ctx.fillStyle = '#ff0';           ctx.restore();
+            ctx.fillStyle = '#ff0';
+            ctx.textAlign = 'center';
+            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
+            ctx.font = '20px monospace';
+            ctx.fillStyle = '#0ff';
+            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);
         }
 
-
-
-}    requestAnimationFrame(gameLoop);    }        drawGameOver();    } else if (state === GAME_STATE.GAME_OVER) {        drawHUD();        // Game HUD (score, lives, etc.)        }            ctx.restore();        if (screenShake > 0) {        }            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);            ctx.fillStyle = '#0ff';            ctx.font = '20px monospace';            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);            ctx.textAlign = 'center';        }
+        if (screenShake > 0) {
+            ctx.restore();
+        }
 
         // Game HUD (score, lives, etc.)
         drawHUD();
