@@ -692,17 +692,12 @@ function playExplosionSound() {
 
 // --- Main Loop ---
 function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas each frame
     if (state === GAME_STATE.SPLASH) {
         drawArcadeSplash();
     } else if (state === GAME_STATE.PLAYING) {
         updateGame();
-        drawPlayer();
-        bullets.forEach(drawBullet);
-        enemies.forEach(e => { if (e.alive) drawEnemy(e); });
-        enemyBullets.forEach(drawEnemyBullet);
-        powerups.forEach(drawPowerup);
-        drawParticles(); // Add particle drawing here
-        drawHUD();
+        drawGame();
     } else if (state === GAME_STATE.GAME_OVER) {
         drawGame();
         drawGameOver();
