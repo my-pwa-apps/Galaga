@@ -54,6 +54,13 @@ let attackQueue = [];
 // Add particle array
 let particles = [];
 
+// Add boss Galaga and captured ship mechanics
+let bossGalaga = null;
+let capturedShip = false;
+let dualShip = false;
+let highScore = 0;
+let challengeStage = false;
+
 function drawArcadeSplash() {
     ctx.save();
     ctx.fillStyle = '#111';
@@ -77,10 +84,23 @@ function drawArcadeSplash() {
     ctx.restore();
 }
 
-
+// Enhance Player ship drawing with thruster animation
 function drawPlayer() {
     ctx.save();
     ctx.translate(player.x, player.y);
+    
+    // Draw thruster animation
+    ctx.save();
+    ctx.fillStyle = '#f84';
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 50);
+    ctx.beginPath();
+    ctx.moveTo(-4, 8);
+    ctx.lineTo(0, 16 + Math.sin(Date.now() / 100) * 4);
+    ctx.lineTo(4, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    
     // Improved ship: body
     ctx.save();
     ctx.shadowColor = '#0ff';
@@ -123,23 +143,115 @@ function drawPlayer() {
         ctx.stroke();
         ctx.restore();
     }
+    
+    // Draw dual ship if active
+    if (dualShip) {
+        ctx.save();
+        ctx.translate(-20, 0);
+        ctx.scale(0.8, 0.8);
+        
+        // Mini thruster
+        ctx.fillStyle = '#f84';
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 50);
+        ctx.beginPath();
+        ctx.moveTo(-4, 8);
+        ctx.lineTo(0, 16 + Math.sin(Date.now() / 100) * 4);
+        ctx.lineTo(4, 8);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Mini ship body
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(0, -16);
+        ctx.lineTo(14, 12);
+        ctx.lineTo(7, 8);
+        ctx.lineTo(-7, 8);
+        ctx.lineTo(-14, 12);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    }
+    
     ctx.restore();
 }
 
-function drawBullet(b) {
+// Draw boss Galaga
+function drawBossGalaga(boss) {
     ctx.save();
+    ctx.translate(boss.x, boss.y);
+    
+    // Big body with pulsing glow
+    ctx.save();
+    ctx.shadowColor = '#f0f';
+    ctx.shadowBlur = 15 + 5 * Math.sin(Date.now() / 200);
+    ctx.fillStyle = '#f0f';
     ctx.beginPath();
-    ctx.moveTo(b.x, b.y-8);
-    ctx.lineTo(b.x+2, b.y+4);
-    ctx.lineTo(b.x-2, b.y+4);
-    ctx.closePath();
-    ctx.fillStyle = b.type === 'double' ? '#0ff' : '#ff0';
-    ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur = 8;
+    ctx.ellipse(0, 0, 20, 16, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+    
+    // Wings
+    ctx.fillStyle = '#ff0';
+    ctx.beginPath();
+    ctx.moveTo(-20, -5);
+    ctx.lineTo(-26, 15);
+    ctx.lineTo(-14, 10);
+    ctx.closePath();
+    ctx.moveTo(20, -5);
+    ctx.lineTo(26, 15);
+    ctx.lineTo(14, 10);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Crown
+    ctx.fillStyle = '#0ff';
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+        ctx.rect(-12 + i * 10, -18, 4, 8);
+    }
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-6, -4, 3, 0, Math.PI * 2);
+    ctx.arc(6, -4, 3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Captured ship (if present)
+    if (boss.hasCaptured) {
+        ctx.save();
+        ctx.translate(0, 22);
+        ctx.scale(0.7, 0.7);
+        
+        // Tractor beam
+        ctx.strokeStyle = '#ff0';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(-10, -10);
+        ctx.lineTo(10, -10);
+        ctx.stroke();
+        
+        // Captured ship
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(0, -16);
+        ctx.lineTo(14, 12);
+        ctx.lineTo(7, 8);
+        ctx.lineTo(-7, 8);
+        ctx.lineTo(-14, 12);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    }
+    
+    ctx.restore();
 }
 
+// Enhanced enemy drawing with animations
 function drawEnemy(e) {
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -165,6 +277,11 @@ function drawEnemy(e) {
         ctx.beginPath();
         ctx.arc(-5, -2, 2, 0, Math.PI*2);
         ctx.arc(5, -2, 2, 0, Math.PI*2);
+        ctx.fill();
+        // Add pulsing antenna
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.rect(-1, -16, 2, 8 + Math.sin(Date.now() / 200) * 2);
         ctx.fill();
     } else if (e.type === 'fast') {
         // Arrowhead
@@ -231,9 +348,47 @@ function drawEnemy(e) {
         ctx.lineTo(10, 10);
         ctx.stroke();
         ctx.restore();
+        
+        // Add electric sparks
+        if (Math.random() < 0.3) {
+            ctx.save();
+            ctx.strokeStyle = '#fff';
+            ctx.globalAlpha = Math.random() * 0.7;
+            ctx.beginPath();
+            ctx.moveTo(Math.random() * 10 - 5, Math.random() * 10 - 5);
+            ctx.lineTo(Math.random() * 10 - 5, Math.random() * 10 - 5);
+            ctx.stroke();
+            ctx.restore();
+        }
     }
     ctx.restore();
 }
+
+// Enhance bullet drawing
+function drawBullet(b) {
+    ctx.save();
+    ctx.beginPath();
+    
+    if (dualShip && b.from === 'dual') {
+        ctx.moveTo(b.x, b.y - 6);
+        ctx.lineTo(b.x + 2, b.y + 3);
+        ctx.lineTo(b.x - 2, b.y + 3);
+        ctx.closePath();
+        ctx.fillStyle = '#0f8';
+    } else {
+        ctx.moveTo(b.x, b.y - 8);
+        ctx.lineTo(b.x + 2, b.y + 4);
+        ctx.lineTo(b.x - 2, b.y + 4);
+        ctx.closePath();
+        ctx.fillStyle = b.type === 'double' ? '#0ff' : '#ff0';
+    }
+    
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.restore();
+}
+
 // Powerup drawing
 function drawPowerup(p) {
     ctx.save();
@@ -282,12 +437,27 @@ function drawHUD() {
     ctx.font = '16px monospace';
     ctx.fillStyle = '#fff';
     ctx.fillText('SCORE: ' + score, 20, 30);
+    ctx.fillText('HIGH: ' + highScore, 20, 50);
     ctx.fillText('LIVES: ' + lives, canvas.width-120, 30);
     ctx.fillText('LEVEL: ' + level, canvas.width/2, 30);
+    
+    // Display challenge stage text
+    if (challengeStage) {
+        ctx.font = 'bold 16px monospace';
+        ctx.fillStyle = '#ff0';
+        ctx.fillText('CHALLENGE STAGE', canvas.width/2, 50);
+    }
+    
     if (player.power !== 'normal') {
         ctx.fillStyle = '#0ff';
-        ctx.fillText('POWER: ' + player.power.toUpperCase(), canvas.width/2, 50);
+        ctx.fillText('POWER: ' + player.power.toUpperCase(), canvas.width/2, 70);
     }
+    
+    if (dualShip) {
+        ctx.fillStyle = '#0f8';
+        ctx.fillText('DUAL FIGHTER', canvas.width/2, dualShip ? 90 : 70);
+    }
+    
     ctx.restore();
 }
 
@@ -368,6 +538,10 @@ function resetGame() {
     lives = 3;
     level = 1;
     levelTransition = 0;
+    bossGalaga = null;
+    capturedShip = false;
+    dualShip = false;
+    challengeStage = false;
     spawnEnemies();
 }
 
@@ -386,6 +560,16 @@ function drawStarfield() {
 }
 
 function updateGame() {
+    // Apply screen shake effect
+    if (screenShake > 0) {
+        ctx.save();
+        ctx.translate(
+            Math.random() * screenShake - screenShake/2,
+            Math.random() * screenShake - screenShake/2
+        );
+        screenShake -= 0.5;
+    }
+    
     // Player movement
     let moveSpeed = player.speed + (player.power === 'speed' ? 2 : 0);
     if (keys['ArrowLeft'] && player.x > 20) player.x -= moveSpeed;
@@ -398,18 +582,8 @@ function updateGame() {
             player.shield = false;
         }
     }
-    // Shooting
-    if (keys[' '] && player.cooldown <= 0 && player.alive) {
-        if (player.power === 'double') {
-            bullets.push({x: player.x-7, y: player.y-16, vy: -9, type: 'double'});
-            bullets.push({x: player.x+7, y: player.y-16, vy: -9, type: 'double'});
-        } else {
-            bullets.push({x: player.x, y: player.y-16, vy: -8, type: 'normal'});
-        }
-        player.cooldown = player.power === 'double' ? 10 : 16;
-        playShootSound();
-    }
-    if (player.cooldown > 0) player.cooldown--;
+    // Updated shooting logic
+    updateShooting();
     // Bullets
     bullets.forEach(b => b.y += b.vy);
     bullets = bullets.filter(b => b.y > -20);
@@ -600,43 +774,103 @@ function updateGame() {
 
 // Enhanced particle effects for explosions
 function drawParticles() {
-    particles.forEach((p, idx) => {
+    for (let i = 0; i < particles.length; i++) {
+        let p = particles[i];
+        
         ctx.save();
         ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
+        
+        // Add glow effect to some particles
+        if (Math.random() < 0.3) {
+            ctx.globalAlpha = p.alpha * 0.5;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 5;
+            ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
         ctx.restore();
+        
+        // Update particle
         p.x += p.vx;
         p.y += p.vy;
+        p.vx *= 0.98;
+        p.vy *= 0.98;
         p.alpha -= 0.02;
-        if (p.alpha <= 0) particles.splice(idx, 1);
-    });
+        
+        // Remove faded particles
+        if (p.alpha <= 0) {
+            particles.splice(i, 1);
+            i--;
+        }
+    }
 }
 
+// Enhanced game draw function
 function drawGame() {
-    // Improved background rendering
+    // Improved starfield background with parallax effect
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // Enhanced starfield
-    for (let i = 0; i < 150; i++) {
-        ctx.save();
-        ctx.fillStyle = arcadeColors[i % arcadeColors.length];
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 500 + i);
+    
+    // Far stars (small, slow)
+    for (let i = 0; i < 70; i++) {
+        ctx.fillStyle = '#666';
         let sx = (i * 89) % canvas.width;
-        let sy = ((i * 137 + Date.now() / 8) % canvas.height);
-        ctx.fillRect(sx, sy, 2, 2);
-        ctx.restore();
+        let sy = ((i * 137 + Date.now() / 50) % canvas.height);
+        ctx.fillRect(sx, sy, 1, 1);
     }
-    // Entities
+    
+    // Mid stars (medium, faster)
+    for (let i = 0; i < 50; i++) {
+        ctx.fillStyle = '#999';
+        let sx = (i * 73) % canvas.width;
+        let sy = ((i * 113 + Date.now() / 20) % canvas.height);
+        ctx.fillRect(sx, sy, 2, 2);
+    }
+    
+    // Near stars (bright, fastest)
+    for (let i = 0; i < 30; i++) {
+        ctx.fillStyle = arcadeColors[i % arcadeColors.length];
+        let sx = (i * 53) % canvas.width;
+        let sy = ((i * 97 + Date.now() / 10) % canvas.height);
+        ctx.fillRect(sx, sy, 3, 3);
+    }
+    
+    // Draw game objects
     if (player.alive) drawPlayer();
     bullets.forEach(drawBullet);
     enemies.forEach(e => { if (e.alive) drawEnemy(e); });
+    
+    if (bossGalaga) {
+        drawBossGalaga(bossGalaga);
+        
+        // Draw tractor beam
+        if (bossGalaga.tractorBeam) {
+            ctx.save();
+            ctx.strokeStyle = '#ff0';
+            ctx.globalAlpha = 0.3 + 0.3 * Math.sin(Date.now() / 50);
+            ctx.lineWidth = 30;
+            ctx.beginPath();
+            ctx.moveTo(bossGalaga.x, bossGalaga.y + 20);
+            ctx.lineTo(player.x, player.y - 20);
+            ctx.stroke();
+            
+            ctx.lineWidth = 10;
+            ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 30);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+    
     enemyBullets.forEach(drawEnemyBullet);
     powerups.forEach(drawPowerup);
     drawParticles();
     drawHUD();
+    
     // Level transition
     if (levelTransition > 0) {
         ctx.save();
