@@ -1727,6 +1727,9 @@ function updateEnemies() {
             // Add custom attack patterns if needed
         }
 
+        // Draw the enemy
+        drawEnemy(enemy);
+
         // Remove enemy if it goes offscreen (safety check)
         if (enemy.y > canvas.height + 50) {
             enemies.splice(i, 1);
