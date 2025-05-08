@@ -1732,11 +1732,30 @@ function updateParticles() {
     ctx.globalAlpha = 1; // Reset alpha
 }
 
-// Function to update gameplay
-// Main update function for gameplay
+// Main update function for gameplay - THIS REPLACES THE EMPTY ONE
 function updateGameplay() {
-    // This function is called once per frame to update all game elements
-    // Player movement and firing is handled in the game loop
+    // Update player (handles movement and firing input)
+    updatePlayer();
+
+    // Update bullets (player and enemy)
+    updateBullets();
+
+    // Update enemies (movement, state changes, firing)
+    updateEnemies();
+
+    // Update powerups
+    updatePowerups();
+
+    // Update particles
+    updateParticles();
+
+    // Debug info for development (uncomment when needed)
+    // ctx.save();
+    // ctx.font = '12px monospace';
+    // ctx.fillStyle = '#fff';
+    // ctx.textAlign = 'left';
+    // ctx.fillText(`Enemies: ${enemies.length}, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
+    // ctx.restore();
 }
 
 // Update game loop to include gameplay logic
@@ -1758,7 +1777,7 @@ function gameLoop() {
         }
 
         // Update all gameplay elements
-        updateGameplay();        
+        updateGameplay(); // This will now call the consolidated function above
 
         // Draw bullets (both player and enemy)
         for (const bullet of bullets) {
@@ -1959,6 +1978,7 @@ function spawnEnemyWave(waveSize) {
 // Function to calculate a point along a cubic bezier curve
 function bezierPoint(p0, p1, p2, p3, t) {
     const mt = 1 - t;
+   
     return {
         x: mt*mt*mt*p0.x + 3*mt*mt*t*p1.x + 3*mt*t*t*p2.x + t*t*t*p3.x,
         y: mt*mt*mt*p0.y + 3*mt*mt*t*p1.y + 3*mt*t*t*p2.y + t*t*t*p3.y
@@ -2134,24 +2154,33 @@ function updateEnemies() {
             }
         }
 
-        // Remove enemy if it goes offscreen - enhanced logic
+        // Remove enemy if it goes offscreen - MODIFIED LOGIC
         if (isOffScreen(enemy)) {
-            // If enemy was in formation, free up the spot
-            if (enemy.targetX && enemy.targetY) {
-                for (const spot of formationSpots) {
-                    if (spot.x === enemy.targetX && spot.y === enemy.targetY) {
-                        spot.taken = false;
-                        break;
+            if (enemy.state === ENEMY_STATE.ENTRANCE && enemy.pathProgress < 1) {
+                // Enemy is on its entrance path and might be legitimately off-screen as paths start off-screen.
+                // Do not remove yet. It will either move on-screen, complete its path, or be handled by other logic.
+                // console.log(`Enemy #${enemy.id} is in ENTRANCE (pathProgress: ${enemy.pathProgress.toFixed(2)}) and off-screen, not removing yet.`);
+            } else {
+                // Remove if:
+                // - In ENTRANCE state but pathProgress >= 1 (finished bezier, should be moving to/in formation) AND off-screen
+                // - In FORMATION or ATTACK state AND off-screen
+                // - Or any other unexpected off-screen situation.
+
+                // If enemy was in formation, free up the spot
+                if (enemy.targetX && enemy.targetY) {
+                    for (const spot of formationSpots) {
+                        if (spot.x === enemy.targetX && spot.y === enemy.targetY && spot.taken) {
+                            spot.taken = false;
+                            // console.log(`Formation spot (${enemy.targetX}, ${enemy.targetY}) freed by enemy #${enemy.id}`);
+                            break;
+                        }
                     }
                 }
+            
+                console.log(`Enemy #${enemy.id} (state: ${enemy.state}, pathProgress: ${enemy.pathProgress.toFixed(2)}) removed for being off-screen at (${enemy.x.toFixed(0)}, ${enemy.y.toFixed(0)})`);
+                enemies.splice(i, 1);
+                continue; // Important: continue to next iteration of the loop for 'enemies'
             }
-            
-            // Track that this enemy left the screen
-            console.log(`Enemy #${enemy.id} exited screen at (${enemy.x}, ${enemy.y})`);
-            
-            // Remove from array
-            enemies.splice(i, 1);
-            continue;
         }
     }
     
@@ -2212,29 +2241,4 @@ function updatePlayer() {
     if (player.cooldown > 0) {
         player.cooldown--;
     }
-}
-
-// Function to update all gameplay elements
-function updateGameplay() {
-    // Update bullets
-    updateBullets();
-    
-    // Update enemies
-    updateEnemies();
-    
-    // Update player
-    updatePlayer();
-    
-    // Update powerups
-    updatePowerups();
-    
-    // Update particles
-    updateParticles();
-    
-    // Debug info for development (uncomment when needed)
-    // ctx.save();
-    // ctx.font = '12px monospace';
-    // ctx.fillStyle = '#fff';
-    // ctx.fillText(`FPS: ${Math.round(1000 / (performance.now() - lastFrameTime))}`, 10, 20);
-    // ctx.restore();
 }
