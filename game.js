@@ -513,6 +513,12 @@ function drawStarfield(dt) {
     });
 }
 
+// Define formationMovement for controlling enemy formation movement
+let formationMovement = {
+    speed: 15, // Initial speed
+    amplitude: 20 // Initial amplitude
+};
+
 // Setup wave patterns for more authentic Galaga behavior
 function setupWavePatterns() {
     const baseAttackChance = 0.0005 + (Math.min(level, 10) * 0.0001);
@@ -2434,6 +2440,54 @@ function spawnEnemies() {
     
     // Reset attack queue
     attackQueue = [];
+}
+
+// Updates player movement and powerup timers
+function updatePlayer() {
+    if (!player.alive) return;
+    let moveX = 0;
+    if (keys['ArrowLeft']) moveX -= 1;
+    if (keys['ArrowRight']) moveX += 1;
+    if (isTouchDevice) {
+        if (touchControls.buttons.left.pressed) moveX -= 1;
+        if (touchControls.buttons.right.pressed) moveX += 1;
+    }
+    player.x += moveX * player.speed * dt;
+    if (player.x < player.w / 2) player.x = player.w / 2;
+    if (player.x > CANVAS_WIDTH - player.w / 2) player.x = CANVAS_WIDTH - player.w / 2;
+    if (player.cooldown > 0) player.cooldown -= dt;
+    let shouldFire = false;
+    if (keys['Space']) shouldFire = true;
+    if (isTouchDevice && (touchControls.buttons.fire.pressed || autoShootActive)) shouldFire = true;
+    if (shouldFire && player.cooldown <= 0) {
+        player.cooldown = player.power === 'double' ? 0.20 : 0.35;
+        const bullet = getPoolObject('bullets');
+        if (bullet) {
+            bullet.x = player.x;
+            bullet.y = player.y - 15;
+            bullet.w = 3;
+            bullet.h = 12;
+            bullet.speed = 600;
+            bullet.type = player.power === 'double' ? 'double' : 'normal';
+            bullet.from = 'player';
+            bullet.active = true;
+            bullets.push(bullet);
+            if (dualShip) {
+                const dualBullet = getPoolObject('bullets');
+                if (dualBullet) {
+                    dualBullet.x = player.x - 24;
+                    dualBullet.y = player.y - 15;
+                    dualBullet.w = 3;
+                    dualBullet.h = 12;
+                    dualBullet.speed = 600;
+                    dualBullet.type = 'normal';
+                    dualBullet.from = 'dual';
+                    dualBullet.active = true;
+                    bullets.push(dualBullet);
+                }
+            }
+        }
+    }
 }
 
 // Update game logic
