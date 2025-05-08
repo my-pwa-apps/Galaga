@@ -1632,8 +1632,8 @@ gameLoop();
 
 // Function to spawn enemies in Galaga style
 function spawnEnemies() {
-    // Classic Galaga spawns enemies in waves that form a formation
-    const maxEnemies = 20 + level * 5; // More enemies in higher levels
+    // Gradually increase the maximum number of enemies based on the level
+    const maxEnemies = 10 + level * 3; // Start with 10 enemies, increase by 3 per level
     
     // Calculate empty formation spots
     const emptySpots = formationSpots.filter(spot => !spot.taken);
@@ -1646,7 +1646,8 @@ function spawnEnemies() {
 
 // Function to spawn a wave of enemies in Galaga style
 function spawnEnemyWave() {
-    const waveSize = Math.min(5, Math.floor(Math.random() * 3) + 2); // 2-4 enemies per wave
+    // Gradually increase wave size based on the level
+    const waveSize = Math.min(5 + Math.floor(level / 2), 10); // Start with 5, max out at 10
     const startX = Math.random() > 0.5 ? -30 : canvas.width + 30; // Start from left or right side
     const entryY = -30;
     
@@ -1667,7 +1668,7 @@ function spawnEnemyWave() {
             y: entryY - i * 40, // Space them out vertically
             w: 32,
             h: 32,
-            speed: enemyType === 'fast' ? 3 : 2,
+            speed: 2 + level * 0.2, // Increase speed slightly with each level
             type: enemyType,
             state: ENEMY_STATE.ENTRANCE,
             color: enemyType === 'basic' ? '#0f8' : 
@@ -1720,7 +1721,7 @@ function updateEnemies() {
 
         // Handle enemy attack behavior
         if (enemy.state === ENEMY_STATE.ATTACK) {
-            if (Math.random() < 0.01) {
+            if (Math.random() < 0.01 + level * 0.002) { // Increase attack frequency with level
                 fireEnemyBullet(enemy);
             }
 
