@@ -1608,6 +1608,17 @@ function gameLoop() {
             drawPlayer();
         }
         
+        // Draw level transition message if applicable
+        if (levelTransition > 0) {
+            ctx.font = 'bold 30px monospace';
+            ctx.fillStyle = '#ff0';
+            ctx.textAlign = 'center';
+            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width/2, canvas.height/2);
+            ctx.font = '20px monospace';
+            ctx.fillStyle = '#0ff';
+            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width/2, canvas.height/2 + 40);
+        }
+        
         // Update player movement and firing
         updatePlayer();
         
@@ -1634,8 +1645,51 @@ gameLoop();
 function spawnEnemies() {
     // Spawn enemies only if no enemies exist and no level transition is in progress
     if (enemies.length === 0 && levelTransition === 0) {
+        console.log("Spawning new wave of enemies for level: " + level);
         const totalEnemies = 5 + level * 2; // Start with 5 enemies, increase by 2 per level
-        spawnEnemyWave(totalEnemies); // Spawn all enemies in one wave
+        
+        // Pre-assign formation spots
+        setupFormation();
+        
+        // Create enemies with direct formation assignments
+        for (let i = 0; i < Math.min(totalEnemies, formationSpots.length); i++) {
+            const spot = formationSpots[i];
+            spot.taken = true;
+            
+            // All enemies are basic in level 1 for easier difficulty
+            let enemyType = 'basic';
+            if (level > 1) {
+                const typeRoll = Math.random();
+                if (level >= 3 && typeRoll > 0.7) {
+                    enemyType = 'fast';
+                } else if (level >= 2 && typeRoll > 0.4) {
+                    enemyType = 'zigzag';
+                }
+            }
+            
+            // Create the enemy with assigned formation spot
+            const enemy = {
+                x: Math.random() > 0.5 ? -50 : canvas.width + 50, // Start from outside the canvas
+                y: 0, // Start at the top of the screen
+                w: 32,
+                h: 32,
+                speed: 1 + level * 0.1, // Start slower and increase with level
+                type: enemyType,
+                state: ENEMY_STATE.FORMATION, // Start directly in formation movement
+                targetX: spot.x,
+                targetY: spot.y,
+                color: enemyType === 'basic' ? '#0f8' : 
+                       enemyType === 'fast' ? '#f80' : '#f0f',
+                entranceDelay: 0,
+                id: i // Unique ID for debugging
+            };
+            
+            enemies.push(enemy);
+            console.log(`Spawned enemy #${i}: type=${enemyType} at (${enemy.x},${enemy.y}) → (${spot.x},${spot.y})`);
+        }
+        
+        // Reset level transition
+        levelTransition = 0;
     }
 }
 
@@ -1658,111 +1712,106 @@ function spawnEnemyWave(waveSize) {
             state: ENEMY_STATE.ENTRANCE,
             color: waveType === 'basic' ? '#0f8' : 
                    waveType === 'fast' ? '#f80' : '#f0f',
-            entranceDelay: i * 10, // Delay each enemy slightly
+            entranceDelay: i * 10, // Delay each enemy slightly    let enemiesExist = enemies.length > 0;
             waveIndex: i
-        };
-
+        }; 1; i >= 0; i--) {
+        const enemy = enemies[i];
         enemies.push(enemy);
-    }
-}
-
+    }now as we start in FORMATION state)
+}TRANCE) {
+0) {
 // Function to update all enemies
 function updateEnemies() {
-    let allEnemiesInFormation = true; // Track if all enemies are in formation
-
+    // Only check for level transition if we have enemies
+            enemy.state = ENEMY_STATE.FORMATION;
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-
-        // Handle enemy entrance
-        if (enemy.state === ENEMY_STATE.ENTRANCE) {
-            if (enemy.entranceDelay > 0) {
-                enemy.entranceDelay--;
+ent to formation
+        // Handle enemy entranceTION) {
+        if (enemy.state === ENEMY_STATE.ENTRANCE) {x;
+            if (enemy.entranceDelay > 0) {nemy.y;
+                enemy.entranceDelay--;* dy);
                 allEnemiesInFormation = false; // Not all enemies are in formation
-                continue;
-            }
-
+                continue;   if (distance > 1) {
+            }                enemy.x += (dx / distance) * enemy.speed;
+enemy.speed;
             // Move enemy towards its formation spot
             const targetSpot = getEmptyFormationSpot();
             if (targetSpot) {
                 enemy.targetX = targetSpot.x;
-                enemy.targetY = targetSpot.y;
+                enemy.targetY = targetSpot.y;            }
                 targetSpot.taken = true;
                 enemy.state = ENEMY_STATE.FORMATION;
             }
         }
-
-        // Handle enemy movement to formation
-        if (enemy.state === ENEMY_STATE.FORMATION) {
+ 1 enemies fire very rarely
+        // Handle enemy movement to formation ? 0.001 : (0.01 + level * 0.002);
+        if (enemy.state === ENEMY_STATE.FORMATION) {ce) {
             const dx = enemy.targetX - enemy.x;
             const dy = enemy.targetY - enemy.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance > 1) {
+            if (distance > 1) {raw regardless of state
                 enemy.x += (dx / distance) * enemy.speed;
                 enemy.y += (dy / distance) * enemy.speed;
                 allEnemiesInFormation = false; // Not all enemies are in formation
-            } else {
-                enemy.x = enemy.targetX;
-                enemy.y = enemy.targetY;
-                enemy.state = ENEMY_STATE.ATTACK;
-            }
-        }
+            } else {if all enemies are cleared to transition to the next level
+                enemy.x = enemy.targetX;t only if we had enemies to begin with
+                enemy.y = enemy.targetY;    if (enemiesExist && enemies.length === 0 && levelTransition === 0) {
+                enemy.state = ENEMY_STATE.ATTACK; 60; // Add a delay before transitioning to the next level
+            }transition message
+        }        ctx.font = 'bold 30px monospace';
 
         // Handle enemy attack behavior
-        if (enemy.state === ENEMY_STATE.ATTACK) {
+        if (enemy.state === ENEMY_STATE.ATTACK) {el} COMPLETE!`, canvas.width/2, canvas.height/2);
             if (Math.random() < 0.01 + level * 0.002) { // Increase attack frequency with level
-                fireEnemyBullet(enemy);
-            }
+                fireEnemyBullet(enemy);   setTimeout(() => {
+            }            level++;
         }
 
         // Draw the enemy
         drawEnemy(enemy);
 
         // Remove enemy if it goes offscreen (safety check)
-        if (enemy.y > canvas.height + 50) {
+        if (enemy.y > canvas.height + 50) {ement and firing
             enemies.splice(i, 1);
-        }
-    }
-
-    // Check if all enemies are cleared to transition to the next level
+        }/ Handle player movement
+    }   if (keys['ArrowLeft'] || keys['KeyA']) {
+        player.x -= player.speed;
+    // Check if all enemies are cleared to transition to the next levelplayer.w / 2; // Prevent going offscreen
     if (enemies.length === 0 && allEnemiesInFormation && levelTransition === 0) {
-        levelTransition = 60; // Add a delay before transitioning to the next level
+        levelTransition = 60; // Add a delay before transitioning to the next level keys['KeyD']) {
         setTimeout(() => {
-            level++;
+            level++;th - player.w / 2) player.x = canvas.width - player.w / 2; // Prevent going offscreen
             spawnEnemies();
             levelTransition = 0;
         }, 2000); // 2-second delay before the next level starts
-    }
+    }ooldown <= 0 && player.alive) {
 }
-
-// Function to handle player movement and firing
+       x: player.x,
+// Function to handle player movement and firing            y: player.y - player.h / 2,
 function updatePlayer() {
     // Handle player movement
     if (keys['ArrowLeft'] || keys['KeyA']) {
-        player.x -= player.speed;
-        if (player.x < player.w / 2) player.x = player.w / 2; // Prevent going offscreen
+        player.x -= player.speed;.power === 'double' ? 'double' : 'normal',
+        if (player.x < player.w / 2) player.x = player.w / 2; // Prevent going offscreenplayer'
     }
-    if (keys['ArrowRight'] || keys['KeyD']) {
+    if (keys['ArrowRight'] || keys['KeyD']) {sh(bullet);
         player.x += player.speed;
         if (player.x > canvas.width - player.w / 2) player.x = canvas.width - player.w / 2; // Prevent going offscreen
     }
-
-    // Handle player firing
-    if (keys['Space'] && player.cooldown <= 0 && player.alive) {
+  const dualBullet = { ...bullet, x: player.x - 24 };
+    // Handle player firingBullet);
+    if (keys['Space'] && player.cooldown <= 0 && player.alive) {        }
         const bullet = {
-            x: player.x,
+            x: player.x, = 15; // Cooldown period before next shot
             y: player.y - player.h / 2,
             w: 3,
-            h: 12,
-            speed: 10,
+            h: 12,duce cooldown timer
+            speed: 10,    if (player.cooldown > 0) {
             type: player.power === 'double' ? 'double' : 'normal',
             from: dualShip ? 'dual' : 'player'
-        };
-        bullets.push(bullet);
-
-        // Dual ship fires an additional bullet
-        if (dualShip) {
-            const dualBullet = { ...bullet, x: player.x - 24 };
+        };}        bullets.push(bullet);        // Dual ship fires an additional bullet        if (dualShip) {            const dualBullet = { ...bullet, x: player.x - 24 };
             bullets.push(dualBullet);
         }
 
