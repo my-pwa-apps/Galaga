@@ -63,7 +63,7 @@ let highScore = 0;
 let challengeStage = false;
 let screenShake = 0; // Initialize screen shake variable
 
-let playerInitials = ["_", "_", "_"];
+let playerInitials = ["_", "_", "_", "_", "_"]; // Increased to 5 initials
 let currentInitialIndex = 0;
 let autoShootActive = false; // For touch auto-shoot
 
@@ -1409,7 +1409,7 @@ function drawGameOver() {
     if (isNewHighScore && !player.highScoreSubmitted) {
         // Transition to enter high score state instead of prompt
         state = GAME_STATE.ENTER_HIGH_SCORE;
-        playerInitials = ["_", "_", "_"];
+        playerInitials = ["_", "_", "_", "_", "_"];
         currentInitialIndex = 0;
         // No need to call drawEnterHighScoreScreen here, gameLoop will handle it
         ctx.restore(); // Restore context before early exit
@@ -1470,7 +1470,7 @@ function drawEnterHighScoreScreen() {
     ctx.fillText(initialsDisplay, canvas.width / 2, 320);
 
     // Blinking cursor effect for the current initial
-    if (Math.floor(Date.now() / 500) % 2 === 0 && currentInitialIndex < 3) {
+    if (Math.floor(Date.now() / 500) % 2 === 0 && currentInitialIndex < playerInitials.length) {
         const textWidth = ctx.measureText(playerInitials.slice(0, currentInitialIndex).join(" ")).width;
         const singleCharWidth = ctx.measureText("_").width;
         const cursorX = canvas.width / 2 - ctx.measureText(initialsDisplay).width / 2 + textWidth + (currentInitialIndex > 0 ? ctx.measureText(" ").width * currentInitialIndex : 0) ;
@@ -1501,7 +1501,7 @@ document.addEventListener('keydown', (event) => {
     } else if (state === GAME_STATE.ENTER_HIGH_SCORE) {
         const key = event.key.toUpperCase();
         if (key.length === 1 && key >= 'A' && key <= 'Z') {
-            if (currentInitialIndex < 3) {
+            if (currentInitialIndex < playerInitials.length) {
                 playerInitials[currentInitialIndex] = key;
                 currentInitialIndex++;
             }
@@ -1540,7 +1540,7 @@ function resetGame() {
     player.power = 'normal';
     player.highScoreSubmitted = false; // Reset flag for new game
     
-    playerInitials = ["_", "_", "_"]; // Reset initials
+    playerInitials = ["_", "_", "_", "_", "_"]; // Reset initials to 5 underscores
     currentInitialIndex = 0;         // Reset initial index
     autoShootActive = false;         // Reset auto-shoot
 
@@ -1806,7 +1806,9 @@ function updateBullets() {
                 setTimeout(() => {
                     player.alive = true;
                     player.x = canvas.width / 2;
-                    player.y = canvas.height - 60;
+                    // Adjust player Y position if touch controls are active, similar to resetGame
+                    const buttonAreaHeight = isTouchDevice ? (canvas.height * 0.12 + canvas.height * 0.05) : 0; // buttonHeight + bottomMargin
+                    player.y = canvas.height - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
                     player.shield = true; // Brief invulnerability
                     
                     // Disable shield after a short time
@@ -1939,7 +1941,7 @@ function updateGameplay() {
     // Update player (handles movement and firing input)
     updatePlayer();
 
-    // Update bullets (player and enemy)
+    // // Update bullets (player and enemy)
     updateBullets();
 
     // Update enemies (movement, state changes, firing)
@@ -2598,6 +2600,7 @@ function handleTouch(event) {
                 autoShootActive = !autoShootActive;
                 touchControls.buttons.autoShoot.label = autoShootActive ? "AUTO ON" : "AUTO";
                 // No need to set .pressed for a toggle button in the same way as hold buttons
+                // their state is toggled on tap.
                 break; 
             }
         }
