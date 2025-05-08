@@ -1638,33 +1638,33 @@ function fireEnemyBullet(enemy) {
     if (enemyBullets.length >= 15) return;
     
     // Different bullet properties based on enemy type
-    let bulletSpeed = 5;
+    let bulletSpeed = 150; // Default base speed
     let bulletColor = '#fff';
     let bulletType = 'straight'; // Default bullet type
     
     // Customize bullet based on enemy type
     switch(enemy.type) {
         case 'basic':
-            bulletSpeed = 5;
+            bulletSpeed = 150; // Increased speed
             bulletColor = '#ff0'; // Yellow bullet
             break;
         case 'fast':
-            bulletSpeed = 7;
+            bulletSpeed = 200; // Increased speed
             bulletColor = '#0ff'; // Cyan bullet
             bulletType = 'fast';
             break;
         case 'zigzag':
-            bulletSpeed = 4;
+            bulletSpeed = 120; // Increased vertical speed component
             bulletColor = '#f0f'; // Purple bullet
             bulletType = 'zigzag';
             break;
         case 'tank':
-            bulletSpeed = 4;
+            bulletSpeed = 150; // Increased speed (will be used by split bullets)
             bulletColor = '#f00'; // Red bullet
             bulletType = 'split';
             break;
         default:
-            bulletSpeed = 5;
+            bulletSpeed = 150; // Fallback to a reasonable speed
             bulletColor = '#fff';
     }
     
@@ -1674,7 +1674,7 @@ function fireEnemyBullet(enemy) {
         y: enemy.y + 20,
         w: 4,
         h: 12,
-        speed: bulletSpeed + (level * 0.3), // Speed increases with level
+        speed: bulletSpeed + (level * 10), // Speed increases more significantly with level
         damage: 1,
         type: bulletType,
         from: 'enemy',
@@ -1787,13 +1787,13 @@ function updateBullets() {
             case 'zigzag':
                 // Zig-zag movement pattern
                 bullet.y += bullet.speed * dt; // Use dt
-                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 2; // Wobble might need dt adjustment
+                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 100 * dt; // Horizontal speed of 100px/s scaled by dt
                 break;
             
             case 'split':
-                // Movement based on angle
-                bullet.x += Math.cos(bullet.angle) * bullet.speed * 0.5 * dt; // Use dt
-                bullet.y += Math.sin(bullet.angle) * bullet.speed * 0.5 * dt; // Use dt
+                // Movement based on angle, remove 0.5 multiplier for speed
+                bullet.x += Math.cos(bullet.angle) * bullet.speed * dt; // Use dt
+                bullet.y += Math.sin(bullet.angle) * bullet.speed * dt; // Use dt
                 break;
                 
             default:
