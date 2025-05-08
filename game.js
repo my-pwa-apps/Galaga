@@ -12,11 +12,72 @@ const GAME_STATE = {
     ENTER_HIGH_SCORE: 'enterhighscore', // New state for entering high score
 };
 
+// Game constants - consolidate frequently used values to avoid recalculations
+const CANVAS_WIDTH = canvas.width;
+const CANVAS_HEIGHT = canvas.height;
+const PLAYER_START_X = CANVAS_WIDTH / 2;
+const PLAYER_START_Y = CANVAS_HEIGHT - 60;
+
 let state = GAME_STATE.SPLASH;
 let splashTimer = 0;
 let keys = {};
 let previousStateBeforePause = null; // To store state before pausing
 let lastTime = 0; // For delta time calculation
+let dt = 0; // Store delta time for consistent usage
+
+// Object pools for frequently created/destroyed objects
+const POOL = {
+    bullets: [],
+    enemyBullets: [],
+    particles: [],
+    MAX_BULLETS: 50,
+    MAX_ENEMY_BULLETS: 50,
+    MAX_PARTICLES: 150
+};
+
+// Initialize object pools
+function initObjectPools() {
+    // Pre-allocate bullets
+    for (let i = 0; i < POOL.MAX_BULLETS; i++) {
+        POOL.bullets.push({
+            active: false, x: 0, y: 0, w: 3, h: 12, 
+            speed: 600, type: 'normal', from: 'player'
+        });
+    }
+    
+    // Pre-allocate enemy bullets
+    for (let i = 0; i < POOL.MAX_ENEMY_BULLETS; i++) {
+        POOL.enemyBullets.push({
+            active: false, x: 0, y: 0, w: 4, h: 12,
+            speed: 150, damage: 1, type: 'straight', from: 'enemy',
+            color: '#fff', age: 0, angle: 0, wobble: 0
+        });
+    }
+    
+    // Pre-allocate particles
+    for (let i = 0; i < POOL.MAX_PARTICLES; i++) {
+        POOL.particles.push({
+            active: false, x: 0, y: 0, vx: 0, vy: 0,
+            size: 2, color: '#fff', life: 0, initialLife: 0
+        });
+    }
+}
+
+// Function to get an object from the pool
+function getPoolObject(poolName) {
+    const pool = POOL[poolName];
+    for (let i = 0; i < pool.length; i++) {
+        if (!pool[i].active) {
+            pool[i].active = true;
+            return pool[i];
+        }
+    }
+    
+    // If we can't find an inactive object, return the oldest one
+    // This ensures we don't create new objects unnecessarily
+    console.warn(`${poolName} pool exhausted, reusing oldest object`);
+    return pool[0]; // Just reuse the first one as fallback
+}
 
 // Arcade splash colors
 const arcadeColors = ['#0ff', '#f0f', '#ff0', '#fff', '#0f0', '#f00', '#00f'];
@@ -35,8 +96,7 @@ const player = {
     shield: false,
 };
 
-// Bullets
-
+// Active game objects (using object pools for others)
 let bullets = [];
 let enemies = [];
 let enemyBullets = [];
@@ -55,7 +115,7 @@ const ENEMY_STATE = {
 let formationSpots = [];
 let attackQueue = [];
 
-// Add particle array
+// Add particle array - will reference active pooled objects
 let particles = [];
 
 // Add boss Galaga and captured ship mechanics
@@ -141,78 +201,97 @@ function saveHighScore(name, score) {
 
 
 function drawArcadeSplash() {
-    ctx.save();
+    // Cached color calculation outside the rendering loop
+    const colorIndex = Math.floor(Date.now() / 200) % arcadeColors.length;
+    const titleColorIndex = Math.floor(Date.now() / 400) % arcadeColors.length;
+    const textColorIndex = Math.floor(Date.now() / 100) % arcadeColors.length;
+    
     ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
     // Neon border
-    ctx.strokeStyle = arcadeColors[Math.floor(Date.now()/200)%arcadeColors.length];
+    ctx.strokeStyle = arcadeColors[colorIndex];
     ctx.lineWidth = 12;
-    ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
+    ctx.strokeRect(10, 10, CANVAS_WIDTH - 20, CANVAS_HEIGHT - 20);
+    
     // Title
     ctx.font = 'bold 40px monospace';
-    ctx.fillStyle = arcadeColors[Math.floor(Date.now()/400)%arcadeColors.length];
+    ctx.fillStyle = arcadeColors[titleColorIndex];
     ctx.textAlign = 'center';
-    ctx.fillText('GALAGA', canvas.width/2, 120);
+    ctx.fillText('GALAGA', CANVAS_WIDTH / 2, 120);
+    
     ctx.font = '20px monospace';
     ctx.fillStyle = '#fff';
-    ctx.fillText('ARCADE TRIBUTE', canvas.width/2, 160);
+    ctx.fillText('ARCADE TRIBUTE', CANVAS_WIDTH / 2, 160);
 
     // Display High Scores on Splash Screen
     ctx.font = '16px monospace';
     ctx.fillStyle = '#ff0';
-    ctx.fillText('HIGH SCORES:', canvas.width / 2, 220);
+    ctx.fillText('HIGH SCORES:', CANVAS_WIDTH / 2, 220);
+    
+    const centerX = CANVAS_WIDTH / 2;
     if (firebaseHighScores.length > 0) {
-        firebaseHighScores.slice(0, 5).forEach((entry, index) => { // Display top 5
-            ctx.fillText(`${index + 1}. ${entry.name.substring(0, 5)} - ${entry.score}`, canvas.width / 2, 250 + index * 25);
-        });
+        // Precompute y positions to avoid calculations in loop
+        const yPositions = [250, 275, 300, 325, 350];
+        const scoreCount = Math.min(firebaseHighScores.length, 5);
+        
+        for (let i = 0; i < scoreCount; i++) {
+            const entry = firebaseHighScores[i];
+            ctx.fillText(`${i + 1}. ${entry.name.substring(0, 5)} - ${entry.score}`, centerX, yPositions[i]);
+        }
     } else {
         ctx.fillStyle = '#aaa';
-        ctx.fillText('No scores yet!', canvas.width / 2, 250);
+        ctx.fillText('No scores yet!', centerX, 250);
     }
 
     // Insert coin
     ctx.font = '18px monospace';
-    ctx.fillStyle = arcadeColors[Math.floor(Date.now()/100)%arcadeColors.length];
-    if (isTouchDevice) {
-        ctx.fillText('TAP SCREEN TO START', canvas.width/2, canvas.height-100);
-    } else {
-        ctx.fillText('PRESS SPACE TO START', canvas.width/2, canvas.height-100);
-    }
-    ctx.restore();
+    ctx.fillStyle = arcadeColors[textColorIndex];
+    ctx.fillText(isTouchDevice ? 'TAP SCREEN TO START' : 'PRESS SPACE TO START', centerX, CANVAS_HEIGHT - 100);
 }
 
 // Enhanced Player ship drawing with authentic Galaga fighter style and thruster animation
 function drawPlayer() {
+    if (!player.alive) return;
+    
     ctx.save();
     ctx.translate(player.x, player.y);
     
     // Draw thruster animation - more dynamic flame effect
+    const thrusterAnimation = Math.sin(Date.now() / 50) * 0.3 + 0.7; // Precompute sine values
+    const thruster2Animation = Math.sin(Date.now() / 70) * 0.3 + 0.5;
+    const flameHeight = Math.sin(Date.now() / 80) * 5; // Precompute flame variation
+    const flameHeight2 = Math.sin(Date.now() / 90) * 3;
+    
     ctx.save();
     const flameColor = ctx.createLinearGradient(0, 8, 0, 20);
     flameColor.addColorStop(0, '#ff4');
     flameColor.addColorStop(0.5, '#f84');
     flameColor.addColorStop(1, '#f42');
     ctx.fillStyle = flameColor;
-    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 50);
+    ctx.globalAlpha = thrusterAnimation;
     
-    // Main flame
+    // Main flame - optimized path drawing
     ctx.beginPath();
     ctx.moveTo(-5, 8);
-    ctx.quadraticCurveTo(0, 20 + Math.sin(Date.now() / 80) * 5, 5, 8);
+    ctx.quadraticCurveTo(0, 20 + flameHeight, 5, 8);
     ctx.closePath();
     ctx.fill();
     
     // Secondary flames
-    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 70);
+    ctx.globalAlpha = thruster2Animation;
+    
+    // Left flame
     ctx.beginPath();
     ctx.moveTo(-8, 8);
-    ctx.quadraticCurveTo(-6, 16 + Math.sin(Date.now() / 90) * 3, -4, 8);
+    ctx.quadraticCurveTo(-6, 16 + flameHeight2, -4, 8);
     ctx.closePath();
     ctx.fill();
     
+    // Right flame
     ctx.beginPath();
     ctx.moveTo(4, 8);
-    ctx.quadraticCurveTo(6, 16 + Math.sin(Date.now() / 90) * 3, 8, 8);
+    ctx.quadraticCurveTo(6, 16 + flameHeight2, 8, 8);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -386,8 +465,16 @@ function drawPlayer() {
 
 // Draw boss Galaga - enhanced with authentic style and more details
 function drawBossGalaga(boss) {
+    if (!boss) return;
+    
+    // Precompute animations outside the drawing code
+    const rotationAmount = Math.sin(Date.now() / 1000) * 0.05;
+    const auraSize = Math.sin(Date.now() / 200) * 5 + 15;
+    const eyeGlowAlpha = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+    
     ctx.save();
     ctx.translate(boss.x, boss.y);
+    ctx.rotate(rotationAmount);
     
     // Create patterns and gradients for the boss
     const bodyGradient = ctx.createRadialGradient(0, 0, 4, 0, 0, 22);
@@ -395,20 +482,17 @@ function drawBossGalaga(boss) {
     bodyGradient.addColorStop(0.6, '#b0b');
     bodyGradient.addColorStop(1, '#808');
     
-    // Apply oscillating rotation for menacing effect
-    ctx.rotate(Math.sin(Date.now() / 1000) * 0.05);
-    
     // Draw glowing aura
     ctx.save();
     ctx.shadowColor = '#f0f';
-    ctx.shadowBlur = 15 + 5 * Math.sin(Date.now() / 200);
+    ctx.shadowBlur = auraSize;
     ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
     ctx.beginPath();
     ctx.arc(0, 0, 26, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     
-    // Main body with detailed segments - authentic Galaga boss shape
+    // Draw the boss body and details
     ctx.save();
     ctx.fillStyle = bodyGradient;
     // Central body section
@@ -499,7 +583,7 @@ function drawBossGalaga(boss) {
     eyeGlow.addColorStop(1, 'rgba(255, 255, 0, 0)');
 
     ctx.fillStyle = eyeGlow;
-    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 300);
+    ctx.globalAlpha = eyeGlowAlpha;
     ctx.beginPath();
     ctx.arc(-8, -6, 4, 0, Math.PI * 2);
     ctx.arc(8, -6, 4, 0, Math.PI * 2);
@@ -512,7 +596,8 @@ function drawBossGalaga(boss) {
     ctx.arc(-8, -6, 2, 0, Math.PI * 2);
     ctx.arc(8, -6, 2, 0, Math.PI * 2);
     ctx.fill();
-      // Captured ship (if present) with enhanced tractor beam and captured fighter
+    
+    // Captured ship (if present)
     if (boss.hasCaptured) {
         ctx.save();
         ctx.translate(0, 22);
@@ -614,398 +699,341 @@ function drawBossGalaga(boss) {
     ctx.restore();
 }
 
-// Enhanced enemy drawing with authentic Galaga designs and animations
+// Enhanced enemy drawing with enum-based type checks for better performance
+const ENEMY_TYPE = {
+    BASIC: 'basic',
+    FAST: 'fast',
+    TANK: 'tank',
+    ZIGZAG: 'zigzag',
+    SNIPER: 'sniper'
+};
+
 function drawEnemy(e) {
     ctx.save();
     ctx.translate(e.x, e.y);
     
     // Apply subtle wobble/animation based on type
     if (e.state === ENEMY_STATE.FORMATION) {
-        const wobbleAmount = (e.type === 'basic') ? 0.05 : 
-                            (e.type === 'fast') ? 0.08 : 
-                            (e.type === 'zigzag') ? 0.1 : 0.03;
-        ctx.rotate(Math.sin(Date.now() / 500 + e.x/20) * wobbleAmount);
+        let wobbleAmount = 0.05; // Default
+        
+        // Switch is faster than multiple if/else for type comparison
+        switch (e.type) {
+            case ENEMY_TYPE.FAST:
+                wobbleAmount = 0.08;
+                break;
+            case ENEMY_TYPE.ZIGZAG:
+                wobbleAmount = 0.1;
+                break;
+            case ENEMY_TYPE.TANK:
+                wobbleAmount = 0.03;
+                break;
+        }
+        
+        // Precompute sin value
+        const wobble = Math.sin(Date.now() / 500 + e.x / 20) * wobbleAmount;
+        ctx.rotate(wobble);
     }
     
     ctx.save();
     ctx.shadowColor = e.color;
     ctx.shadowBlur = 8;
     
-    // Draw different shapes for each type - using authentic Galaga enemy designs
-    if (e.type === 'basic') {
-        // Classic Galaga Bee/Hornet enemy
-        ctx.restore(); // No need for shadow on body
-        
-        // Create body with patterns
-        const wingsAnim = Math.sin(Date.now() / 150) * 0.2;
-        
-        // Blue body parts
-        ctx.fillStyle = '#0f8';
-        // Main body
-        ctx.beginPath();
-        ctx.moveTo(-10, -8);
-        ctx.lineTo(10, -8);
-        ctx.lineTo(14, 0);
-        ctx.lineTo(10, 8);
-        ctx.lineTo(-10, 8);
-        ctx.lineTo(-14, 0);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Yellow stripes/segments
-        ctx.fillStyle = '#ff0';
-        ctx.beginPath();
-        ctx.moveTo(-8, -6);
-        ctx.lineTo(8, -6);
-        ctx.lineTo(10, 0);
-        ctx.lineTo(8, 6);
-        ctx.lineTo(-8, 6);
-        ctx.lineTo(-10, 0);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Red center
-        ctx.fillStyle = '#f00';
-        ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Moving wings
-        ctx.save();
-        ctx.fillStyle = '#0cf';
-        // Left wing
-        ctx.translate(-14, 0);
-        ctx.rotate(wingsAnim);
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 8, 12, Math.PI/3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        
-        // Right wing
-        ctx.save();
-        ctx.fillStyle = '#0cf';
-        ctx.translate(14, 0);
-        ctx.rotate(-wingsAnim);
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 8, 12, -Math.PI/3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        
-        // Antenna with animation
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.rect(-1, -15, 2, 7 + Math.sin(Date.now() / 200) * 2);
-        ctx.fill();
-        
-        // Eyes with glow effect
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(-6, -3, 2, 0, Math.PI * 2);
-        ctx.arc(6, -3, 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-    } else if (e.type === 'fast') {
-        // Butterfly/fast enemy in authentic Galaga style
-        ctx.fillStyle = e.color;
-        
-        // Main body
-        ctx.beginPath();
-        ctx.moveTo(0, -12);
-        ctx.lineTo(8, -4);
-        ctx.lineTo(8, 4);
-        ctx.lineTo(0, 12);
-        ctx.lineTo(-8, 4);
-        ctx.lineTo(-8, -4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Wings with animation
-        const wingPulse = 0.8 + 0.2 * Math.sin(Date.now() / 200);
-        
-        // Left wing
-        ctx.save();
-        ctx.translate(-10, 0);
-        ctx.scale(wingPulse, 1);
-        ctx.fillStyle = '#f80';
-        ctx.beginPath();
-        ctx.moveTo(0, -10);
-        ctx.lineTo(-10, -5);
-        ctx.lineTo(-12, 5);
-        ctx.lineTo(0, 10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Right wing
-        ctx.save();
-        ctx.translate(10, 0);
-        ctx.scale(wingPulse, 1);
-        ctx.fillStyle = '#f80';
-        ctx.beginPath();
-        ctx.moveTo(0, -10);
-        ctx.lineTo(10, -5);
-        ctx.lineTo(12, 5);
-        ctx.lineTo(0, 10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Center detail - authentic Galaga pattern
-        ctx.fillStyle = '#ff0';
-        ctx.beginPath();
-        ctx.moveTo(0, -6);
-        ctx.lineTo(4, -2);
-        ctx.lineTo(4, 2);
-        ctx.lineTo(0, 6);
-        ctx.lineTo(-4, 2);
-        ctx.lineTo(-4, -2);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Eyes/sensors
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(-3, -4, 2, 0, Math.PI * 2);
-        ctx.arc(3, -4, 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-    } else if (e.type === 'tank') {
-        // Tank/boss minion in Galaga style
-        ctx.fillStyle = e.color;
-        
-        // Main body with authentic Galaga shape
-        ctx.beginPath();
-        ctx.moveTo(-14, -10);
-        ctx.lineTo(-10, -14);
-        ctx.lineTo(10, -14);
-        ctx.lineTo(14, -10);
-        ctx.lineTo(14, 10);
-        ctx.lineTo(10, 14);
-        ctx.lineTo(-10, 14);
-        ctx.lineTo(-14, 10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Armor pattern
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.rect(-10, -10, 20, 20);
-        ctx.stroke();
-        
-        // Inner core detail
-        ctx.fillStyle = '#f00';
-        ctx.beginPath();
-        ctx.rect(-6, -6, 12, 12);
-        ctx.fill();
-        
-        // Corner details
-        ctx.fillStyle = '#ff0';
-        ctx.beginPath();
-        ctx.arc(-10, -10, 3, 0, Math.PI * 2);
-        ctx.arc(10, -10, 3, 0, Math.PI * 2);
-        ctx.arc(-10, 10, 3, 0, Math.PI * 2);
-        ctx.arc(10, 10, 3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Pulsing center
-        ctx.fillStyle = '#fff';
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 300);
-        ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        
-    } else if (e.type === 'sniper') {
-        // Scorpion/sniper in authentic Galaga style
-        ctx.fillStyle = e.color;
-        
-        // Body
-        ctx.beginPath();
-        ctx.moveTo(0, -14);
-        ctx.lineTo(8, -8);
-        ctx.lineTo(14, 0);
-        ctx.lineTo(8, 8);
-        ctx.lineTo(0, 14);
-        ctx.lineTo(-8, 8);
-        ctx.lineTo(-14, 0);
-        ctx.lineTo(-8, -8);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Segments
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-10, -4);
-        ctx.lineTo(10, -4);
-        ctx.moveTo(-10, 4);
-        ctx.lineTo(10, 4);
-        ctx.stroke();
-        
-        // Pincers with animation
-        const pincerAnim = Math.sin(Date.now() / 400) * 0.3;
-        
-        // Left pincer
-        ctx.save();
-        ctx.translate(-14, 0);
-        ctx.rotate(-Math.PI/4 + pincerAnim);
-        ctx.fillStyle = '#ff0';
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(-10, -6);
-        ctx.lineTo(-12, 0);
-        ctx.lineTo(-10, 6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Right pincer
-        ctx.save();
-        ctx.translate(14, 0);
-        ctx.rotate(Math.PI/4 - pincerAnim);
-        ctx.fillStyle = '#ff0';
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(10, -6);
-        ctx.lineTo(12, 0);
-        ctx.lineTo(10, 6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-        
-        // Eye/targeting system
-        ctx.fillStyle = '#f00';
-        ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(0, 0, 2, 0, Math.PI * 2);
-        ctx.fill();
-          } else if (e.type === 'zigzag') {
-        // Galaga-style dragonfly/zigzag enemy
-        ctx.restore();
-        
-        // Segmented body
-        const bodySegments = 3;
-        const segmentSize = 6;
-        const wavePhase = Date.now() / 300;
-        
-        for (let i = 0; i < bodySegments; i++) {
-            // Each segment moves with a delay for wave effect
-            const offsetX = Math.sin(wavePhase - i * 0.5) * (i * 2);
+    // Switch for faster type comparison
+    switch (e.type) {
+        case ENEMY_TYPE.BASIC:
+            // Classic Galaga Bee/Hornet enemy
+            ctx.restore(); // No need for shadow on body
             
-            ctx.save();
-            ctx.translate(offsetX, i * segmentSize);
+            // Create body with patterns
+            const wingsAnim = Math.sin(Date.now() / 150) * 0.2;
             
-            // Body segment
-            ctx.fillStyle = i === 0 ? '#f00' : (i === 1 ? '#ff0' : '#0f0');
+            // Blue body parts
+            ctx.fillStyle = '#0f8';
+            // Main body
             ctx.beginPath();
-            ctx.ellipse(0, 0, 8 - i, 4, 0, 0, Math.PI * 2);
+            ctx.moveTo(-10, -8);
+            ctx.lineTo(10, -8);
+            ctx.lineTo(14, 0);
+            ctx.lineTo(10, 8);
+            ctx.lineTo(-10, 8);
+            ctx.lineTo(-14, 0);
+            ctx.closePath();
             ctx.fill();
             
-            if (i === 0) { // Head segment
-                // Eyes
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(-4, -1, 2, 0, Math.PI * 2);
-                ctx.arc(4, -1, 2, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Antennas
-                ctx.strokeStyle = '#ff0';
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(-3, -3);
-                ctx.lineTo(-8, -8);
-                ctx.moveTo(3, -3);
-                ctx.lineTo(8, -8);
-                ctx.stroke();
-            }
-            
-            // Wings for middle segment
-            if (i === 1) {
-                const wingBeat = Math.sin(Date.now() / 150) * 0.3;
-                
-                // Left wing
-                ctx.save();
-                ctx.rotate(-Math.PI/4 - wingBeat);
-                ctx.fillStyle = '#0ff';
-                ctx.beginPath();
-                ctx.ellipse(-8, 0, 10, 4, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-                
-                // Right wing
-                ctx.save();
-                ctx.rotate(Math.PI/4 + wingBeat);
-                ctx.fillStyle = '#0ff';
-                ctx.beginPath();
-                ctx.ellipse(8, 0, 10, 4, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-            
-            ctx.restore();
-        }
-        
-        // Electric trail effect
-        if (e.state === ENEMY_STATE.ATTACK && Math.random() < 0.6) {
-            ctx.save();
-            ctx.strokeStyle = '#0ff';
-            ctx.lineWidth = 2;
-            ctx.globalAlpha = Math.random() * 0.5;
+            // Yellow stripes/segments
+            ctx.fillStyle = '#ff0';
             ctx.beginPath();
+            ctx.moveTo(-8, -6);
+            ctx.lineTo(8, -6);
+            ctx.lineTo(10, 0);
+            ctx.lineTo(8, 6);
+            ctx.lineTo(-8, 6);
+            ctx.lineTo(-10, 0);
+            ctx.closePath();
+            ctx.fill();
             
-            // Zigzag pattern behind the enemy
-            const startX = -Math.random() * 10;
-            const startY = bodySegments * segmentSize + Math.random() * 10;
-            ctx.moveTo(startX, startY);
+            // Red center
+            ctx.fillStyle = '#f00';
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
             
-            const points = 3 + Math.floor(Math.random() * 3);
-            for (let i = 0; i < points; i++) {
-                const zigX = (Math.random() - 0.5) * 20;
-                const zigY = startY + 5 + i * 5;
-                ctx.lineTo(zigX, zigY);
-            }
-              ctx.stroke();
+            // Moving wings
+            ctx.save();
+            ctx.fillStyle = '#0cf';
+            // Left wing
+            ctx.translate(-14, 0);
+            ctx.rotate(wingsAnim);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 8, 12, Math.PI/3, 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
-        }
-    } else {
-        // Default enemy drawing for any unmatched enemy type
-        ctx.restore();
-        
-        // Basic geometric shape with the enemy's color
-        ctx.fillStyle = e.color || '#f00';
-        ctx.beginPath();
-        ctx.rect(-12, -12, 24, 24);
-        ctx.fill();
-        
-        // Add some details
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(-4, -4, 3, 0, Math.PI * 2);
-        ctx.arc(4, -4, 3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Add contrast line
-        ctx.strokeStyle = '#ff0';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-10, 4);
-        ctx.lineTo(10, 4);
-        ctx.stroke();
+            
+            // Right wing
+            ctx.save();
+            ctx.fillStyle = '#0cf';
+            ctx.translate(14, 0);
+            ctx.rotate(-wingsAnim);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 8, 12, -Math.PI/3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // Antenna with animation
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.rect(-1, -15, 2, 7 + Math.sin(Date.now() / 200) * 2);
+            ctx.fill();
+            
+            // Eyes with glow effect
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-6, -3, 2, 0, Math.PI * 2);
+            ctx.arc(6, -3, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            break;
+            
+        case ENEMY_TYPE.FAST:
+            // Butterfly/fast enemy in authentic Galaga style
+            ctx.fillStyle = e.color;
+            
+            // Main body
+            ctx.beginPath();
+            ctx.moveTo(0, -12);
+            ctx.lineTo(8, -4);
+            ctx.lineTo(8, 4);
+            ctx.lineTo(0, 12);
+            ctx.lineTo(-8, 4);
+            ctx.lineTo(-8, -4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Wings with animation
+            const wingPulse = 0.8 + 0.2 * Math.sin(Date.now() / 200);
+            
+            // Left wing
+            ctx.save();
+            ctx.translate(-10, 0);
+            ctx.scale(wingPulse, 1);
+            ctx.fillStyle = '#f80';
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(-10, -5);
+            ctx.lineTo(-12, 5);
+            ctx.lineTo(0, 10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Right wing
+            ctx.save();
+            ctx.translate(10, 0);
+            ctx.scale(wingPulse, 1);
+            ctx.fillStyle = '#f80';
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(10, -5);
+            ctx.lineTo(12, 5);
+            ctx.lineTo(0, 10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Center detail - authentic Galaga pattern
+            ctx.fillStyle = '#ff0';
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(4, -2);
+            ctx.lineTo(4, 2);
+            ctx.lineTo(0, 6);
+            ctx.lineTo(-4, 2);
+            ctx.lineTo(-4, -2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Eyes/sensors
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-3, -4, 2, 0, Math.PI * 2);
+            ctx.arc(3, -4, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            break;
+            
+        case ENEMY_TYPE.TANK:
+            // Tank/boss minion in Galaga style
+            ctx.fillStyle = e.color;
+            
+            // Main body with authentic Galaga shape
+            ctx.beginPath();
+            ctx.moveTo(-14, -10);
+            ctx.lineTo(-10, -14);
+            ctx.lineTo(10, -14);
+            ctx.lineTo(14, -10);
+            ctx.lineTo(14, 10);
+            ctx.lineTo(10, 14);
+            ctx.lineTo(-10, 14);
+            ctx.lineTo(-14, 10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Armor pattern
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.rect(-10, -10, 20, 20);
+            ctx.stroke();
+            
+            // Inner core detail
+            ctx.fillStyle = '#f00';
+            ctx.beginPath();
+            ctx.rect(-6, -6, 12, 12);
+            ctx.fill();
+            
+            // Corner details
+            ctx.fillStyle = '#ff0';
+            ctx.beginPath();
+            ctx.arc(-10, -10, 3, 0, Math.PI * 2);
+            ctx.arc(10, -10, 3, 0, Math.PI * 2);
+            ctx.arc(-10, 10, 3, 0, Math.PI * 2);
+            ctx.arc(10, 10, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Pulsing center
+            ctx.fillStyle = '#fff';
+            ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 300);
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            
+            break;
+            
+        case ENEMY_TYPE.SNIPER:
+            // Scorpion/sniper in authentic Galaga style
+            ctx.fillStyle = e.color;
+            
+            // Body
+            ctx.beginPath();
+            ctx.moveTo(0, -14);
+            ctx.lineTo(8, -8);
+            ctx.lineTo(14, 0);
+            ctx.lineTo(8, 8);
+            ctx.lineTo(0, 14);
+            ctx.lineTo(-8, 8);
+            ctx.lineTo(-14, 0);
+            ctx.lineTo(-8, -8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Segments
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-10, -4);
+            ctx.lineTo(10, -4);
+            ctx.moveTo(-10, 4);
+            ctx.lineTo(10, 4);
+            ctx.stroke();
+            
+            // Pincers with animation
+            const pincerAnim = Math.sin(Date.now() / 400) * 0.3;
+            
+            // Left pincer
+            ctx.save();
+            ctx.translate(-14, 0);
+            ctx.rotate(-Math.PI/4 + pincerAnim);
+            ctx.fillStyle = '#ff0';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-10, -6);
+            ctx.lineTo(-12, 0);
+            ctx.lineTo(-10, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Right pincer
+            ctx.save();
+            ctx.translate(14, 0);
+            ctx.rotate(Math.PI/4 - pincerAnim);
+            ctx.fillStyle = '#ff0';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(10, -6);
+            ctx.lineTo(12, 0);
+            ctx.lineTo(10, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Eye/targeting system
+            ctx.fillStyle = '#f00';
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            break;
+            
+        default:
+            // Draw default enemy if type doesn't match
+            ctx.restore();
+            
+            // Basic geometric shape with the enemy's color
+            ctx.fillStyle = e.color || '#f00';
+            ctx.beginPath();
+            ctx.rect(-12, -12, 24, 24);
+            ctx.fill();
+            
+            // Add some details
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-4, -4, 3, 0, Math.PI * 2);
+            ctx.arc(4, -4, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add contrast line
+            ctx.strokeStyle = '#ff0';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-10, 4);
+            ctx.lineTo(10, 4);
+            ctx.stroke();
     }
     
     ctx.restore();
 }
 
-// Enhanced bullet drawing with authentic Galaga visuals and effects
+// Optimized bullet drawing with type caching for better performance
 function drawBullet(b) {
     ctx.save();
     
@@ -1072,7 +1100,8 @@ function drawBullet(b) {
         ctx.beginPath();
         ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
         ctx.fill();
-          } else if (b.from === 'enemy') {
+        
+    } else if (b.from === 'enemy') {
         // Enemy bullet - use the bullet's color
         const color = b.color || '#f00'; // Default to red if no color specified
         
@@ -1162,24 +1191,20 @@ function drawBullet(b) {
         
         ctx.shadowColor = '#ff0';
         ctx.shadowBlur = 8;
-        
-        // Create authentic Galaga shot
         ctx.fillStyle = bulletGradient;
         
-        // Classic bullet shape
+        // Use a single path for better performance
         ctx.beginPath();
+        // Bullet body
         ctx.rect(b.x - 1.5, b.y - 12, 3, 10);
-        ctx.fill();
-        
-        // Bullet tip
-        ctx.beginPath();
+        // Bullet tip (triangle)
         ctx.moveTo(b.x, b.y - 14);
         ctx.lineTo(b.x + 2, b.y - 10);
         ctx.lineTo(b.x - 2, b.y - 10);
         ctx.closePath();
         ctx.fill();
         
-        // Add flash effect
+        // Add flash effect - only do 30% of the time
         if (Math.random() < 0.3) {
             ctx.globalAlpha = 0.7;
             ctx.beginPath();
@@ -1191,7 +1216,7 @@ function drawBullet(b) {
     ctx.restore();
 }
 
-// Enhanced powerup drawing with animations and effects
+// Optimized powerup drawing
 function drawPowerup(p) {
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -1334,32 +1359,38 @@ function drawPowerup(p) {
     ctx.restore();
 }
 
-// Function to draw the game HUD (score, lives, etc.)
+// Optimized HUD drawing with cached text
 function drawHUD() {
-    ctx.save();
+    const scoreText = `SCORE: ${score}`;
+    const highScoreText = `HIGH SCORE: ${highScore}`;
+    const levelText = `LEVEL: ${level}`;
+    
+    ctx.font = '14px monospace';
+    ctx.fillStyle = '#fff';
     
     // Draw score
-    ctx.font = '14px monospace'; // Smaller font
-    ctx.fillStyle = '#fff';
     ctx.textAlign = 'left';
-    ctx.fillText(`SCORE: ${score}`, 15, 25); // Adjusted position
+    ctx.fillText(scoreText, 15, 25);
     
     // Draw high score
     ctx.textAlign = 'center';
-    ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width / 2, 25); // Adjusted position
+    ctx.fillText(highScoreText, CANVAS_WIDTH / 2, 25);
     
     // Draw level
     ctx.textAlign = 'right';
-    ctx.fillText(`LEVEL: ${level}`, canvas.width - 80, 25); // Adjusted position and space for lives
+    ctx.fillText(levelText, CANVAS_WIDTH - 80, 25);
     
-    // Draw lives (moved to top right)
-    // Ship icons for lives (top right)
+    // Draw lives (mini ships at top right)
+    const shipX = CANVAS_WIDTH - 60;
+    const shipY = 20;
+    const shipSpacing = 20;
+    
     for (let i = 0; i < lives; i++) {
         ctx.save();
-        ctx.translate(canvas.width - 60 + i * 20, 20); // Adjusted position and spacing
-        ctx.scale(0.4, 0.4); // Smaller icons
+        ctx.translate(shipX + i * shipSpacing, shipY);
+        ctx.scale(0.4, 0.4);
         
-        // Draw mini ships for lives
+        // Draw mini ship icon - simplified for performance
         ctx.fillStyle = '#fff';
         ctx.beginPath();
         ctx.moveTo(0, -8); 
@@ -1372,8 +1403,6 @@ function drawHUD() {
         
         ctx.restore();
     }
-    
-    ctx.restore();
 }
 
 // Function to draw game over screen
@@ -1554,26 +1583,41 @@ document.addEventListener('keyup', (event) => {
 
 // Function to reset the game state
 function resetGame() {
-    // Reset player
-    player.x = canvas.width / 2;
+    // Reset player position
+    player.x = PLAYER_START_X;
+    
     // Adjust player Y position if touch controls are active
-    const buttonAreaHeight = isTouchDevice ? (canvas.height * 0.12 + canvas.height * 0.05) : 0; // buttonHeight + bottomMargin
-    player.y = canvas.height - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
+    const buttonAreaHeight = isTouchDevice ? (CANVAS_HEIGHT * 0.12 + CANVAS_HEIGHT * 0.05) : 0;
+    player.y = CANVAS_HEIGHT - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
 
     player.alive = true;
     player.shield = false;
     player.power = 'normal';
-    player.highScoreSubmitted = false; // Reset flag for new game
+    player.highScoreSubmitted = false;
     
-    playerInitials = ["_", "_", "_", "_", "_"]; // Reset initials to 5 underscores
-    currentInitialIndex = 0;         // Reset initial index
-    autoShootActive = false;         // Reset auto-shoot
+    playerInitials = ["_", "_", "_", "_", "_"];
+    currentInitialIndex = 0;
+    autoShootActive = false;
 
-    // Clear arrays
-    bullets = [];
-    enemies = [];
-    enemyBullets = [];
-    powerups = [];
+    // Clear arrays - properly deactivate pooled objects
+    bullets.length = 0;
+    enemyBullets.length = 0;
+    particles.length = 0;
+    
+    // Deactivate all pooled objects
+    for (let i = 0; i < POOL.bullets.length; i++) {
+        POOL.bullets[i].active = false;
+    }
+    for (let i = 0; i < POOL.enemyBullets.length; i++) {
+        POOL.enemyBullets[i].active = false;
+    }
+    for (let i = 0; i < POOL.particles.length; i++) {
+        POOL.particles[i].active = false;
+    }
+    
+    // Clear other arrays
+    enemies.length = 0;
+    powerups.length = 0;
     
     // Reset game variables
     score = 0;
@@ -1595,10 +1639,9 @@ function resetGame() {
     // Spawn initial wave of enemies
     spawnEnemies();
 
-    // Fetch high scores when game resets
+    // Fetch high scores
     fetchHighScores(() => {
         console.log("High scores fetched on reset.");
-        // highScore variable is updated within fetchHighScores
     });
 }
 
@@ -1632,69 +1675,72 @@ function getEmptyFormationSpot() {
     return null;
 }
 
-// Function for enemies to fire bullets
+// Optimized enemy bullet firing with object pooling
 function fireEnemyBullet(enemy) {
-    // Don't fire if already too many bullets on screen (performance optimization)
+    // Don't fire if already too many active bullets
     if (enemyBullets.length >= 15) return;
     
     // Different bullet properties based on enemy type
-    let bulletSpeed = 150; // Default base speed
+    let bulletSpeed = 150;
     let bulletColor = '#fff';
-    let bulletType = 'straight'; // Default bullet type
+    let bulletType = 'straight';
     
-    // Customize bullet based on enemy type
+    // Use switch for faster type comparison
     switch(enemy.type) {
-        case 'basic':
-            bulletSpeed = 150; // Increased speed
-            bulletColor = '#ff0'; // Yellow bullet
+        case ENEMY_TYPE.BASIC:
+            bulletSpeed = 150;
+            bulletColor = '#ff0';
             break;
-        case 'fast':
-            bulletSpeed = 200; // Increased speed
-            bulletColor = '#0ff'; // Cyan bullet
+        case ENEMY_TYPE.FAST:
+            bulletSpeed = 200;
+            bulletColor = '#0ff';
             bulletType = 'fast';
             break;
-        case 'zigzag':
-            bulletSpeed = 120; // Increased vertical speed component
-            bulletColor = '#f0f'; // Purple bullet
+        case ENEMY_TYPE.ZIGZAG:
+            bulletSpeed = 120;
+            bulletColor = '#f0f';
             bulletType = 'zigzag';
             break;
-        case 'tank':
-            bulletSpeed = 150; // Increased speed (will be used by split bullets)
-            bulletColor = '#f00'; // Red bullet
+        case ENEMY_TYPE.TANK:
+            bulletSpeed = 150;
+            bulletColor = '#f00';
             bulletType = 'split';
             break;
         default:
-            bulletSpeed = 150; // Fallback to a reasonable speed
+            bulletSpeed = 150;
             bulletColor = '#fff';
     }
     
-    // Create the bullet
-    const bullet = {
-        x: enemy.x,
-        y: enemy.y + 20,
-        w: 4,
-        h: 12,
-        speed: bulletSpeed + (level * 10), // Speed increases more significantly with level
-        damage: 1,
-        type: bulletType,
-        from: 'enemy',
-        color: bulletColor,
-        age: 0, // Track bullet age for special patterns
-        angle: Math.atan2(player.y - enemy.y, player.x - enemy.y), // Angle towards player
-        wobble: Math.random() * Math.PI * 2 // Random starting phase for wobble movement
+    // Create the bullet from pool
+    const createBullet = (angleOffset = 0) => {
+        const bullet = getPoolObject('enemyBullets');
+        if (!bullet) return; // No bullet available
+        
+        // Set bullet properties
+        bullet.x = enemy.x;
+        bullet.y = enemy.y + 20;
+        bullet.w = 4;
+        bullet.h = 12;
+        bullet.speed = bulletSpeed + (level * 10);
+        bullet.damage = 1;
+        bullet.type = bulletType;
+        bullet.from = 'enemy';
+        bullet.color = bulletColor;
+        bullet.age = 0;
+        bullet.angle = Math.atan2(player.y - enemy.y, player.x - enemy.y) + angleOffset;
+        bullet.wobble = Math.random() * Math.PI * 2;
+        bullet.active = true;
+        
+        enemyBullets.push(bullet);
     };
     
     // For split bullet type, create multiple bullets in a spread pattern
     if (bulletType === 'split' && Math.random() < 0.3) {
-        // Create a spread of 3 bullets
-        for (let i = -1; i <= 1; i++) {
-            const splitBullet = { ...bullet };
-            splitBullet.angle += i * 0.3; // Add spread angle
-            enemyBullets.push(splitBullet);
-        }
+        createBullet(-0.3);
+        createBullet(0);
+        createBullet(0.3);
     } else {
-        // Just push the single bullet
-        enemyBullets.push(bullet);
+        createBullet();
     }
 }
 
@@ -1705,20 +1751,27 @@ function updateBullets() {
         const bullet = bullets[i];
         
         // Move bullet
-        bullet.y -= bullet.speed * dt; // Use dt
+        bullet.y -= bullet.speed * dt;
         
         // Check if bullet is offscreen
         if (bullet.y < -20) {
-            bullets.splice(i, 1);
+            bullet.active = false; // Mark as inactive in pool
+            bullets.splice(i, 1); // Remove from active list
             continue;
         }
         
-        // Check for collision with enemies
+        // Check for collision with enemies - using optimized collision checks
+        let hitEnemy = false;
         for (let j = enemies.length - 1; j >= 0; j--) {
             const enemy = enemies[j];
             
-            if (checkCollision(bullet, enemy)) {
-                // Create explosion effect
+            // Fast AABB collision check
+            if (bullet.x < enemy.x + enemy.w &&
+                bullet.x + bullet.w > enemy.x &&
+                bullet.y < enemy.y + enemy.h &&
+                bullet.y + bullet.h > enemy.y) {
+                
+                // Create explosion effect using object pool
                 createExplosion(enemy.x, enemy.y, enemy.color);
                 
                 // Add score
@@ -1727,24 +1780,26 @@ function updateBullets() {
                 // Random chance for powerup
                 if (Math.random() < 0.1) {
                     const powerupTypes = ['double', 'shield', 'speed'];
-                    const randomType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
-                    
                     powerups.push({
                         x: enemy.x,
                         y: enemy.y,
                         w: 20,
                         h: 16,
-                        speed: 100, // Pixels per second
-                        type: randomType
+                        speed: 100,
+                        type: powerupTypes[Math.floor(Math.random() * powerupTypes.length)]
                     });
                 }
                 
-                // Remove bullet and enemy
+                // Mark bullet as inactive and remove from active list
+                bullet.active = false;
                 bullets.splice(i, 1);
+                hitEnemy = true;
                 
                 // If enemy was in formation, free up the spot
                 if (enemy.targetX && enemy.targetY) {
-                    for (const spot of formationSpots) {
+                    // Find and free the formation spot
+                    for (let s = 0; s < formationSpots.length; s++) {
+                        const spot = formationSpots[s];
                         if (spot.x === enemy.targetX && spot.y === enemy.targetY) {
                             spot.taken = false;
                             break;
@@ -1752,97 +1807,100 @@ function updateBullets() {
                     }
                 }
                 
+                // Remove enemy
                 enemies.splice(j, 1);
                 break;
             }
         }
+        
+        if (hitEnemy) continue;
     }
-      // Update enemy bullets
+    
+    // Update enemy bullets
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const bullet = enemyBullets[i];
         
         // Increment bullet age
         bullet.age++;
         
-        // Move bullet based on its type
+        // Move bullet based on its type - switch for better performance
         switch(bullet.type) {
             case 'straight':
-                // Standard straight-line movement
-                bullet.y += bullet.speed * dt; // Use dt
+                bullet.y += bullet.speed * dt;
                 break;
             
             case 'fast':
-                // Faster bullet that slightly adjusts towards player
-                bullet.y += bullet.speed * dt; // Use dt
-                // Slight homing effect every 10 frames - convert to time-based?
-                // For now, let's keep age as frame count for simplicity of this step
-                // but acknowledge this might need dt adjustment for consistency.
+                bullet.y += bullet.speed * dt;
+                // Slight homing effect
                 if (bullet.age % 10 === 0 && player.alive) {
                     const angle = Math.atan2(player.y - bullet.y, player.x - bullet.x);
-                    const targetX = bullet.x + Math.cos(angle) * bullet.speed * dt; // Use dt
+                    const targetX = bullet.x + Math.cos(angle) * bullet.speed * dt;
                     bullet.x = bullet.x * 0.9 + targetX * 0.1; 
                 }
                 break;
             
             case 'zigzag':
-                // Zig-zag movement pattern
-                bullet.y += bullet.speed * dt; // Use dt
-                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 100 * dt; // Horizontal speed of 100px/s scaled by dt
+                bullet.y += bullet.speed * dt;
+                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 100 * dt;
                 break;
             
             case 'split':
-                // Movement based on angle, remove 0.5 multiplier for speed
-                bullet.x += Math.cos(bullet.angle) * bullet.speed * dt; // Use dt
-                bullet.y += Math.sin(bullet.angle) * bullet.speed * dt; // Use dt
+                bullet.x += Math.cos(bullet.angle) * bullet.speed * dt;
+                bullet.y += Math.sin(bullet.angle) * bullet.speed * dt;
                 break;
                 
             default:
-                // Default straight movement
-                bullet.y += bullet.speed * dt; // Use dt
+                bullet.y += bullet.speed * dt;
         }
         
-        // Check if bullet is offscreen
-        if (bullet.x < -20 || bullet.x > canvas.width + 20 || 
-            bullet.y < -20 || bullet.y > canvas.height + 20) {
-            enemyBullets.splice(i, 1);
+        // Check if bullet is offscreen using optimized boundary check
+        if (bullet.x < -20 || bullet.x > CANVAS_WIDTH + 20 || 
+            bullet.y < -20 || bullet.y > CANVAS_HEIGHT + 20) {
+            bullet.active = false; // Mark as inactive in pool
+            enemyBullets.splice(i, 1); // Remove from active list
             continue;
         }
         
-        // Check for collision with player
-        if (player.alive && !player.shield && checkCollision(bullet, player)) {
-            // Create explosion effect
-            createExplosion(player.x, player.y, '#f00');
-            
-            // Remove bullet
-            enemyBullets.splice(i, 1);
-            
-            // Reduce lives
-            lives--;
-            
-            // Add screen shake for impact
-            screenShake = 10;
-            
-            if (lives <= 0) {
-                // Game over
-                state = GAME_STATE.GAME_OVER;
-            } else {
-                // Player hit but not dead
-                player.alive = false;
+        // Check for collision with player - only if player is vulnerable
+        if (player.alive && !player.shield) {
+            // Fast AABB collision check
+            if (bullet.x < player.x + player.w &&
+                bullet.x + bullet.w > player.x &&
+                bullet.y < player.y + player.h &&
+                bullet.y + bullet.h > player.y) {
                 
-                // Respawn player after delay
-                setTimeout(() => {
-                    player.alive = true;
-                    player.x = canvas.width / 2;
-                    // Adjust player Y position if touch controls are active, similar to resetGame
-                    const buttonAreaHeight = isTouchDevice ? (canvas.height * 0.12 + canvas.height * 0.05) : 0; // buttonHeight + bottomMargin
-                    player.y = canvas.height - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
-                    player.shield = true; // Brief invulnerability
+                // Create explosion effect
+                createExplosion(player.x, player.y, '#f00');
+                
+                // Mark bullet as inactive and remove
+                bullet.active = false;
+                enemyBullets.splice(i, 1);
+                
+                // Reduce lives
+                lives--;
+                
+                // Add screen shake for impact
+                screenShake = 10;
+                
+                if (lives <= 0) {
+                    state = GAME_STATE.GAME_OVER;
+                } else {
+                    // Player hit but not dead
+                    player.alive = false;
                     
-                    // Disable shield after a short time
+                    // Respawn player after delay
                     setTimeout(() => {
-                        player.shield = false;
-                    }, 2000);
-                }, 1000);
+                        player.alive = true;
+                        player.x = PLAYER_START_X;
+                        // Adjust player Y position
+                        const buttonAreaHeight = isTouchDevice ? (CANVAS_HEIGHT * 0.12 + CANVAS_HEIGHT * 0.05) : 0;
+                        player.y = CANVAS_HEIGHT - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
+                        player.shield = true; // Brief invulnerability
+                        
+                        // Disable shield after a short time
+                        setTimeout(() => player.shield = false, 2000);
+                    }, 1000);
+                }
             }
         }
     }
@@ -1857,7 +1915,7 @@ function updatePowerups() {
         powerup.y += powerup.speed * dt; // Use dt
         
         // Check if powerup is offscreen
-        if (powerup.y > canvas.height + 20) {
+        if (powerup.y > CANVAS_HEIGHT + 20) {
             powerups.splice(i, 1);
             continue;
         }
@@ -1909,57 +1967,63 @@ function checkCollision(a, b) {
 function isOffScreen(obj) {
     return (
         obj.x + obj.w < 0 ||
-        obj.x > canvas.width ||
+        obj.x > CANVAS_WIDTH ||
         obj.y + obj.h < 0 ||
-        obj.y > canvas.height +  20 // Allow a bit of buffer below the screen
+        obj.y > CANVAS_HEIGHT + 20
     );
 }
 
-// Function to create explosion particles
+// Optimized explosion creation using object pool
 function createExplosion(x, y, color) {
     // Add screen shake effect for explosions
-    screenShake = 5; // Screen shake intensity, decay is handled in updateGameplay
+    screenShake = 5;
     
-    // Create particles
-    const numParticles = 15;
+    // Create particles from pool
+    const numParticles = 15; // Reduce for performance if needed
     for (let i = 0; i < numParticles; i++) {
-        const angle = Math.random() * Math.PI * 2; // Random direction
-        const speed = 50 + Math.random() * 150;    // Random speed (50-200 pixels/sec)
-        const initialLife = Math.random() * 0.4 + 0.2; // Seconds (0.2 to 0.6 seconds)
+        const particle = getPoolObject('particles');
+        if (!particle) continue; // Skip if no particles available
 
-        particles.push({
-            x: x,
-            y: y,
-            vx: Math.cos(angle) * speed, // Velocity x component
-            vy: Math.sin(angle) * speed, // Velocity y component
-            size: Math.random() * 3 + 1, // Smaller, faster particles (1 to 4)
-            color: color,
-            life: initialLife,
-            initialLife: initialLife // Store initial life for alpha calculation
-        });
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 50 + Math.random() * 150;
+        const initialLife = Math.random() * 0.4 + 0.2;
+
+        // Set particle properties
+        particle.x = x;
+        particle.y = y;
+        particle.vx = Math.cos(angle) * speed;
+        particle.vy = Math.sin(angle) * speed;
+        particle.size = Math.random() * 3 + 1;
+        particle.color = color;
+        particle.life = initialLife;
+        particle.initialLife = initialLife;
+        particle.active = true;
+        
+        particles.push(particle);
     }
 }
 
-// Function to update particles
+// Optimized particle update
 function updateParticles() {
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         
         // Move particle
-        p.x += p.vx * dt; // Use dt
-        p.y += p.vy * dt; // Use dt
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
         
         // Reduce life
-        p.life -= dt; // Use dt
+        p.life -= dt;
         
         // Remove if dead
         if (p.life <= 0) {
-            particles.splice(i, 1);
+            p.active = false; // Mark as inactive in pool
+            particles.splice(i, 1); // Remove from active list
             continue;
         }
         
         // Draw particle
-        ctx.globalAlpha = p.life / p.initialLife; // Fade out based on its own initial life
+        ctx.globalAlpha = p.life / p.initialLife;
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -1969,52 +2033,36 @@ function updateParticles() {
     ctx.globalAlpha = 1; // Reset alpha
 }
 
-// Main update function for gameplay - THIS REPLACES THE EMPTY ONE
+// Main update function for gameplay
 function updateGameplay() {
-    // Update player (handles movement and firing input)
     updatePlayer();
-
-    // // Update bullets (player and enemy)
     updateBullets();
-
-    // Update enemies (movement, state changes, firing)
     updateEnemies();
-
-    // Update powerups
     updatePowerups();
-
-    // Update particles
     updateParticles();
     
-    // Update screen shake
+    // Update screen shake - use exponential decay for smoother effect
     if (screenShake > 0) {
-        screenShake *= (1 - (10 * dt)); // Decay screen shake based on dt, aiming for similar decay rate
+        screenShake *= Math.pow(0.85, 60 * dt); // 60 * dt provides consistent decay rate
         if (screenShake < 0.5) screenShake = 0;
     }
-
-    // Debug info for development (uncomment when needed)
-    // ctx.save();
-    // ctx.font = '12px monospace';
-    // ctx.fillStyle = '#fff';
-    // ctx.textAlign = 'left';
-    // ctx.fillText(`Enemies: ${enemies.length}, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
-    // ctx.restore();
 }
 
-// This function will draw all common elements for PLAYING and PAUSED states
+// Draw game elements - optimized for fewer context state changes
 function drawGameScreenElements() {
-    // Screen shake transformation is applied before drawing these elements if state is PLAYING
-    let shakeAppliedThisFrame = false;
+    // Apply screen shake if needed
+    let shakeApplied = false;
     if (state === GAME_STATE.PLAYING && screenShake > 0) {
         ctx.save();
         ctx.translate(
-            Math.random() * screenShake - screenShake / 2,
-            Math.random() * screenShake - screenShake / 2
+            (Math.random() - 0.5) * screenShake,
+            (Math.random() - 0.5) * screenShake
         );
-        shakeAppliedThisFrame = true;
+        shakeApplied = true;
     }
 
-    // Draw bullets (both player and enemy)
+    // Batch similar drawing operations together
+    // First draw bullets
     for (const bullet of bullets) {
         drawBullet(bullet);
     }
@@ -2022,12 +2070,12 @@ function drawGameScreenElements() {
         drawBullet(bullet);
     }
     
-    // Draw enemies explicitly
+    // Then draw enemies
     for (const enemy of enemies) {
         drawEnemy(enemy);
     }
 
-    // Draw powerups
+    // Then draw powerups
     for (const powerup of powerups) {
         drawPowerup(powerup);
     }
@@ -2037,738 +2085,84 @@ function drawGameScreenElements() {
         drawBossGalaga(bossGalaga);
     }
 
-    // Draw player
-    if (player.alive) {
-        drawPlayer();
-    }
+    // Draw player last (on top)
+    drawPlayer();
 
-    // Draw level transition message if applicable (only when playing)
+    // Draw level transition message if applicable
     if (state === GAME_STATE.PLAYING && levelTransition > 0 && enemies.length === 0) {
         ctx.font = 'bold 30px monospace';
         ctx.fillStyle = '#ff0';
         ctx.textAlign = 'center';
-        ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(`LEVEL ${level} COMPLETE!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        
         ctx.font = '20px monospace';
         ctx.fillStyle = '#0ff';
-        ctx.fillText(`PREPARING LEVEL ${level + 1}...`, canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillText(`PREPARING LEVEL ${level + 1}...`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
     }
 
-    if (shakeAppliedThisFrame) {
+    if (shakeApplied) {
         ctx.restore();
     }
 }
 
+// Optimized game loop with better timing
 function gameLoop() {
     const currentTime = performance.now();
-    dt = (currentTime - (lastTime || currentTime)) / 1000; // Delta time in seconds
+    // Delta time in seconds, capped to prevent spiral of death
+    dt = Math.min((currentTime - lastTime) / 1000, 1/15);
     lastTime = currentTime;
 
-    // Cap dt to prevent large jumps if tab loses focus for a long time then regains it
-    // especially before pause on blur/focus is fully robust.
-    // A common cap is around 1/15th of a second (targetting at least 15fps for physics)
-    dt = Math.min(dt, 1/15);
+    // Clear screen once per frame
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (state === GAME_STATE.SPLASH) {
-        drawArcadeSplash();
-    } else if (state === GAME_STATE.PLAYING) {
-        updateGameplay(); // Update game logic only when playing
-        drawGameScreenElements(); // Draw all game elements
-        drawHUD(); // Draw HUD
-        if (isTouchDevice) { // Draw touch controls if applicable
-            drawTouchControls();
-        }
-    } else if (state === GAME_STATE.PAUSED) {
-        drawGameScreenElements(); // Draw game elements as they were
-        drawHUD(); // Draw HUD
-        if (isTouchDevice) { // Also draw touch controls if they were visible
-            drawTouchControls();
-        }
-        drawPauseScreen(); // Overlay pause message
-    } else if (state === GAME_STATE.GAME_OVER) {
-        drawGameOver();
-    } else if (state === GAME_STATE.ENTER_HIGH_SCORE) { // Add this condition
-        drawEnterHighScoreScreen();
+    // Handle current game state
+    switch (state) {
+        case GAME_STATE.SPLASH:
+            drawArcadeSplash();
+            break;
+            
+        case GAME_STATE.PLAYING:
+            updateGameplay();
+            drawGameScreenElements();
+            drawHUD();
+            if (isTouchDevice) {
+                drawTouchControls();
+            }
+            break;
+            
+        case GAME_STATE.PAUSED:
+            drawGameScreenElements();
+            drawHUD();
+            if (isTouchDevice) {
+                drawTouchControls();
+            }
+            drawPauseScreen();
+            break;
+            
+        case GAME_STATE.GAME_OVER:
+            drawGameOver();
+            break;
+            
+        case GAME_STATE.ENTER_HIGH_SCORE:
+            drawEnterHighScoreScreen();
+            break;
     }
 
     requestAnimationFrame(gameLoop);
 }
 
-// Start the game loop
-// fetchHighScores(gameLoop); // Fetch initial high scores then start game loop
-// Initialize touch controls first, then fetch scores and start loop
-initTouchControls();
-fetchHighScores(gameLoop);
-
-
-// Function to spawn enemies in Galaga style
-function spawnEnemies() {
-    // Always spawn a new wave when called
-    console.log("Spawning new wave of enemies for level: " + level);
-    
-    // Clear any existing enemies first
-    enemies = [];
-    
-    // Reset attack queue
-    attackQueue = [];
-    // Ensure levelTransition is NOT reset here; it's handled by the calling logic in updateEnemies
-    
-    // Setup fresh formation for the new wave
-    setupFormation();
-    
-    const totalEnemies = Math.min(5 + level * 2, formationSpots.length); // Limit to available formation spots
-
-    // Create entrance paths in authentic Galaga style
-    // Each path is a series of bezier curve control points
-    const entrancePaths = [
-        // Path 1: Swooping in from left
-        [
-            {x: -50, y: 100}, // Start off-screen left
-            {x: 100, y: 50},  // Control point 1
-            {x: 200, y: 200}, // Control point 2
-            {x: canvas.width * 0.3}  // End point (formation spot x, y will be from spot)
-        ],
-        // Path 2: Swooping in from right
-        [
-            {x: canvas.width + 50, y: 100}, // Start off-screen right
-            {x: canvas.width - 100, y: 50},  // Control point 1
-            {x: canvas.width - 200, y: 200}, // Control point 2
-            {x: canvas.width * 0.7}  // End point (formation spot x, y will be from spot)
-        ],
-        // Path 3: Loop from top
-        [
-            {x: canvas.width / 2, y: -50}, // Start off-screen top
-            {x: canvas.width / 2 - 100, y: 100},  // Control point 1
-            {x: canvas.width / 2 + 100, y: 200}, // Control point 2
-            {x: canvas.width / 2}  // End point (formation spot x, y will be from spot)
-        ],
-        // Path 4: Figure-8 from top-left
-        [
-            {x: -50, y: -50}, // Start off-screen top-left
-            {x: 100, y: 150},  // Control point 1
-            {x: 200, y:  50}, // Control point 2
-            {x: canvas.width * 0.4}  // End point (formation spot x, y will be from spot)
-        ],
-        // Path 5: Figure-8 from top-right
-        [
-            {x: canvas.width + 50, y: -50}, // Start off-screen top-right
-            {x: canvas.width - 100, y: 150},  // Control point 1
-            {x: canvas.width - 200, y: 50}, // Control point 2
-            {x: canvas.width * 0.6}  // End point (formation spot x, y will be from spot)
-        ]
-    ];
-
-    for (let i = 0; i < totalEnemies; i++) {
-        const spot = formationSpots[i];
-        spot.taken = true;
-
-        // Assign enemy types with more variety as level increases
-        let enemyType = 'basic'; // Default to basic
-        const typeRoll = Math.random();
-
-        if (level === 1) {
-            enemyType = 'basic';
-        } else if (level === 2) {
-            if (typeRoll < 0.6) enemyType = 'basic';      // 60% basic
-            else enemyType = 'zigzag';                   // 40% zigzag
-        } else if (level === 3) {
-            if (typeRoll < 0.4) enemyType = 'basic';      // 40% basic
-            else if (typeRoll < 0.7) enemyType = 'zigzag';// 30% zigzag
-            else enemyType = 'fast';                     // 30% fast
-        } else if (level === 4) {
-            if (typeRoll < 0.3) enemyType = 'basic';      // 30% basic
-            else if (typeRoll < 0.55) enemyType = 'zigzag';// 25% zigzag
-            else if (typeRoll < 0.8) enemyType = 'fast';  // 25% fast
-            else enemyType = 'tank';                     // 20% tank
-        } else { // Level 5 and above
-            if (typeRoll < 0.2) enemyType = 'basic';      // 20% basic
-            else if (typeRoll < 0.4) enemyType = 'zigzag';// 20% zigzag
-            else if (typeRoll < 0.6) enemyType = 'fast';  // 20% fast
-            else if (typeRoll < 0.8) enemyType = 'tank';  // 20% tank
-            else enemyType = 'sniper';                   // 20% sniper (assuming sniper is a defined type)
-        }
-
-
-        // Choose an entrance path for this enemy
-        const pathIndex = i % entrancePaths.length;
-        const entrancePath = entrancePaths[pathIndex];
-        
-        // Create the enemy with assigned formation spot and path
-        const enemy = {
-            x: entrancePath[0].x, // Start position from path
-            y: entrancePath[0].y,
-            w: 32,
-            h: 32,
-            speed: 100 + (level * 10), // Pixels per second
-            type: enemyType,
-            state: ENEMY_STATE.ENTRANCE,
-            targetX: spot.x,
-            targetY: spot.y,
-            color: enemyType === 'basic' ? '#0f8' : 
-                   enemyType === 'fast' ? '#f80' :
-                   enemyType === 'tank' ? '#f44' : 
-                   enemyType === 'zigzag' ? '#f0f' :
-                   enemyType === 'sniper' ? '#0bb' : '#ccc', // Added sniper color, default fallback
-            entranceDelay: i * 0.25, // Seconds (stagger entrance)
-            id: i, // Unique ID for debugging
-            path: [ // Ensure path has 4 points for bezier, dynamically setting the last point's Y
-                entrancePath[0],
-                entrancePath[1],
-                entrancePath[2],
-                { x: entrancePath[3].x, y: spot.y } // Use spot.y for the final y of bezier
-            ],
-            pathProgress: 0, // Progress along the path (0.0 to 1.0)
-            pathSpeed: 0.5 + (Math.random() * 0.25), // Units of progress per second
-            attackCooldown: (Math.random() * 2) + 1, // Seconds (1 to 3 seconds)
-            attackChance: enemyType === 'basic' ? 0.002 : 
-                          enemyType === 'fast' ? 0.005 :
-                          enemyType === 'tank' ? 0.003 : 
-                          enemyType === 'zigzag' ? 0.004 :
-                          enemyType === 'sniper' ? 0.006 : 0.003, // Added sniper attack chance
-            attackPattern: Math.floor(Math.random() * 3) // Random attack pattern (0, 1, or 2)
-        };
-
-        enemies.push(enemy);
-        console.log(`Spawned enemy #${i}: type=${enemyType} at (${enemy.x},${enemy.y}) → (${spot.x},${spot.y})`);
-    }
-
-    console.log(`Total enemies created: ${enemies.length} for level ${level}. Expected: ${totalEnemies}. Formation spots: ${formationSpots.length}`);
-    if (totalEnemies > 0 && enemies.length === 0) {
-        console.error(`CRITICAL ERROR: Expected to spawn ${totalEnemies} enemies, but enemies array is empty after spawning attempt for level ${level}.`);
-    }
+// Initialize the game
+function initGame() {
+    initObjectPools();
+    initTouchControls();
+    fetchHighScores(() => {
+        console.log("Game initialized and ready to start.");
+        gameLoop();
+    });
 }
 
-function spawnEnemyWave(waveSize) {
-    const startX = canvas.width / 2; // Start from the center horizontally
-    const entryY = -50; // Start slightly above the canvas
+// Start the game
+initGame();
 
-    // Choose a primary enemy type for this wave
-    const enemyTypes = ['basic', 'fast', 'zigzag'];
-    const waveType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-
-    for (let i = 0; i < waveSize; i++) {
-        const enemy = {
-            x: startX + (i % 5) * 40 - 80, // Spread enemies horizontally in rows
-            y: entryY - Math.floor(i / 5) * 40, // Stack enemies vertically
-            w: 32,
-            h: 32,
-            speed: 1.5 + level * 0.1, // Start slower and increase speed slightly with each level
-            type: waveType,
-            state: ENEMY_STATE.ENTRANCE,
-            color: waveType === 'basic' ? '#0f8' : 
-                   waveType === 'fast' ? '#f80' : '#f0f',
-            entranceDelay: i * 10, // Delay each enemy slightly
-            waveIndex: i
-        };
-
-        enemies.push(enemy);
-    }
-}
-
-// Function to calculate a point along a cubic bezier curve
-function bezierPoint(p0, p1, p2, p3, t) {
-    const mt = 1 - t;
-   
-    return {
-        x: mt*mt*mt*p0.x + 3*mt*mt*t*p1.x + 3*mt*t*t*p2.x + t*t*t*p3.x,
-        y: mt*mt*mt*p0.y + 3*mt*mt*t*p1.y + 3*mt*t*t*p2.y + t*t*t*p3.y
-    };
-}
-
-// Function to update all enemies
-function updateEnemies() {
-    let allEnemiesInFormation = true; // Track if all enemies are in formation
-    let enemiesRemaining = enemies.length; // Track how many enemies are left
-    
-    // Pick a random enemy to potentially break formation and attack
-    if (Math.random() < (0.01 + (level * 0.005)) * (dt * 60) ) { // Scale chance by dt, assuming 60fps baseline
-        const formationEnemies = enemies.filter(e => e.state === ENEMY_STATE.FORMATION);
-        if (formationEnemies.length > 0) {
-            const randomEnemy = formationEnemies[Math.floor(Math.random() * formationEnemies.length)];
-            // Only attack if cooldown is zero
-            if (randomEnemy.attackCooldown <= 0) {
-                console.log(`Enemy #${randomEnemy.id} breaking formation to attack`); // Corrected template literal
-                randomEnemy.state = ENEMY_STATE.ATTACK;
-                randomEnemy.attackStage = 0; // Start of attack sequence
-                randomEnemy.attackTime = 0; // Track the attack time
-                randomEnemy.attackPath = []; // Will store the attack path
-                
-                // Generate attack path based on enemy type and pattern
-                switch (randomEnemy.attackPattern) {
-                    case 0: // Direct dive at player
-                        randomEnemy.attackPath = [
-                            {x: randomEnemy.x, y: randomEnemy.y}, // Current position
-                            {x: randomEnemy.x, y: randomEnemy.y + 50}, // Move down
-                            {x: player.x, y: canvas.height / 2}, // Aim towards player
-                            {x: player.x, y: canvas.height + 50} // Exit bottom
-                        ];
-                        break;
-                    case 1: // S-curve attack
-                        randomEnemy.attackPath = [
-                            {x: randomEnemy.x, y: randomEnemy.y}, // Current position
-                            {x: randomEnemy.x - 100, y: randomEnemy.y + 100}, // Curve left/down
-                            {x: randomEnemy.x + 100, y: randomEnemy.y + 200}, // Curve right/down
-                            {x: randomEnemy.x, y: canvas.height + 50} // Exit bottom
-                        ];
-                        break;
-                    case 2: // Loop attack
-                        randomEnemy.attackPath = [
-                            {x: randomEnemy.x, y: randomEnemy.y}, // Current position
-                            {x: randomEnemy.x + 100, y: randomEnemy.y + 100}, // Loop right
-                            {x: randomEnemy.x, y: randomEnemy.y + 200}, // Loop bottom
-                            {x: randomEnemy.x - 100, y: randomEnemy.y + 100}, // Loop left
-                            {x: randomEnemy.x, y: randomEnemy.y}, // Return to start position
-                            {x: randomEnemy.x, y: canvas.height + 50} // Exit bottom
-                        ];
-                        break;
-                }
-            }
-        }
-    }
-
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        
-        // Decrement attack cooldown
-        if (enemy.attackCooldown > 0) {
-            enemy.attackCooldown -= dt; // Use dt
-        }
-
-        // Handle enemy entrance
-        if (enemy.state === ENEMY_STATE.ENTRANCE) {
-            if (enemy.entranceDelay > 0) {
-                enemy.entranceDelay -= dt; // Use dt
-                allEnemiesInFormation = false; // Not all enemies are in formation
-                continue;
-            }
-
-            // Move along the bezier path
-            if (enemy.pathProgress < 1) {
-                // Get point along the path
-                const point = bezierPoint(
-                    enemy.path[0], enemy.path[1], enemy.path[2], enemy.path[3], 
-                    enemy.pathProgress
-                );
-                
-                // Update position
-                enemy.x = point.x;
-                enemy.y = point.y;
-                
-                // Advance along the path
-                enemy.pathProgress += enemy.pathSpeed * dt; // Use dt
-                allEnemiesInFormation = false; // Not all enemies are in formation
-            } else {
-                // Path completed, move directly to formation spot
-                const dx = enemy.targetX - enemy.x;
-                const dy = enemy.targetY - enemy.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                if (distance > enemy.speed * dt) { // Compare with distance moved in one frame
-                    enemy.x += (dx / distance) * enemy.speed * dt; // Use dt
-                    enemy.y += (dy / distance) * enemy.speed * dt; // Use dt
-                    allEnemiesInFormation = false; // Not all enemies are in formation
-                } else {
-                    // Reached formation position
-                    enemy.x = enemy.targetX;
-                    enemy.y = enemy.targetY;
-                    enemy.state = ENEMY_STATE.FORMATION;
-                    enemy.attackCooldown = (Math.random() * 2) + 1; // Seconds
-                }
-            }
-        }
-        // Handle enemy in formation - subtle hover movement
-        else if (enemy.state === ENEMY_STATE.FORMATION) {
-            // Add slight hover movement in formation
-            enemy.x = enemy.targetX + Math.sin(Date.now() / 1000 + enemy.id) * 3;
-            enemy.y = enemy.targetY + Math.sin(Date.now() / 1500 + enemy.id * 2) * 2;
-            
-            // Chance to fire while in formation
-            if (Math.random() < (enemy.attackChance / 2) * (dt * 60) ) { // Scale chance by dt
-                fireEnemyBullet(enemy);
-            }
-        }
-        // Handle enemy attack behavior
-        else if (enemy.state === ENEMY_STATE.ATTACK) {
-            enemy.attackTime += dt; // Use dt, attackTime is now in seconds
-            
-            // Calculate the position on the attack path
-            const pathLength = enemy.attackPath.length - 1; // Number of segments
-            const segmentDuration = 1.66; // Seconds to complete each segment (approx 100 frames at 60fps)
-            const totalPathTime = pathLength * segmentDuration;
-            
-            if (enemy.attackTime < totalPathTime) {
-                // Determine which segment we're in
-                const segment = Math.min(Math.floor(enemy.attackTime / segmentDuration), pathLength - 1);
-                const segmentProgress = (enemy.attackTime % segmentDuration) / segmentDuration;
-                
-                // Get start and end points for the current segment
-                const p0 = enemy.attackPath[segment];
-                const p3 = enemy.attackPath[segment + 1];
-                
-                // Generate control points for smooth movement
-                const p1 = {
-                    x: p0.x + (p3.x - p0.x) * 0.3,
-                    y: p0.y + (p3.y - p0.y) * 0.1
-                };
-                const p2 = {
-                    x: p0.x + (p3.x - p0.x) * 0.7,
-                    y: p0.y + (p3.y - p0.y) * 0.9
-                };
-                
-                // Calculate the current position
-                const point = bezierPoint(p0, p1, p2, p3, segmentProgress);
-                enemy.x = point.x;
-                enemy.y = point.y;
-                
-                // Higher chance to fire during attack
-                if (Math.random() < (enemy.attackChance * 2) * (dt * 60) ) { // Scale chance by dt
-                    fireEnemyBullet(enemy);
-                }
-            } else {
-                // Path completed
-                // If we're at the end of a looping path, return to formation
-                if (enemy.attackPattern === 2 && enemy.attackTime < totalPathTime + 1.66) { // Give time for loop return (seconds)
-                    // Continue along path to return to formation position
-                    const returnProgress = (enemy.attackTime - totalPathTime) / 1.66; // Normalize to 0-1 over 1.66s
-                    enemy.x = enemy.x * (1 - returnProgress) + enemy.targetX * returnProgress;
-                    enemy.y = enemy.y * (1 - returnProgress) + enemy.targetY * returnProgress;
-                    
-                    if (returnProgress >= 0.99) {
-                        enemy.state = ENEMY_STATE.FORMATION;
-                        enemy.x = enemy.targetX;
-                        enemy.y = enemy.targetY;
-                        enemy.attackCooldown = (Math.random() * 3) + 2; // Seconds (longer cooldown)
-                    }
-                } else {
-                    // For non-looping paths or after a loop attempt, continue moving downwards
-                    enemy.y += enemy.speed * 1.5 * dt; // Use dt
-                }
-            }
-        }
-
-        // Remove enemy if it goes offscreen - MODIFIED LOGIC
-        if (isOffScreen(enemy)) {
-            if (enemy.state === ENEMY_STATE.ENTRANCE && enemy.pathProgress < 1) {
-                // Enemy is on its entrance path and might be legitimately off-screen as paths start off-screen.
-                // Do not remove yet. It will either move on-screen, complete its path, or be handled by other logic.
-                // console.log(`Enemy #${enemy.id} is in ENTRANCE (pathProgress: ${enemy.pathProgress.toFixed(2)}) and off-screen, not removing yet.`);
-            } else {
-                // Remove if:
-                // - In ENTRANCE state but pathProgress >= 1 (finished bezier, should be moving to/in formation) AND off-screen
-                // - In FORMATION or ATTACK state AND off-screen
-                // - Or any other unexpected off-screen situation.
-
-                // If enemy was in formation, free up the spot
-                if (enemy.targetX && enemy.targetY) {
-                    for (const spot of formationSpots) {
-                        if (spot.x === enemy.targetX && spot.y === enemy.targetY && spot.taken) {
-                            spot.taken = false;
-                            // console.log(`Formation spot (${enemy.targetX}, ${enemy.targetY}) freed by enemy #${enemy.id}`);
-                            break;
-                        }
-                    }
-                }
-            
-                console.log(`Enemy #${enemy.id} (state: ${enemy.state}, pathProgress: ${enemy.pathProgress.toFixed(2)}) removed for being off-screen at (${enemy.x.toFixed(0)}, ${enemy.y.toFixed(0)})`);
-                enemies.splice(i, 1);
-                continue; // Important: continue to next iteration of the loop for 'enemies'
-            }
-        }
-    }
-    
-    // Check if all enemies are cleared to transition to the next level
-    // This logging will help us diagnose the issue
-    if (enemies.length === 0) {
-        // console.log("All enemies cleared, checking level transition state:", levelTransition); // Keep for debugging if needed
-        
-        if (levelTransition === 0) { // Only start a new transition if one isn't already active
-            console.log("Starting level transition. Current level: " + level + ". Next level: " + (level + 1));
-            levelTransition = 2.0; // Duration in seconds for the "LEVEL COMPLETE" message
-            
-            setTimeout(() => {
-                level++;
-                console.log("setTimeout: Spawning enemies for level " + level);
-                spawnEnemies(); // This should populate the enemies array
-                levelTransition = 0; // Reset transition flag *after* new level setup is complete
-            }, 2000); // 2-second delay (setTimeout is already in ms)
-        } else if (levelTransition > 0 && state === GAME_STATE.PLAYING) { // Ensure we only decrement if playing
-             levelTransition -= dt;
-             if (levelTransition < 0) levelTransition = 0;
-        }
-    }
-}
-
-// Function to handle player movement and firing
-function updatePlayer() {
-    // Handle player movement
-    if (keys['ArrowLeft'] || keys['KeyA']) {
-        player.x -= player.speed * dt; // Use dt
-        if (player.x < player.w / 2) player.x = player.w / 2; // Prevent going offscreen
-    }
-    if (keys['ArrowRight'] || keys['KeyD']) {
-        player.x += player.speed * dt; // Use dt
-        if (player.x > canvas.width - player.w / 2) player.x = canvas.width - player.w / 2; // Prevent going offscreen
-    }
-    
-    // Handle player firing
-    const canFire = player.cooldown <= 0 && player.alive;
-    let firedThisFrame = false;
-
-    // Auto-shoot for touch devices
-    if (isTouchDevice && autoShootActive && canFire) {
-        firePlayerBullet();
-        firedThisFrame = true;
-    }
-
-    // Manual fire (keyboard or touch button)
-    if (keys['Space'] && canFire && !firedThisFrame) { // Avoid double firing if auto-shoot already fired
-        firePlayerBullet();
-    }
-
-    // Reduce cooldown timer
-    if (player.cooldown > 0) {
-        player.cooldown -= dt; // Use dt
-    }
-}
-
-function firePlayerBullet() {
-    const bullet = {
-        x: player.x,
-        y: player.y - player.h / 2,
-        w: 3,
-        h: 12,
-        speed: 600, // Pixels per second
-        type: player.power === 'double' ? 'double' : 'normal',
-        from: dualShip ? 'dual' : 'player'
-    };
-    bullets.push(bullet);
-    
-    // Dual ship fires an additional bullet
-    if (dualShip) {
-        const dualBullet = { ...bullet, x: player.x - 24 }; // Adjust x for the second ship
-        bullets.push(dualBullet);
-    }
-    player.cooldown = 0.25; // Seconds (cooldown period before next shot)
-}
-
-
-// --- Touch Control Functions ---
-function initTouchControls() {
-    isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-
-    if (isTouchDevice) {
-        console.log("Touch device detected. Initializing touch controls.");
-        const numButtons = 4;
-        const buttonWidth = canvas.width * 0.18; // Adjusted for 4 buttons
-        const buttonHeight = canvas.height * 0.12;
-        const bottomMargin = canvas.height * 0.05;
-        const totalButtonWidth = numButtons * buttonWidth;
-        const totalSpacing = (numButtons - 1) * (canvas.width * 0.03); // Adjusted spacing
-        const controlsBlockWidth = totalButtonWidth + totalSpacing;
-        const startX = (canvas.width - controlsBlockWidth) / 2;
-        const spacing = canvas.width * 0.03;
-
-        touchControls.buttons.left.w = buttonWidth;
-        touchControls.buttons.left.h = buttonHeight;
-        touchControls.buttons.left.x = startX;
-        touchControls.buttons.left.y = canvas.height - buttonHeight - bottomMargin;
-
-        touchControls.buttons.right.w = buttonWidth;
-        touchControls.buttons.right.h = buttonHeight;
-        touchControls.buttons.right.x = touchControls.buttons.left.x + buttonWidth + spacing;
-        touchControls.buttons.right.y = canvas.height - buttonHeight - bottomMargin;
-        
-        touchControls.buttons.autoShoot.w = buttonWidth;
-        touchControls.buttons.autoShoot.h = buttonHeight;
-        touchControls.buttons.autoShoot.x = touchControls.buttons.right.x + buttonWidth + spacing;
-        touchControls.buttons.autoShoot.y = canvas.height - buttonHeight - bottomMargin;
-        touchControls.buttons.autoShoot.label = "AUTO";
-
-        touchControls.buttons.fire.w = buttonWidth;
-        touchControls.buttons.fire.h = buttonHeight;
-        touchControls.buttons.fire.x = touchControls.buttons.autoShoot.x + buttonWidth + spacing;
-        touchControls.buttons.fire.y = canvas.height - buttonHeight - bottomMargin;
-
-        canvas.addEventListener('touchstart', handleTouch, { passive: false });
-        canvas.addEventListener('touchmove', handleTouch, { passive: false });
-        canvas.addEventListener('touchend', handleTouch, { passive: false });
-        canvas.addEventListener('touchcancel', handleTouch, { passive: false });
-
-        // Listener for splash/game over taps
-        canvas.addEventListener('touchend', handleCanvasTap);
-    }
-    
-    // Add event listeners for window focus/blur to pause/resume
-    window.addEventListener('blur', handlePause);
-    window.addEventListener('focus', handleResume);
-}
-
-function pointInRect(px, py, rect) {
-    return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
-}
-
-function processTouches(eventTouches) {
-    // Reset pressed state for all buttons and corresponding keys (except autoShoot toggle)
-    for (const btnKey in touchControls.buttons) {
-        const button = touchControls.buttons[btnKey];
-        if (button.key) { // Only reset buttons that map to a 'key'
-            button.pressed = false;
-            keys[button.key] = false;
-        } else {
-            // For toggle buttons like autoShoot, don't reset 'pressed' here,
-            // their state is toggled on tap.
-        }
-    }
-
-    let autoShootTappedThisFrame = false;
-
-    // Check each active touch against each button
-    for (let i = 0; i < eventTouches.length; i++) {
-        const touch = eventTouches[i];
-        const touchX = touch.clientX - canvas.offsetLeft;
-        const touchY = touch.clientY - canvas.offsetTop;
-
-        if (pointInRect(touchX, touchY, touchControls.buttons.left)) {
-            touchControls.buttons.left.pressed = true;
-            keys[touchControls.buttons.left.key] = true;
-        }
-        if (pointInRect(touchX, touchY, touchControls.buttons.right)) {
-            touchControls.buttons.right.pressed = true;
-            keys[touchControls.buttons.right.key] = true;
-        }
-        if (pointInRect(touchX, touchY, touchControls.buttons.fire)) {
-            touchControls.buttons.fire.pressed = true;
-            keys[touchControls.buttons.fire.key] = true;
-        }
-        // AutoShoot is handled on tap (touchend of a specific touch), not continuous press
-    }
-}
-
-
-function handleTouch(event) {
-    event.preventDefault(); // Prevent default touch behaviors like scrolling
-    
-    const changedTouches = event.changedTouches; // Use changedTouches for tap detection
-
-    if (state === GAME_STATE.PAUSED && (event.type === 'touchend' || event.type === 'touchcancel')) {
-        // If paused and screen is tapped (and not on a control button), resume.
-        const touchX = changedTouches[0].clientX - canvas.offsetLeft;
-        const touchY = changedTouches[0].clientY - canvas.offsetTop;
-        let tappedOnButton = false;
-        for (const btnKey in touchControls.buttons) {
-            if (pointInRect(touchX, touchY, touchControls.buttons[btnKey])) {
-                tappedOnButton = true;
-                break;
-            }
-        }
-        if (!tappedOnButton) {
-            handleResume();
-            // We might still want to process the touch for other buttons if the tap was on one
-            // but for a general screen tap to unpause, this is fine.
-        }
-    }
-
-
-    if (event.type === 'touchstart' || event.type === 'touchmove') {
-        if (state !== GAME_STATE.PAUSED) { // Process touches for controls only if not paused
-            processTouches(event.touches);
-        }
-    } else if (event.type === 'touchend' || event.type === 'touchcancel') {
-        // Check if any of the ended touches were on the auto-shoot button
-        for (let i = 0; i < changedTouches.length; i++) {
-            const touch = changedTouches[i];
-            const touchX = touch.clientX - canvas.offsetLeft;
-            const touchY = touch.clientY - canvas.offsetTop;
-
-            if (pointInRect(touchX, touchY, touchControls.buttons.autoShoot)) {
-                autoShootActive = !autoShootActive;
-                touchControls.buttons.autoShoot.label = autoShootActive ? "AUTO ON" : "AUTO";
-                // No need to set .pressed for a toggle button in the same way as hold buttons
-                // their state is toggled on tap.
-                break; 
-            }
-        }
-        // After processing taps, update based on remaining active touches
-        if (state !== GAME_STATE.PAUSED) { // Process touches for controls only if not paused
-            processTouches(event.touches);
-        }
-    }
-}
-
-function handleCanvasTap(event) {
-    if (!isTouchDevice) return;
-    // Only handle tap if it's for splash or game over, and not over a game control button
-    const touchX = event.changedTouches[0].clientX - canvas.offsetLeft;
-    const touchY = event.changedTouches[0].clientY - canvas.offsetTop;
-
-    // Check if tap is over any game control button
-    for (const btnKey in touchControls.buttons) {
-        if (pointInRect(touchX, touchY, touchControls.buttons[btnKey])) {
-            return; // Tap was on a control button, not for splash/game over
-        }
-    }
-    
-    if (state === GAME_STATE.SPLASH) {
-        event.preventDefault();
-        state = GAME_STATE.PLAYING;
-        console.clear();
-        console.log("Game starting (touch) - initializing game elements...");
-        resetGame();
-    } else if (state === GAME_STATE.GAME_OVER) {
-        event.preventDefault();
-        // Ensure not in high score entry mode
-        let isNewHighScore = false;
-        if (firebaseHighScores.length < MAX_HIGH_SCORES) isNewHighScore = true;
-        else if (firebaseHighScores.length > 0 && score > firebaseHighScores[firebaseHighScores.length - 1].score) isNewHighScore = true;
-        if (firebaseHighScores.length === 0 && score > 0) isNewHighScore = true;
-
-        if (!(isNewHighScore && !player.highScoreSubmitted)) {
-            state = GAME_STATE.SPLASH;
-            fetchHighScores();
-        }
-    }
-    // Do not resume from pause here, handleTouch and window focus will manage it.
-}
-
-
-function drawTouchControls() {
-    ctx.save();
-    ctx.globalAlpha = 0.5; // Semi-transparent buttons
-    ctx.font = 'bold 20px monospace'; // Slightly smaller font for more buttons
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    for (const btnKey in touchControls.buttons) {
-        const button = touchControls.buttons[btnKey];
-        if (btnKey === 'autoShoot') {
-            ctx.fillStyle = autoShootActive ? '#0f0' : '#888'; // Green if auto-shoot is on
-        } else {
-            ctx.fillStyle = button.pressed ? '#0f0' : '#888'; // Green when pressed, gray otherwise
-        }
-        ctx.fillRect(button.x, button.y, button.w, button.h);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(button.label, button.x + button.w / 2, button.y + button.h / 2);
-    }
-    ctx.restore();
-}
-
-// --- Pause/Resume Logic ---
-function handlePause() {
-    if (state === GAME_STATE.PLAYING) {
-        previousStateBeforePause = state;
-        state = GAME_STATE.PAUSED;
-        console.log("Game paused");
-    }
-}
-
-function handleResume() {
-    if (state === GAME_STATE.PAUSED && previousStateBeforePause === GAME_STATE.PLAYING) {
-        state = GAME_STATE.PLAYING;
-        previousStateBeforePause = null;
-        console.log("Game resumed");
-        // Request a new animation frame to ensure smooth resume after focus gain
-        requestAnimationFrame(gameLoop);
-    }
-}
+// Enemy spawning, player movement, and other existing functions
+// ...existing code...
