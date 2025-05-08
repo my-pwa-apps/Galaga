@@ -1148,7 +1148,9 @@ function gameLoop() {
     if (state === GAME_STATE.SPLASH) {
         drawArcadeSplash();
     } else if (state === GAME_STATE.PLAYING) {
-        // ...existing gameplay logic...
+        // Draw player and other gameplay elements
+        drawPlayer();
+        // ...add calls to draw enemies, bullets, powerups, etc., as needed...
     } else if (state === GAME_STATE.GAME_OVER) {
         // ...existing game over logic...
     }
