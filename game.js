@@ -1896,17 +1896,31 @@ function spawnEnemies() {
         spot.taken = true;
 
         // Assign enemy types with more variety as level increases
-        let enemyType = 'basic';
-        if (level > 1) {
-            const typeRoll = Math.random();
-            if (level >= 3 && typeRoll > 0.7) {
-                enemyType = 'fast';
-            } else if (level >= 4 && typeRoll > 0.85) {
-                enemyType = 'tank';
-            } else if (level >= 2 && typeRoll > 0.4) {
-                enemyType = 'zigzag';
-            }
+        let enemyType = 'basic'; // Default to basic
+        const typeRoll = Math.random();
+
+        if (level === 1) {
+            enemyType = 'basic';
+        } else if (level === 2) {
+            if (typeRoll < 0.6) enemyType = 'basic';      // 60% basic
+            else enemyType = 'zigzag';                   // 40% zigzag
+        } else if (level === 3) {
+            if (typeRoll < 0.4) enemyType = 'basic';      // 40% basic
+            else if (typeRoll < 0.7) enemyType = 'zigzag';// 30% zigzag
+            else enemyType = 'fast';                     // 30% fast
+        } else if (level === 4) {
+            if (typeRoll < 0.3) enemyType = 'basic';      // 30% basic
+            else if (typeRoll < 0.55) enemyType = 'zigzag';// 25% zigzag
+            else if (typeRoll < 0.8) enemyType = 'fast';  // 25% fast
+            else enemyType = 'tank';                     // 20% tank
+        } else { // Level 5 and above
+            if (typeRoll < 0.2) enemyType = 'basic';      // 20% basic
+            else if (typeRoll < 0.4) enemyType = 'zigzag';// 20% zigzag
+            else if (typeRoll < 0.6) enemyType = 'fast';  // 20% fast
+            else if (typeRoll < 0.8) enemyType = 'tank';  // 20% tank
+            else enemyType = 'sniper';                   // 20% sniper (assuming sniper is a defined type)
         }
+
 
         // Choose an entrance path for this enemy
         const pathIndex = i % entrancePaths.length;
@@ -1925,7 +1939,9 @@ function spawnEnemies() {
             targetY: spot.y,
             color: enemyType === 'basic' ? '#0f8' : 
                    enemyType === 'fast' ? '#f80' :
-                   enemyType === 'tank' ? '#f44' : '#f0f',
+                   enemyType === 'tank' ? '#f44' : 
+                   enemyType === 'zigzag' ? '#f0f' :
+                   enemyType === 'sniper' ? '#0bb' : '#ccc', // Added sniper color, default fallback
             entranceDelay: i * 15, // Stagger the entrance
             id: i, // Unique ID for debugging
             path: entrancePath, // Store the path for this enemy
@@ -1934,7 +1950,9 @@ function spawnEnemies() {
             attackCooldown: Math.floor(Math.random() * 120) + 60, // Initialize with cooldown
             attackChance: enemyType === 'basic' ? 0.002 : 
                           enemyType === 'fast' ? 0.005 :
-                          enemyType === 'tank' ? 0.003 : 0.004, // Chance to break formation and attack
+                          enemyType === 'tank' ? 0.003 : 
+                          enemyType === 'zigzag' ? 0.004 :
+                          enemyType === 'sniper' ? 0.006 : 0.003, // Added sniper attack chance
             attackPattern: Math.floor(Math.random() * 3) // Random attack pattern (0, 1, or 2)
         };
 
