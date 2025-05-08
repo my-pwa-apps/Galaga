@@ -1535,634 +1535,514 @@ function drawPauseScreen() {
     ctx.restore();
 }
 
-// Add event listeners for keyboard input
-document.addEventListener('keydown', (event) => {
-    keys[event.code] = true;
+// Function to check if we're on a touch device
+function detectTouchDevice() {
+    return ('ontouchstart' in window) || 
+           (navigator.maxTouchPoints > 0) || 
+           (navigator.msMaxTouchPoints > 0);
+}
+
+// Initialize touch controls
+function initTouchControls() {
+    // Detect if we're on a touch device
+    isTouchDevice = detectTouchDevice();
     
-    // Handle splash screen transition (keyboard only)
-    if (!isTouchDevice && state === GAME_STATE.SPLASH && event.code === 'Space') {
+    if (isTouchDevice) {
+        console.log("Touch device detected, initializing touch controls");
+        
+        // Layout touch controls
+        layoutTouchButtons();
+        
+        // Add touch event listeners
+        canvas.addEventListener('touchstart', handleTouchStart, false);
+        canvas.addEventListener('touchend', handleTouchEnd, false);
+        canvas.addEventListener('touchmove', handleTouchMove, false);
+        
+        // Handle visibility change (pause when tab/app is not visible)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && state === GAME_STATE.PLAYING) {
+                handlePause();
+            }
+        });
+    }
+}
+
+// Handle touch start events
+function handleTouchStart(e) {
+    e.preventDefault();
+    
+    // Handle different states
+    if (state === GAME_STATE.SPLASH) {
         state = GAME_STATE.PLAYING;
-        // Initialize game elements when transitioning to playing state
-        console.clear();
-        console.log("Game starting - initializing game elements...");
         resetGame();
-    } else if (state === GAME_STATE.ENTER_HIGH_SCORE) {
-        const key = event.key.toUpperCase();
-        if (key.length === 1 && key >= 'A' && key <= 'Z') {
-            if (currentInitialIndex < playerInitials.length) {
-                playerInitials[currentInitialIndex] = key;
-                currentInitialIndex++;
-            }
-        } else if (event.code === 'Backspace') {
-            if (currentInitialIndex > 0) {
-                currentInitialIndex--;
-                playerInitials[currentInitialIndex] = "_";
-            }
-        } else if (event.code === 'Enter') {
-            // Check if all initials are filled or at least one is not "_"
-            const enteredName = playerInitials.filter(char => char !== "_").join("");
-            if (enteredName.length > 0) {
-                saveHighScore(playerInitials.join(""), score);
-                player.highScoreSubmitted = true;
-                state = GAME_STATE.GAME_OVER; // Go back to game over to show updated scores
-                fetchHighScores(); // Fetch scores immediately to update display
-            }
-        }
-    } else if (event.code === 'KeyP') { // Pause and Resume with 'P' key
-        if (state === GAME_STATE.PLAYING) {
-            handlePause();
-        } else if (state === GAME_STATE.PAUSED) {
-            handleResume();
-        }
-    }
-});
-
-document.addEventListener('keyup', (event) => {
-    keys[event.code] = false;
-});
-
-// Function to reset the game state
-function resetGame() {
-    // Reset player position
-    player.x = PLAYER_START_X;
-    
-    // Adjust player Y position if touch controls are active
-    const buttonAreaHeight = isTouchDevice ? (CANVAS_HEIGHT * 0.12 + CANVAS_HEIGHT * 0.05) : 0;
-    player.y = CANVAS_HEIGHT - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
-
-    player.alive = true;
-    player.shield = false;
-    player.power = 'normal';
-    player.highScoreSubmitted = false;
-    
-    playerInitials = ["_", "_", "_", "_", "_"];
-    currentInitialIndex = 0;
-    autoShootActive = false;
-
-    // Clear arrays - properly deactivate pooled objects
-    bullets.length = 0;
-    enemyBullets.length = 0;
-    particles.length = 0;
-    
-    // Deactivate all pooled objects
-    for (let i = 0; i < POOL.bullets.length; i++) {
-        POOL.bullets[i].active = false;
-    }
-    for (let i = 0; i < POOL.enemyBullets.length; i++) {
-        POOL.enemyBullets[i].active = false;
-    }
-    for (let i = 0; i < POOL.particles.length; i++) {
-        POOL.particles[i].active = false;
+        return;
+    } else if (state === GAME_STATE.GAME_OVER) {
+        state = GAME_STATE.SPLASH;
+        return;
+    } else if (state === GAME_STATE.PAUSED) {
+        handleResume();
+        return;
     }
     
-    // Clear other arrays
-    enemies.length = 0;
-    powerups.length = 0;
+    const touches = e.changedTouches;
     
-    // Reset game variables
-    score = 0;
-    lives = 3;
-    level = 1;
-    levelTransition = 0;
-    
-    // Reset other game elements
-    formationSpots = [];
-    attackQueue = [];
-    bossGalaga = null;
-    capturedShip = false;
-    dualShip = false;
-    screenShake = 0;
-    
-    // Setup formation spots for enemies
-    setupFormation();
-    
-    // Spawn initial wave of enemies
-    spawnEnemies();
-
-    // Fetch high scores
-    fetchHighScores(() => {
-        console.log("High scores fetched on reset.");
-    });
-}
-
-// Function to set up enemy formation positions
-function setupFormation() {
-    formationSpots = [];
-    const rows = 5;
-    const cols = 8;
-    const startX = 80;
-    const startY = 80;
-    const spacingX = 40;
-    const spacingY = 40;
-    
-    for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-            formationSpots.push({
-                x: startX + col * spacingX,
-                y: startY + row * spacingY,
-                taken: false
-            });
-        }
-    }
-}
-
-// Function to find an empty spot in the formation
-function getEmptyFormationSpot() {
-    const emptySpots = formationSpots.filter(spot => !spot.taken);
-    if (emptySpots.length > 0) {
-        return emptySpots[Math.floor(Math.random() * emptySpots.length)];
-    }
-    return null;
-}
-
-// Optimized enemy bullet firing with object pooling
-function fireEnemyBullet(enemy) {
-    // Don't fire if already too many active bullets
-    if (enemyBullets.length >= 15) return;
-    
-    // Different bullet properties based on enemy type
-    let bulletSpeed = 150;
-    let bulletColor = '#fff';
-    let bulletType = 'straight';
-    
-    // Use switch for faster type comparison
-    switch(enemy.type) {
-        case ENEMY_TYPE.BASIC:
-            bulletSpeed = 150;
-            bulletColor = '#ff0';
-            break;
-        case ENEMY_TYPE.FAST:
-            bulletSpeed = 200;
-            bulletColor = '#0ff';
-            bulletType = 'fast';
-            break;
-        case ENEMY_TYPE.ZIGZAG:
-            bulletSpeed = 120;
-            bulletColor = '#f0f';
-            bulletType = 'zigzag';
-            break;
-        case ENEMY_TYPE.TANK:
-            bulletSpeed = 150;
-            bulletColor = '#f00';
-            bulletType = 'split';
-            break;
-        default:
-            bulletSpeed = 150;
-            bulletColor = '#fff';
-    }
-    
-    // Create the bullet from pool
-    const createBullet = (angleOffset = 0) => {
-        const bullet = getPoolObject('enemyBullets');
-        if (!bullet) return; // No bullet available
+    for (let i = 0; i < touches.length; i++) {
+        const touch = touches[i];
+        const touchX = touch.clientX;
+        const touchY = touch.clientY;
         
-        // Set bullet properties
-        bullet.x = enemy.x;
-        bullet.y = enemy.y + 20;
-        bullet.w = 4;
-        bullet.h = 12;
-        bullet.speed = bulletSpeed + (level * 10);
-        bullet.damage = 1;
-        bullet.type = bulletType;
-        bullet.from = 'enemy';
-        bullet.color = bulletColor;
-        bullet.age = 0;
-        bullet.angle = Math.atan2(player.y - enemy.y, player.x - enemy.y) + angleOffset;
-        bullet.wobble = Math.random() * Math.PI * 2;
-        bullet.active = true;
-        
-        enemyBullets.push(bullet);
-    };
-    
-    // For split bullet type, create multiple bullets in a spread pattern
-    if (bulletType === 'split' && Math.random() < 0.3) {
-        createBullet(-0.3);
-        createBullet(0);
-        createBullet(0.3);
-    } else {
-        createBullet();
-    }
-}
-
-// Function to update all bullets
-function updateBullets() {
-    // Update player bullets
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        const bullet = bullets[i];
-        
-        // Move bullet
-        bullet.y -= bullet.speed * dt;
-        
-        // Check if bullet is offscreen
-        if (bullet.y < -20) {
-            bullet.active = false; // Mark as inactive in pool
-            bullets.splice(i, 1); // Remove from active list
-            continue;
-        }
-        
-        // Check for collision with enemies - using optimized collision checks
-        let hitEnemy = false;
-        for (let j = enemies.length - 1; j >= 0; j--) {
-            const enemy = enemies[j];
-            
-            // Fast AABB collision check
-            if (bullet.x < enemy.x + enemy.w &&
-                bullet.x + bullet.w > enemy.x &&
-                bullet.y < enemy.y + enemy.h &&
-                bullet.y + bullet.h > enemy.y) {
+        // Check which button was touched
+        for (const [key, button] of Object.entries(touchControls.buttons)) {
+            if (touchX >= button.x && 
+                touchX <= button.x + button.w && 
+                touchY >= button.y && 
+                touchY <= button.y + button.h) {
                 
-                // Create explosion effect using object pool
-                createExplosion(enemy.x, enemy.y, enemy.color);
-                
-                // Add score
-                score += 100;
-                
-                // Random chance for powerup
-                if (Math.random() < 0.1) {
-                    const powerupTypes = ['double', 'shield', 'speed'];
-                    powerups.push({
-                        x: enemy.x,
-                        y: enemy.y,
-                        w: 20,
-                        h: 16,
-                        speed: 100,
-                        type: powerupTypes[Math.floor(Math.random() * powerupTypes.length)]
-                    });
-                }
-                
-                // Mark bullet as inactive and remove from active list
-                bullet.active = false;
-                bullets.splice(i, 1);
-                hitEnemy = true;
-                
-                // If enemy was in formation, free up the spot
-                if (enemy.targetX && enemy.targetY) {
-                    // Find and free the formation spot
-                    for (let s = 0; s < formationSpots.length; s++) {
-                        const spot = formationSpots[s];
-                        if (spot.x === enemy.targetX && spot.y === enemy.targetY) {
-                            spot.taken = false;
-                            break;
-                        }
-                    }
-                }
-                
-                // Remove enemy
-                enemies.splice(j, 1);
-                break;
-            }
-        }
-        
-        if (hitEnemy) continue;
-    }
-    
-    // Update enemy bullets
-    for (let i = enemyBullets.length - 1; i >= 0; i--) {
-        const bullet = enemyBullets[i];
-        
-        // Increment bullet age
-        bullet.age++;
-        
-        // Move bullet based on its type - switch for better performance
-        switch(bullet.type) {
-            case 'straight':
-                bullet.y += bullet.speed * dt;
-                break;
-            
-            case 'fast':
-                bullet.y += bullet.speed * dt;
-                // Slight homing effect
-                if (bullet.age % 10 === 0 && player.alive) {
-                    const angle = Math.atan2(player.y - bullet.y, player.x - bullet.x);
-                    const targetX = bullet.x + Math.cos(angle) * bullet.speed * dt;
-                    bullet.x = bullet.x * 0.9 + targetX * 0.1; 
-                }
-                break;
-            
-            case 'zigzag':
-                bullet.y += bullet.speed * dt;
-                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 100 * dt;
-                break;
-            
-            case 'split':
-                bullet.x += Math.cos(bullet.angle) * bullet.speed * dt;
-                bullet.y += Math.sin(bullet.angle) * bullet.speed * dt;
-                break;
-                
-            default:
-                bullet.y += bullet.speed * dt;
-        }
-        
-        // Check if bullet is offscreen using optimized boundary check
-        if (bullet.x < -20 || bullet.x > CANVAS_WIDTH + 20 || 
-            bullet.y < -20 || bullet.y > CANVAS_HEIGHT + 20) {
-            bullet.active = false; // Mark as inactive in pool
-            enemyBullets.splice(i, 1); // Remove from active list
-            continue;
-        }
-        
-        // Check for collision with player - only if player is vulnerable
-        if (player.alive && !player.shield) {
-            // Fast AABB collision check
-            if (bullet.x < player.x + player.w &&
-                bullet.x + bullet.w > player.x &&
-                bullet.y < player.y + player.h &&
-                bullet.y + bullet.h > player.y) {
-                
-                // Create explosion effect
-                createExplosion(player.x, player.y, '#f00');
-                
-                // Mark bullet as inactive and remove
-                bullet.active = false;
-                enemyBullets.splice(i, 1);
-                
-                // Reduce lives
-                lives--;
-                
-                // Add screen shake for impact
-                screenShake = 10;
-                
-                if (lives <= 0) {
-                    state = GAME_STATE.GAME_OVER;
+                // Special handling for auto-shoot toggle
+                if (key === 'autoShoot') {
+                    autoShootActive = !autoShootActive;
                 } else {
-                    // Player hit but not dead
-                    player.alive = false;
-                    
-                    // Respawn player after delay
-                    setTimeout(() => {
-                        player.alive = true;
-                        player.x = PLAYER_START_X;
-                        // Adjust player Y position
-                        const buttonAreaHeight = isTouchDevice ? (CANVAS_HEIGHT * 0.12 + CANVAS_HEIGHT * 0.05) : 0;
-                        player.y = CANVAS_HEIGHT - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
-                        player.shield = true; // Brief invulnerability
-                        
-                        // Disable shield after a short time
-                        setTimeout(() => player.shield = false, 2000);
-                    }, 1000);
+                    button.pressed = true;
+                    // Store touch ID to track this specific touch
+                    button.touchId = touch.identifier;
                 }
             }
         }
     }
 }
 
-// Function to update powerups
-function updatePowerups() {
-    for (let i = powerups.length - 1; i >= 0; i--) {
-        const powerup = powerups[i];
+// Handle touch end events
+function handleTouchEnd(e) {
+    e.preventDefault();
+    
+    const touches = e.changedTouches;
+    
+    for (let i = 0; i < touches.length; i++) {
+        const touch = touches[i];
         
-        // Move powerup down
-        powerup.y += powerup.speed * dt; // Use dt
-        
-        // Check if powerup is offscreen
-        if (powerup.y > CANVAS_HEIGHT + 20) {
-            powerups.splice(i, 1);
-            continue;
-        }
-        
-        // Check for collision with player
-        if (player.alive && checkCollision(powerup, player)) {
-            // Apply powerup effect
-            if (powerup.type === 'double') {
-                player.power = 'double';
-                player.powerTimer = 8.3; // Seconds
-            } else if (powerup.type === 'shield') {
-                player.shield = true;
-                player.powerTimer = 10; // Seconds
-            } else if (powerup.type === 'speed') {
-                player.power = 'speed';
-                player.speed = 400; // Temporary speed boost (pixels per second)
-                player.powerTimer = 7.5; // Seconds
+        // Check which button was released
+        for (const button of Object.values(touchControls.buttons)) {
+            if (button.touchId === touch.identifier) {
+                button.pressed = false;
+                button.touchId = null;
             }
-            
-            // Remove powerup
-            powerups.splice(i, 1);
         }
     }
+}
+
+// Handle touch move events
+function handleTouchMove(e) {
+    e.preventDefault();
     
-    // Update power timer
-    if (player.powerTimer > 0) {
-        player.powerTimer -= dt; // Use dt
-        
-        if (player.powerTimer <= 0) {
-            // Reset power
-            player.power = 'normal';
-            player.speed = 250; // Reset to default pixels per second
-            player.shield = false;
-        }
-    }
-}
-
-// Simple collision detection function
-function checkCollision(a, b) {
-    return (
-        a.x < b.x + b.w &&
-        a.x + a.w > b.x &&
-        a.y < b.y + b.h &&
-        a.y + a.h > b.y
-    );
-}
-
-// Enhanced function to check if an object is off-screen
-function isOffScreen(obj) {
-    return (
-        obj.x + obj.w < 0 ||
-        obj.x > CANVAS_WIDTH ||
-        obj.y + obj.h < 0 ||
-        obj.y > CANVAS_HEIGHT + 20
-    );
-}
-
-// Optimized explosion creation using object pool
-function createExplosion(x, y, color) {
-    // Add screen shake effect for explosions
-    screenShake = 5;
+    const touches = e.changedTouches;
     
-    // Create particles from pool
-    const numParticles = 15; // Reduce for performance if needed
-    for (let i = 0; i < numParticles; i++) {
-        const particle = getPoolObject('particles');
-        if (!particle) continue; // Skip if no particles available
-
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 50 + Math.random() * 150;
-        const initialLife = Math.random() * 0.4 + 0.2;
-
-        // Set particle properties
-        particle.x = x;
-        particle.y = y;
-        particle.vx = Math.cos(angle) * speed;
-        particle.vy = Math.sin(angle) * speed;
-        particle.size = Math.random() * 3 + 1;
-        particle.color = color;
-        particle.life = initialLife;
-        particle.initialLife = initialLife;
-        particle.active = true;
+    for (let i = 0; i < touches.length; i++) {
+        const touch = touches[i];
+        const touchX = touch.clientX;
+        const touchY = touch.clientY;
         
-        particles.push(particle);
+        // Check if the touch is still on the same button
+        for (const button of Object.values(touchControls.buttons)) {
+            if (button.touchId === touch.identifier) {
+                // If touch moved outside the button, release it
+                if (touchX < button.x || touchX > button.x + button.w || 
+                    touchY < button.y || touchY > button.y + button.h) {
+                    button.pressed = false;
+                    button.touchId = null;
+                }
+            }
+        }
     }
 }
 
-// Optimized particle update
-function updateParticles() {
-    for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
+// Layout the touch control buttons based on canvas size
+function layoutTouchButtons() {
+    const buttonSize = CANVAS_HEIGHT * 0.12; // 12% of canvas height
+    const margin = CANVAS_HEIGHT * 0.05; // 5% margin
+    
+    // Left button (bottom left)
+    touchControls.buttons.left.x = margin;
+    touchControls.buttons.left.y = CANVAS_HEIGHT - buttonSize - margin;
+    touchControls.buttons.left.w = buttonSize;
+    touchControls.buttons.left.h = buttonSize;
+    
+    // Right button (bottom left + buttonSize + gap)
+    touchControls.buttons.right.x = margin * 2 + buttonSize;
+    touchControls.buttons.right.y = CANVAS_HEIGHT - buttonSize - margin;
+    touchControls.buttons.right.w = buttonSize;
+    touchControls.buttons.right.h = buttonSize;
+    
+    // AutoShoot button (bottom center)
+    touchControls.buttons.autoShoot.x = (CANVAS_WIDTH - buttonSize) / 2;
+    touchControls.buttons.autoShoot.y = CANVAS_HEIGHT - buttonSize - margin;
+    touchControls.buttons.autoShoot.w = buttonSize;
+    touchControls.buttons.autoShoot.h = buttonSize;
+    
+    // Fire button (bottom right)
+    touchControls.buttons.fire.x = CANVAS_WIDTH - buttonSize - margin;
+    touchControls.buttons.fire.y = CANVAS_HEIGHT - buttonSize - margin;
+    touchControls.buttons.fire.w = buttonSize;
+    touchControls.buttons.fire.h = buttonSize;
+}
+
+// Draw touch controls on screen
+function drawTouchControls() {
+    // Draw background for control area
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, CANVAS_HEIGHT - CANVAS_HEIGHT * 0.12 - CANVAS_HEIGHT * 0.05 * 2, 
+                 CANVAS_WIDTH, CANVAS_HEIGHT * 0.12 + CANVAS_HEIGHT * 0.05);
+    
+    // Draw each button
+    for (const [key, button] of Object.entries(touchControls.buttons)) {
+        // Button background
+        ctx.fillStyle = button.pressed ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.3)';
         
-        // Move particle
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        
-        // Reduce life
-        p.life -= dt;
-        
-        // Remove if dead
-        if (p.life <= 0) {
-            p.active = false; // Mark as inactive in pool
-            particles.splice(i, 1); // Remove from active list
-            continue;
+        // Special style for auto-shoot when active
+        if (key === 'autoShoot' && autoShootActive) {
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.6)';
         }
         
-        // Draw particle
-        ctx.globalAlpha = p.life / p.initialLife;
-        ctx.fillStyle = p.color;
+        // Draw button
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.roundRect(button.x, button.y, button.w, button.h, 8);
         ctx.fill();
-    }
-    
-    ctx.globalAlpha = 1; // Reset alpha
-}
-
-// Main update function for gameplay
-function updateGameplay() {
-    updatePlayer();
-    updateBullets();
-    updateEnemies();
-    updatePowerups();
-    updateParticles();
-    
-    // Update screen shake - use exponential decay for smoother effect
-    if (screenShake > 0) {
-        screenShake *= Math.pow(0.85, 60 * dt); // 60 * dt provides consistent decay rate
-        if (screenShake < 0.5) screenShake = 0;
-    }
-}
-
-// Draw game elements - optimized for fewer context state changes
-function drawGameScreenElements() {
-    // Apply screen shake if needed
-    let shakeApplied = false;
-    if (state === GAME_STATE.PLAYING && screenShake > 0) {
-        ctx.save();
-        ctx.translate(
-            (Math.random() - 0.5) * screenShake,
-            (Math.random() - 0.5) * screenShake
-        );
-        shakeApplied = true;
-    }
-
-    // Batch similar drawing operations together
-    // First draw bullets
-    for (const bullet of bullets) {
-        drawBullet(bullet);
-    }
-    for (const bullet of enemyBullets) {
-        drawBullet(bullet);
-    }
-    
-    // Then draw enemies
-    for (const enemy of enemies) {
-        drawEnemy(enemy);
-    }
-
-    // Then draw powerups
-    for (const powerup of powerups) {
-        drawPowerup(powerup);
-    }
-
-    // Draw boss if present
-    if (bossGalaga) {
-        drawBossGalaga(bossGalaga);
-    }
-
-    // Draw player last (on top)
-    drawPlayer();
-
-    // Draw level transition message if applicable
-    if (state === GAME_STATE.PLAYING && levelTransition > 0 && enemies.length === 0) {
-        ctx.font = 'bold 30px monospace';
-        ctx.fillStyle = '#ff0';
-        ctx.textAlign = 'center';
-        ctx.fillText(`LEVEL ${level} COMPLETE!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
         
-        ctx.font = '20px monospace';
-        ctx.fillStyle = '#0ff';
-        ctx.fillText(`PREPARING LEVEL ${level + 1}...`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
-    }
-
-    if (shakeApplied) {
-        ctx.restore();
+        // Button label
+        ctx.fillStyle = '#fff';
+        ctx.font = `${button.w * 0.6}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(button.label, button.x + button.w / 2, button.y + button.h / 2);
     }
 }
 
-// Optimized game loop with better timing
-function gameLoop() {
-    const currentTime = performance.now();
-    // Delta time in seconds, capped to prevent spiral of death
-    dt = Math.min((currentTime - lastTime) / 1000, 1/15);
-    lastTime = currentTime;
+// Handle pause
+function handlePause() {
+    if (state === GAME_STATE.PLAYING) {
+        previousStateBeforePause = state;
+        state = GAME_STATE.PAUSED;
+    }
+}
 
-    // Clear screen once per frame
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+// Handle resume
+function handleResume() {
+    if (state === GAME_STATE.PAUSED && previousStateBeforePause) {
+        state = previousStateBeforePause;
+        previousStateBeforePause = null;
+    }
+}
 
-    // Handle current game state
-    switch (state) {
-        case GAME_STATE.SPLASH:
-            drawArcadeSplash();
-            break;
+// Function to update player position and actions
+function updatePlayer() {
+    if (!player.alive) return;
+    
+    // Determine movement direction
+    let moveX = 0;
+    
+    // Handle keyboard controls
+    if (keys['ArrowLeft']) moveX -= 1;
+    if (keys['ArrowRight']) moveX += 1;
+    
+    // Handle touch controls
+    if (isTouchDevice) {
+        if (touchControls.buttons.left.pressed) moveX -= 1;
+        if (touchControls.buttons.right.pressed) moveX += 1;
+    }
+    
+    // Move player with speed factored by delta time
+    player.x += moveX * player.speed * dt;
+    
+    // Keep player within bounds
+    if (player.x < player.w / 2) player.x = player.w / 2;
+    if (player.x > CANVAS_WIDTH - player.w / 2) player.x = CANVAS_WIDTH - player.w / 2;
+    
+    // Handle shooting with cooldown
+    if (player.cooldown > 0) {
+        player.cooldown -= dt;
+    }
+    
+    // Determine if player should fire
+    let shouldFire = false;
+    
+    // Check keyboard
+    if (keys['Space']) shouldFire = true;
+    
+    // Check touch controls
+    if (isTouchDevice && (touchControls.buttons.fire.pressed || autoShootActive)) {
+        shouldFire = true;
+    }
+    
+    // Fire if conditions met
+    if (shouldFire && player.cooldown <= 0) {
+        // Reset cooldown based on powerups
+        player.cooldown = player.power === 'double' ? 0.20 : 0.35;
+        
+        // Create bullet from object pool
+        const bullet = getPoolObject('bullets');
+        if (bullet) {
+            bullet.x = player.x;
+            bullet.y = player.y - 15;
+            bullet.w = 3;
+            bullet.h = 12;
+            bullet.speed = 600;
+            bullet.type = player.power === 'double' ? 'double' : 'normal';
+            bullet.from = 'player';
+            bullet.active = true;
             
-        case GAME_STATE.PLAYING:
-            updateGameplay();
-            drawGameScreenElements();
-            drawHUD();
-            if (isTouchDevice) {
-                drawTouchControls();
+            bullets.push(bullet);
+            
+            // Create dual ship bullet if active
+            if (dualShip) {
+                const dualBullet = getPoolObject('bullets');
+                if (dualBullet) {
+                    dualBullet.x = player.x - 24;
+                    dualBullet.y = player.y - 15;
+                    dualBullet.w = 3;
+                    dualBullet.h = 12;
+                    dualBullet.speed = 600;
+                    dualBullet.type = 'normal';
+                    dualBullet.from = 'dual';
+                    dualBullet.active = true;
+                    
+                    bullets.push(dualBullet);
+                }
             }
-            break;
-            
-        case GAME_STATE.PAUSED:
-            drawGameScreenElements();
-            drawHUD();
-            if (isTouchDevice) {
-                drawTouchControls();
-            }
-            drawPauseScreen();
-            break;
-            
-        case GAME_STATE.GAME_OVER:
-            drawGameOver();
-            break;
-            
-        case GAME_STATE.ENTER_HIGH_SCORE:
-            drawEnterHighScoreScreen();
-            break;
+        }
     }
-
-    requestAnimationFrame(gameLoop);
 }
 
-// Initialize the game
-function initGame() {
-    initObjectPools();
-    initTouchControls();
-    fetchHighScores(() => {
-        console.log("Game initialized and ready to start.");
-        gameLoop();
-    });
+// Function to update enemies
+function updateEnemies() {
+    // Check if level is completed
+    if (enemies.length === 0) {
+        if (levelTransition <= 0) {
+            levelTransition = 3; // Show message for 3 seconds
+        } else {
+            levelTransition -= dt;
+            if (levelTransition <= 0) {
+                level++;
+                spawnEnemies(); // Spawn next wave
+            }
+        }
+        return;
+    }
+    
+    // Update enemy positions and behaviors based on their state
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        
+        // Skip if marked for removal
+        if (enemy.markedForRemoval) continue;
+        
+        // Update based on state
+        if (enemy.state === ENEMY_STATE.ENTRANCE) {
+            // Move along entrance path
+            enemy.pathTime += dt;
+            const t = Math.min(1, enemy.pathTime / 3); // Complete path in 3 seconds
+            
+            // Move along entrance curve
+            const curveX = (1-t) * (1-t) * enemy.startX + 2 * (1-t) * t * enemy.controlX + t * t * enemy.targetX;
+            const curveY = (1-t) * (1-t) * enemy.startY + 2 * (1-t) * t * enemy.controlY + t * t * enemy.targetY;
+            
+            enemy.x = curveX;
+            enemy.y = curveY;
+            
+            // Check if arrived at formation position
+            if (t >= 1) {
+                enemy.state = ENEMY_STATE.FORMATION;
+            }
+        } else if (enemy.state === ENEMY_STATE.FORMATION) {
+            // Hover in formation
+            const hoverSpeed = 0.5 + (level * 0.1); // Increase with level
+            const hoverX = Math.sin(Date.now() / 1000 + enemy.index) * 10;
+            const hoverY = Math.cos(Date.now() / 1500 + enemy.index) * 5;
+            
+            // Move toward target with slight hover
+            enemy.x = enemy.x * 0.95 + (enemy.targetX + hoverX) * 0.05;
+            enemy.y = enemy.y * 0.95 + (enemy.targetY + hoverY) * 0.05;
+            
+            // Random chance to enter attack state
+            const attackChance = 0.001 + (level * 0.0005); // Increases with level
+            if (Math.random() < attackChance) {
+                // Add to attack queue - only attacks if not too many are already attacking
+                if (attackQueue.filter(e => e.state === ENEMY_STATE.ATTACK).length < 3) {
+                    enemy.state = ENEMY_STATE.ATTACK;
+                    attackQueue.push(enemy);
+                }
+            }
+            
+            // Random chance to fire
+            const fireChance = 0.002 + (level * 0.0005); // Increases with level
+            if (Math.random() < fireChance) {
+                fireEnemyBullet(enemy);
+            }
+        } else if (enemy.state === ENEMY_STATE.ATTACK) {
+            // Dive attack toward player
+            const attackSpeed = 250 + (level * 20); // Increases with level
+            
+            // Calculate direction to player with some prediction
+            let targetX = player.alive ? player.x : CANVAS_WIDTH / 2;
+            const dx = targetX - enemy.x;
+            const dy = CANVAS_HEIGHT - enemy.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Normalize and apply speed
+            const vx = dx / dist * attackSpeed;
+            const vy = dy / dist * attackSpeed;
+            
+            enemy.x += vx * dt;
+            enemy.y += vy * dt;
+            
+            // Fire at player occasionally during dive
+            const diveFireChance = 0.02 + (level * 0.005);
+            if (Math.random() < diveFireChance) {
+                fireEnemyBullet(enemy);
+            }
+            
+            // Check if enemy is offscreen - return to formation or remove
+            if (isOffScreen(enemy)) {
+                // If enemy has a formation spot, return to it
+                if (typeof enemy.targetX !== 'undefined' && typeof enemy.targetY !== 'undefined') {
+                    // Find a path back to formation
+                    enemy.state = ENEMY_STATE.ENTRANCE;
+                    enemy.startX = enemy.x;
+                    enemy.startY = enemy.y;
+                    enemy.pathTime = 0;
+                    
+                    // Random control point for path
+                    enemy.controlX = enemy.startX + (Math.random() - 0.5) * 200;
+                    enemy.controlY = enemy.startY - 100 - Math.random() * 100;
+                } else {
+                    // If no formation spot, remove
+                    enemies.splice(i, 1);
+                }
+            }
+        }
+    }
+    
+    // Update boss Galaga if present
+    if (bossGalaga) {
+        bossGalaga.timer -= dt;
+        
+        if (bossGalaga.timer <= 0) {
+            // Fire pattern based on state
+            if (bossGalaga.state === 'attacking') {
+                fireEnemyBullet(bossGalaga);
+                bossGalaga.timer = 0.5; // Reset timer
+            } else {
+                bossGalaga.timer = 0.2; // Idle timer
+            }
+        }
+    }
 }
 
-// Start the game
-initGame();
-
-// Enemy spawning, player movement, and other existing functions
-// ...existing code...
+// Function to spawn enemies for current level
+function spawnEnemies() {
+    // Reset formation and attack queue
+    setupFormation();
+    attackQueue = [];
+    
+    // Define wave properties based on level
+    let numEnemies = 16 + Math.min(32, level * 2); // Increases with level, caps at 48
+    const enemyTypes = [
+        ENEMY_TYPE.BASIC,
+        ENEMY_TYPE.FAST,
+        ENEMY_TYPE.TANK,
+        ENEMY_TYPE.ZIGZAG,
+        ENEMY_TYPE.SNIPER
+    ];
+    
+    // Add boss every 5 levels
+    let hasBoss = level % 5 === 0;
+    
+    // Spawn enemies
+    for (let i = 0; i < numEnemies; i++) {
+        // Get formation spot
+        const spot = getEmptyFormationSpot();
+        if (!spot) break; // Stop if no more spots
+        
+        // Mark spot as taken
+        spot.taken = true;
+        
+        // Create enemy with type based on level
+        const enemyTypeIndex = Math.min(
+            Math.floor(Math.random() * (2 + Math.floor(level / 2))), 
+            enemyTypes.length - 1
+        );
+        
+        const enemyType = enemyTypes[enemyTypeIndex];
+        
+        // Set enemy color based on type
+        let enemyColor = '#0f0'; // Default green
+        switch (enemyType) {
+            case ENEMY_TYPE.FAST:
+                enemyColor = '#0ff';
+                break;
+            case ENEMY_TYPE.TANK:
+                enemyColor = '#f00';
+                break;
+            case ENEMY_TYPE.ZIGZAG:
+                enemyColor = '#f0f';
+                break;
+            case ENEMY_TYPE.SNIPER:
+                enemyColor = '#ff0';
+                break;
+        }
+        
+        // Create enemy with entrance path
+        const startSide = Math.random() > 0.5 ? -50 : CANVAS_WIDTH + 50;
+        const startY = -50;
+        
+        // Enemy size based on type
+        let enemyW = 24;
+        let enemyH = 24;
+        
+        if (enemyType === ENEMY_TYPE.TANK) {
+            enemyW = 28;
+            enemyH = 28;
+        } else if (enemyType === ENEMY_TYPE.FAST) {
+            enemyW = 22;
+            enemyH = 22;
+        }
+        
+        // Create the enemy
+        const enemy = {
+            x: startSide,
+            y: startY,
+            w: enemyW,
+            h: enemyH,
+            type: enemyType,
+            color: enemyColor,
+            state: ENEMY_STATE.ENTRANCE,
+            startX: startSide,
+            startY: startY,
+            targetX: spot.x,
+            targetY: spot.y,
+            controlX: CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200,
+            controlY: CANVAS_HEIGHT / 3,
+            pathTime: 0,
+            index: i
+        };
+        
+        enemies.push(enemy);
+        
+        // Add delay between enemy spawns
+        spot.taken = true;
+    }
+    
+    // Add boss for boss levels
+    if (hasBoss) {
+        // Add boss Galaga
+        bossGalaga = {
+            x: CANVAS_WIDTH / 2,
+            y: 50,
+            w: 60,
+            h: 50,
+            color: '#f0f',
+            health: 10,
+            timer: 2,
+            state: 'idle',
+            hasCaptured: false
+        };
+    }
+}
