@@ -1248,6 +1248,8 @@ document.addEventListener('keydown', (event) => {
     if (state === GAME_STATE.SPLASH && event.code === 'Space') {
         state = GAME_STATE.PLAYING;
         // Initialize game elements when transitioning to playing state
+        console.clear();
+        console.log("Game starting - initializing game elements...");
         resetGame();
     }
 });
@@ -1586,6 +1588,11 @@ function gameLoop() {
         for (const bullet of enemyBullets) {
             drawBullet(bullet);
         }
+        
+        // Draw enemies explicitly
+        for (const enemy of enemies) {
+            drawEnemy(enemy);
+        }
 
         // Draw powerups
         for (const powerup of powerups) {
@@ -1631,53 +1638,57 @@ gameLoop();
 
 // Function to spawn enemies in Galaga style
 function spawnEnemies() {
-    // Spawn enemies only if no enemies exist and no level transition is in progress
-    if (enemies.length === 0 && levelTransition === 0) {
-        console.log("Spawning new wave of enemies for level: " + level);
-        const totalEnemies = Math.min(5 + level * 2, formationSpots.length); // Limit to available formation spots
+    // Always spawn a new wave when called
+    console.log("Spawning new wave of enemies for level: " + level);
+    
+    // Clear any existing enemies first (safety check)
+    enemies = [];
+    
+    // Setup fresh formation for the new wave
+    setupFormation();
+    
+    const totalEnemies = Math.min(5 + level * 2, formationSpots.length); // Limit to available formation spots
 
-        // Pre-assign formation spots
-        setupFormation();
+    for (let i = 0; i < totalEnemies; i++) {
+        const spot = formationSpots[i];
+        spot.taken = true;
 
-        for (let i = 0; i < totalEnemies; i++) {
-            const spot = formationSpots[i];
-            spot.taken = true;
-
-            // All enemies are basic in level 1 for easier difficulty
-            let enemyType = 'basic';
-            if (level > 1) {
-                const typeRoll = Math.random();
-                if (level >= 3 && typeRoll > 0.7) {
-                    enemyType = 'fast';
-                } else if (level >= 2 && typeRoll > 0.4) {
-                    enemyType = 'zigzag';
-                }
+        // All enemies are basic in level 1 for easier difficulty
+        let enemyType = 'basic';
+        if (level > 1) {
+            const typeRoll = Math.random();
+            if (level >= 3 && typeRoll > 0.7) {
+                enemyType = 'fast';
+            } else if (level >= 2 && typeRoll > 0.4) {
+                enemyType = 'zigzag';
             }
-
-            // Create the enemy with assigned formation spot
-            const enemy = {
-                x: Math.random() > 0.5 ? -50 : canvas.width + 50, // Start from outside the canvas
-                y: -30, // Start slightly above the canvas
-                w: 32,
-                h: 32,
-                speed: 1 + level * 0.1, // Start slower and increase with level
-                type: enemyType,
-                state: ENEMY_STATE.ENTRANCE,
-                targetX: spot.x,
-                targetY: spot.y,
-                color: enemyType === 'basic' ? '#0f8' : 
-                       enemyType === 'fast' ? '#f80' : '#f0f',
-                entranceDelay: i * 15, // Slightly delay each enemy's entrance
-                id: i // Unique ID for debugging
-            };
-
-            enemies.push(enemy);
-            console.log(`Spawned enemy #${i}: type=${enemyType} at (${enemy.x},${enemy.y}) → (${spot.x},${spot.y})`);
         }
 
-        // Reset level transition
-        levelTransition = 0;
+    // Create the enemy with assigned formation spot
+        const enemy = {
+            // More predictable entry pattern for better visibility
+            x: i % 2 === 0 ? -50 : canvas.width + 50, // Alternate left/right
+            y: 0, // Make sure it's visible at the top of the screen
+            w: 32,
+            h: 32,
+            speed: 2, // Fixed speed for more consistent movement
+            type: enemyType,
+            state: ENEMY_STATE.ENTRANCE,
+            targetX: spot.x,
+            targetY: spot.y,
+            color: enemyType === 'basic' ? '#0f8' : 
+                   enemyType === 'fast' ? '#f80' : '#f0f',
+            entranceDelay: i * 10, // Slightly shorter delay
+            id: i // Unique ID for debugging
+        };
+
+        enemies.push(enemy);
+        console.log(`Spawned enemy #${i}: type=${enemyType} at (${enemy.x},${enemy.y}) → (${spot.x},${spot.y})`);
     }
+
+    console.log(`Total enemies created: ${enemies.length}`);
+    // Reset level transition
+    levelTransition = 0;
 }
 
 function spawnEnemyWave(waveSize) {
@@ -1746,18 +1757,17 @@ function updateEnemies() {
             }
         }
 
-        // Draw the enemy
-        drawEnemy(enemy);
-
         // Remove enemy if it goes offscreen (safety check)
         if (enemy.y > canvas.height + 50) {
             enemies.splice(i, 1);
         }
-    }    // Check if all enemies are cleared to transition to the next level
+    }// Check if all enemies are cleared to transition to the next level
     if (enemies.length === 0 && levelTransition === 0) {
+        console.log("All enemies cleared, transitioning to next level");
         levelTransition = 60; // Add a delay before transitioning to the next level
         setTimeout(() => {
             level++;
+            console.log("Spawning enemies for level " + level);
             spawnEnemies();
             levelTransition = 0;
         }, 2000); // 2-second delay before the next level starts
@@ -1849,6 +1859,11 @@ function gameLoop() {
         }
         for (const bullet of enemyBullets) {
             drawBullet(bullet);
+        }
+        
+        // Draw enemies explicitly
+        for (const enemy of enemies) {
+            drawEnemy(enemy);
         }
 
         // Draw powerups
