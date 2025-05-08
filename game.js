@@ -560,6 +560,29 @@ function drawStarfield() {
     ctx.globalAlpha = 1;
 }
 
+// Add shooting logic function
+function updateShooting() {
+    // Main ship shooting
+    if (keys[' '] && player.cooldown <= 0 && player.alive) {
+        if (player.power === 'double') {
+            bullets.push({x: player.x-7, y: player.y-16, vy: -9, type: 'double'});
+            bullets.push({x: player.x+7, y: player.y-16, vy: -9, type: 'double'});
+        } else {
+            bullets.push({x: player.x, y: player.y-16, vy: -8, type: 'normal'});
+        }
+        player.cooldown = player.power === 'double' ? 10 : 16;
+        playShootSound();
+        
+        // Dual ship fires simultaneously if active
+        if (dualShip) {
+            bullets.push({x: player.x-20, y: player.y-12, vy: -8, type: 'normal', from: 'dual'});
+            playShootSound();
+        }
+    }
+    
+    if (player.cooldown > 0) player.cooldown--;
+}
+
 function updateGame() {
     // Apply screen shake effect
     if (screenShake > 0) {
