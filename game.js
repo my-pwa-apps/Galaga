@@ -791,8 +791,7 @@ function drawEnemy(e) {
         ctx.beginPath();
         ctx.arc(0, 0, 2, 0, Math.PI * 2);
         ctx.fill();
-        
-    } else if (e.type === 'zigzag') {
+          } else if (e.type === 'zigzag') {
         // Galaga-style dragonfly/zigzag enemy
         ctx.restore();
         
@@ -878,10 +877,33 @@ function drawEnemy(e) {
                 const zigY = startY + 5 + i * 5;
                 ctx.lineTo(zigX, zigY);
             }
-            
-            ctx.stroke();
+              ctx.stroke();
             ctx.restore();
         }
+    } else {
+        // Default enemy drawing for any unmatched enemy type
+        ctx.restore();
+        
+        // Basic geometric shape with the enemy's color
+        ctx.fillStyle = e.color || '#f00';
+        ctx.beginPath();
+        ctx.rect(-12, -12, 24, 24);
+        ctx.fill();
+        
+        // Add some details
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-4, -4, 3, 0, Math.PI * 2);
+        ctx.arc(4, -4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Add contrast line
+        ctx.strokeStyle = '#ff0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-10, 4);
+        ctx.lineTo(10, 4);
+        ctx.stroke();
     }
     
     ctx.restore();
@@ -1169,14 +1191,18 @@ function updatePlayer() {
 // Function to spawn enemies periodically
 function spawnEnemies() {
     if (enemies.length < 10 && Math.random() < 0.02) {
+        const enemyTypes = ['basic', 'fast', 'zigzag'];
+        const randomType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
         const enemy = {
             x: Math.random() * (canvas.width - 40) + 20,
             y: -20,
             w: 32,
             h: 32,
             speed: 2,
+            type: randomType,
             state: ENEMY_STATE.ENTRANCE,
-            color: '#f00', // Add color for visibility
+            color: randomType === 'basic' ? '#0f8' : 
+                   randomType === 'fast' ? '#f80' : '#f0f',
         };
         enemies.push(enemy);
     }
@@ -1184,13 +1210,15 @@ function spawnEnemies() {
 
 // Function to update and draw enemies
 function updateEnemies() {
-    enemies.forEach((enemy, index) => {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
         enemy.y += enemy.speed;
         if (enemy.y > canvas.height) {
-            enemies.splice(index, 1); // Remove enemy if it goes off-screen
+            enemies.splice(i, 1); // Remove enemy if it goes off-screen
+        } else {
+            drawEnemy(enemy);
         }
-        drawEnemy(enemy);
-    });
+    }
 }
 
 // Update gameplay logic
