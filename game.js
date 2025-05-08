@@ -8,6 +8,7 @@ const GAME_STATE = {
     SPLASH: 'splash',
     PLAYING: 'playing',
     GAME_OVER: 'gameover',
+    ENTER_HIGH_SCORE: 'enterhighscore', // New state for entering high score
 };
 
 let state = GAME_STATE.SPLASH;
@@ -62,13 +63,26 @@ let highScore = 0;
 let challengeStage = false;
 let screenShake = 0; // Initialize screen shake variable
 
+let playerInitials = ["_", "_", "_"];
+let currentInitialIndex = 0;
+
+// Touch Controls
+let isTouchDevice = false;
+const touchControls = {
+    buttons: {
+        left: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'ArrowLeft', label: '<' },
+        right: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'ArrowRight', label: '>' },
+        fire: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'Space', label: 'O' }
+    }
+};
+
 // --- Firebase Setup ---
 const firebaseConfig = {
-    apiKey: "AIzaSyB6VUKC89covzLlhUO7UMeILVCJVy1SPdc",
+    apiKey: "AIzaSyB6VUKC89covzLlhUO7UMeILVCJVy1SPdc", // Replace with your actual API key if this is a placeholder
     authDomain: "galaga-e7527.firebaseapp.com",
     databaseURL: "https://galaga-e7527-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "galaga-e7527",
-    storageBucket: "galaga-e7527.appspot.com", // Corrected storageBucket name
+    storageBucket: "galaga-e7527.appspot.com", 
     messagingSenderId: "983420615265",
     appId: "1:983420615265:web:77861c68c1b93f92dd4820",
     measurementId: "G-R9Z2YFQ30C"
@@ -474,7 +488,7 @@ function drawBossGalaga(boss) {
     eyeGlow.addColorStop(0, '#fff');
     eyeGlow.addColorStop(0.6, '#ff0');
     eyeGlow.addColorStop(1, 'rgba(255, 255, 0, 0)');
-    
+
     ctx.fillStyle = eyeGlow;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 300);
     ctx.beginPath();
@@ -1327,16 +1341,16 @@ function drawHUD() {
     
     // Draw level
     ctx.textAlign = 'right';
-    ctx.fillText(`LEVEL: ${level}`, canvas.width - 20, 30);
+    ctx.fillText(`LEVEL: ${level}`, canvas.width - 150, 30); // Adjusted for lives
     
-    // Draw lives
-    ctx.textAlign = 'left';
-    ctx.fillText(`LIVES: ${lives}`, 20, canvas.height - 20);
+    // Draw lives (moved to top right)
+    ctx.textAlign = 'right';
+    // ctx.fillText(`LIVES: ${lives}`, canvas.width - 20, 30); // Textual lives count
     
-    // Draw ship icons for lives
+    // Draw ship icons for lives (top right)
     for (let i = 0; i < lives; i++) {
         ctx.save();
-        ctx.translate(90 + i * 25, canvas.height - 25);
+        ctx.translate(canvas.width - 70 + i * 25, 22); // Adjusted position
         ctx.scale(0.5, 0.5);
         
         // Draw mini ships for lives
@@ -1366,46 +1380,47 @@ function drawGameOver() {
     ctx.font = 'bold 40px monospace';
     ctx.fillStyle = '#f00';
     ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', canvas.width/2, 200);
+    ctx.fillText('GAME OVER', canvas.width/2, 150); // Adjusted Y
     
     // Score display
     ctx.font = '20px monospace';
     ctx.fillStyle = '#fff';
-    ctx.fillText(`FINAL SCORE: ${score}`, canvas.width/2, 260);
+    ctx.fillText(`FINAL SCORE: ${score}`, canvas.width/2, 200); // Adjusted Y
     
-    // Check if it's a new high score eligible for the table
-    let isNewHighScore = firebaseHighScores.length < MAX_HIGH_SCORES || score > firebaseHighScores[firebaseHighScores.length - 1].score;
-    if (firebaseHighScores.length === MAX_HIGH_SCORES && score <= firebaseHighScores[firebaseHighScores.length -1].score) {
-        isNewHighScore = false;
+    let isNewHighScore = false;
+    if (firebaseHighScores.length < MAX_HIGH_SCORES) {
+        isNewHighScore = true;
+    } else if (firebaseHighScores.length > 0 && score > firebaseHighScores[firebaseHighScores.length - 1].score) {
+        // If table is full, score must be greater than the lowest score in the table
+        isNewHighScore = true;
+    }
+    // Also consider the case where firebaseHighScores is empty, any score is a high score.
+    if (firebaseHighScores.length === 0 && score > 0) {
+        isNewHighScore = true;
     }
 
 
-    if (isNewHighScore && !player.highScoreSubmitted) { // Check a flag to prevent multiple prompts
-        const playerName = prompt("New High Score! Enter your initials (3 chars):", "AAA");
-        if (playerName && playerName.trim() !== "") {
-            saveHighScore(playerName.substring(0, 3).toUpperCase(), score);
-            player.highScoreSubmitted = true; // Set flag
-        }
-    } else if (score > highScore && firebaseHighScores.length === 0) { // Case for first ever high score
-         const playerName = prompt("New High Score! Enter your initials (3 chars):", "AAA");
-        if (playerName && playerName.trim() !== "") {
-            saveHighScore(playerName.substring(0, 3).toUpperCase(), score);
-            player.highScoreSubmitted = true; // Set flag
-        }
+    if (isNewHighScore && !player.highScoreSubmitted) {
+        // Transition to enter high score state instead of prompt
+        state = GAME_STATE.ENTER_HIGH_SCORE;
+        playerInitials = ["_", "_", "_"];
+        currentInitialIndex = 0;
+        // No need to call drawEnterHighScoreScreen here, gameLoop will handle it
+        ctx.restore(); // Restore context before early exit
+        return; 
     }
 
-
-    // Display High Scores on Game Over Screen
+    // Display High Scores on Game Over Screen (if not entering new one)
     ctx.font = '16px monospace';
     ctx.fillStyle = '#ff0';
-    ctx.fillText('HIGH SCORES:', canvas.width / 2, 330); // Adjusted Y position
+    ctx.fillText('HIGH SCORES:', canvas.width / 2, 260); // Adjusted Y position
     if (firebaseHighScores.length > 0) {
         firebaseHighScores.slice(0, 5).forEach((entry, index) => { // Display top 5
-            ctx.fillText(`${index + 1}. ${entry.name.substring(0,3)} - ${entry.score}`, canvas.width / 2, 360 + index * 25);
+            ctx.fillText(`${index + 1}. ${entry.name.substring(0,3)} - ${entry.score}`, canvas.width / 2, 290 + index * 25);
         });
     } else {
         ctx.fillStyle = '#aaa';
-        ctx.fillText('No scores yet. Yours could be the first!', canvas.width / 2, 360);
+        ctx.fillText('No scores yet!', canvas.width / 2, 290);
     }
     
     // Restart instructions
@@ -1418,9 +1433,49 @@ function drawGameOver() {
     // Listen for space to restart
     if (keys['Space']) {
         state = GAME_STATE.SPLASH;
-        // highScore is now managed by fetchHighScores
+        fetchHighScores(); // Fetch scores when returning to splash
     }
 }
+
+function drawEnterHighScoreScreen() {
+    ctx.save();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = 'bold 30px monospace';
+    ctx.fillStyle = '#ff0';
+    ctx.textAlign = 'center';
+    ctx.fillText('NEW HIGH SCORE!', canvas.width / 2, 150);
+
+    ctx.font = '20px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`YOUR SCORE: ${score}`, canvas.width / 2, 200);
+
+    ctx.fillText('ENTER YOUR INITIALS:', canvas.width / 2, 250);
+
+    // Display initials input
+    let initialsDisplay = playerInitials.join(" ");
+    ctx.font = 'bold 40px monospace';
+    ctx.fillStyle = '#0ff';
+    ctx.fillText(initialsDisplay, canvas.width / 2, 320);
+
+    // Blinking cursor effect for the current initial
+    if (Math.floor(Date.now() / 500) % 2 === 0 && currentInitialIndex < 3) {
+        const textWidth = ctx.measureText(playerInitials.slice(0, currentInitialIndex).join(" ")).width;
+        const singleCharWidth = ctx.measureText("_").width;
+        const cursorX = canvas.width / 2 - ctx.measureText(initialsDisplay).width / 2 + textWidth + (currentInitialIndex > 0 ? ctx.measureText(" ").width * currentInitialIndex : 0) ;
+        ctx.fillText("_", cursorX + singleCharWidth / 2, 320);
+    }
+
+
+    ctx.font = '16px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('USE A-Z, BACKSPACE TO DELETE', canvas.width / 2, 380);
+    ctx.fillText('PRESS ENTER TO SUBMIT', canvas.width / 2, 410);
+
+    ctx.restore();
+}
+
 
 // Add event listeners for keyboard input
 document.addEventListener('keydown', (event) => {
@@ -1433,6 +1488,28 @@ document.addEventListener('keydown', (event) => {
         console.clear();
         console.log("Game starting - initializing game elements...");
         resetGame();
+    } else if (state === GAME_STATE.ENTER_HIGH_SCORE) {
+        const key = event.key.toUpperCase();
+        if (key.length === 1 && key >= 'A' && key <= 'Z') {
+            if (currentInitialIndex < 3) {
+                playerInitials[currentInitialIndex] = key;
+                currentInitialIndex++;
+            }
+        } else if (event.code === 'Backspace') {
+            if (currentInitialIndex > 0) {
+                currentInitialIndex--;
+                playerInitials[currentInitialIndex] = "_";
+            }
+        } else if (event.code === 'Enter') {
+            // Check if all initials are filled or at least one is not "_"
+            const enteredName = playerInitials.filter(char => char !== "_").join("");
+            if (enteredName.length > 0) {
+                saveHighScore(playerInitials.join(""), score);
+                player.highScoreSubmitted = true;
+                state = GAME_STATE.GAME_OVER; // Go back to game over to show updated scores
+                fetchHighScores(); // Fetch scores immediately to update display
+            }
+        }
     }
 });
 
@@ -1450,6 +1527,9 @@ function resetGame() {
     player.power = 'normal';
     player.highScoreSubmitted = false; // Reset flag for new game
     
+    playerInitials = ["_", "_", "_"]; // Reset initials
+    currentInitialIndex = 0;         // Reset initial index
+
     // Clear arrays
     bullets = [];
     enemies = [];
@@ -1932,15 +2012,27 @@ function gameLoop() {
 
         // Game HUD (score, lives, etc.)
         drawHUD();
+
+        // Draw touch controls if on a touch device
+        if (isTouchDevice) {
+            drawTouchControls();
+        }
+
     } else if (state === GAME_STATE.GAME_OVER) {
         drawGameOver();
+    } else if (state === GAME_STATE.ENTER_HIGH_SCORE) { // Add this condition
+        drawEnterHighScoreScreen();
     }
 
     requestAnimationFrame(gameLoop);
 }
 
 // Start the game loop
-gameLoop();
+// fetchHighScores(gameLoop); // Fetch initial high scores then start game loop
+// Initialize touch controls first, then fetch scores and start loop
+initTouchControls();
+fetchHighScores(gameLoop);
+
 
 // Function to spawn enemies in Galaga style
 function spawnEnemies() {
@@ -2369,4 +2461,92 @@ function updatePlayer() {
     if (player.cooldown > 0) {
         player.cooldown--;
     }
+}
+
+// --- Touch Control Functions ---
+function initTouchControls() {
+    isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+    if (isTouchDevice) {
+        console.log("Touch device detected. Initializing touch controls.");
+        const buttonWidth = canvas.width * 0.2;
+        const buttonHeight = canvas.height * 0.12;
+        const bottomMargin = canvas.height * 0.05;
+        const spacing = canvas.width * 0.05;
+
+        touchControls.buttons.left.w = buttonWidth;
+        touchControls.buttons.left.h = buttonHeight;
+        touchControls.buttons.left.x = canvas.width * 0.1;
+        touchControls.buttons.left.y = canvas.height - buttonHeight - bottomMargin;
+
+        touchControls.buttons.right.w = buttonWidth;
+        touchControls.buttons.right.h = buttonHeight;
+        touchControls.buttons.right.x = touchControls.buttons.left.x + buttonWidth + spacing;
+        touchControls.buttons.right.y = canvas.height - buttonHeight - bottomMargin;
+        
+        touchControls.buttons.fire.w = buttonWidth * 1.2; // Fire button slightly larger
+        touchControls.buttons.fire.h = buttonHeight;
+        touchControls.buttons.fire.x = canvas.width - buttonWidth * 1.2 - canvas.width * 0.1;
+        touchControls.buttons.fire.y = canvas.height - buttonHeight - bottomMargin;
+
+        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch);
+        canvas.addEventListener('touchend', handleTouch);
+        canvas.addEventListener('touchcancel', handleTouch);
+    }
+}
+
+function pointInRect(px, py, rect) {
+    return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
+}
+
+function processTouches(eventTouches) {
+    // Reset pressed state for all buttons and corresponding keys
+    for (const btnKey in touchControls.buttons) {
+        const button = touchControls.buttons[btnKey];
+        button.pressed = false;
+        keys[button.key] = false; // Ensure key is reset before re-evaluating
+    }
+
+    // Check each active touch against each button
+    for (let i = 0; i < eventTouches.length; i++) {
+        const touch = eventTouches[i];
+        const touchX = touch.clientX - canvas.offsetLeft;
+        const touchY = touch.clientY - canvas.offsetTop;
+
+        if (pointInRect(touchX, touchY, touchControls.buttons.left)) {
+            touchControls.buttons.left.pressed = true;
+            keys[touchControls.buttons.left.key] = true;
+        }
+        if (pointInRect(touchX, touchY, touchControls.buttons.right)) {
+            touchControls.buttons.right.pressed = true;
+            keys[touchControls.buttons.right.key] = true;
+        }
+        if (pointInRect(touchX, touchY, touchControls.buttons.fire)) {
+            touchControls.buttons.fire.pressed = true;
+            keys[touchControls.buttons.fire.key] = true;
+        }
+    }
+}
+
+function handleTouch(event) {
+    event.preventDefault(); // Prevent default touch behaviors like scrolling
+    processTouches(event.touches); // Process all currently active touches on the screen
+}
+
+function drawTouchControls() {
+    ctx.save();
+    ctx.globalAlpha = 0.5; // Semi-transparent buttons
+    ctx.font = 'bold 30px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (const btnKey in touchControls.buttons) {
+        const button = touchControls.buttons[btnKey];
+        ctx.fillStyle = button.pressed ? '#0f0' : '#888'; // Green when pressed, gray otherwise
+        ctx.fillRect(button.x, button.y, button.w, button.h);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(button.label, button.x + button.w / 2, button.y + button.h / 2);
+    }
+    ctx.restore();
 }
