@@ -51,6 +51,8 @@ const ENEMY_STATE = {
 let formationSpots = [];
 let attackQueue = [];
 
+// Add particle array
+let particles = [];
 
 function drawArcadeSplash() {
     ctx.save();
@@ -492,20 +494,33 @@ function updateGame() {
     // Collisions: bullets vs enemies
     bullets.forEach((b, bi) => {
         enemies.forEach((e, ei) => {
-            if (e.alive && Math.abs(b.x-e.x)<18 && Math.abs(b.y-e.y)<16) {
+            if (e.alive && Math.abs(b.x - e.x) < 18 && Math.abs(b.y - e.y) < 16) {
                 e.hp--;
                 if (e.hp <= 0) {
                     e.alive = false;
-                    score += 100 + level*10;
+                    score += 100 + level * 10;
                     playExplosionSound();
-                    // Powerup drop chance
-                    if (Math.random() < 0.12 + 0.01*level) {
-                        let types = ['double','shield','speed'];
-                        let type = types[Math.floor(Math.random()*types.length)];
-                        powerups.push({x: e.x, y: e.y, type});
+                    // Spawn particles on enemy destruction
+                    for (let i = 0; i < 12; i++) {
+                        particles.push({
+                            x: e.x,
+                            y: e.y,
+                            vx: (Math.random() - 0.5) * 4,
+                            vy: (Math.random() - 0.5) * 4,
+                            size: 2 + Math.random() * 2,
+                            alpha: 1,
+                            color: e.color,
+                            life: 30 + Math.random() * 20
+                        });
+                    }
+                    e.alive = false;
+                    score += 100 + level * 10;
+                    playExplosionSound();
+                    if (Math.random() < 0.2) {
+                        powerups.push({ x: e.x, y: e.y, type: ['double', 'shield', 'speed'][Math.floor(Math.random() * 3)] });
                     }
                 }
-                bullets.splice(bi,1);
+                bullets.splice(bi, 1);
             }
         });
     });
@@ -573,6 +588,23 @@ function updateGame() {
     }
 }
 
+// Particle drawing and updating
+function drawParticles() {
+    particles.forEach((p, idx) => {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.02;
+        if (p.alpha <= 0) particles.splice(idx, 1);
+    });
+}
+
 function drawGame() {
     // Animated starfield background
     ctx.fillStyle = '#000';
@@ -595,6 +627,7 @@ function drawGame() {
     enemies.forEach(drawEnemy);
     enemyBullets.forEach(drawEnemyBullet);
     powerups.forEach(drawPowerup);
+    drawParticles(); // Add particle drawing here
     drawHUD();
     // Level transition
     if (levelTransition > 0) {
@@ -663,7 +696,13 @@ function gameLoop() {
         drawArcadeSplash();
     } else if (state === GAME_STATE.PLAYING) {
         updateGame();
-        drawGame();
+        drawPlayer();
+        bullets.forEach(drawBullet);
+        enemies.forEach(e => { if (e.alive) drawEnemy(e); });
+        enemyBullets.forEach(drawEnemyBullet);
+        powerups.forEach(drawPowerup);
+        drawParticles(); // Add particle drawing here
+        drawHUD();
     } else if (state === GAME_STATE.GAME_OVER) {
         drawGame();
         drawGameOver();
