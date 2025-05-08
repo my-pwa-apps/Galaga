@@ -1635,15 +1635,13 @@ function spawnEnemies() {
     // Spawn enemies only if no enemies exist and no level transition is in progress
     if (enemies.length === 0 && levelTransition === 0) {
         const totalEnemies = 5 + level * 2; // Start with 5 enemies, increase by 2 per level
-        for (let i = 0; i < totalEnemies; i++) {
-            spawnEnemyWave(1); // Spawn one wave with all enemies
-        }
+        spawnEnemyWave(totalEnemies); // Spawn all enemies in one wave
     }
 }
 
 function spawnEnemyWave(waveSize) {
-    const startX = Math.random() > 0.5 ? -30 : canvas.width + 30; // Start from left or right side
-    const entryY = -30;
+    const startX = canvas.width / 2; // Start from the center horizontally
+    const entryY = -30; // Start slightly above the canvas
 
     // Choose a primary enemy type for this wave
     const enemyTypes = ['basic', 'fast', 'zigzag'];
@@ -1651,8 +1649,8 @@ function spawnEnemyWave(waveSize) {
 
     for (let i = 0; i < waveSize; i++) {
         const enemy = {
-            x: startX,
-            y: entryY - i * 40, // Space them out vertically
+            x: startX + (i % 5) * 40 - 80, // Spread enemies horizontally in rows
+            y: entryY - Math.floor(i / 5) * 40, // Stack enemies vertically
             w: 32,
             h: 32,
             speed: 1.5 + level * 0.1, // Start slower and increase speed slightly with each level
@@ -1660,7 +1658,7 @@ function spawnEnemyWave(waveSize) {
             state: ENEMY_STATE.ENTRANCE,
             color: waveType === 'basic' ? '#0f8' : 
                    waveType === 'fast' ? '#f80' : '#f0f',
-            entranceDelay: i * 15, // Delay each enemy in the wave
+            entranceDelay: i * 10, // Delay each enemy slightly
             waveIndex: i
         };
 
@@ -1711,8 +1709,6 @@ function updateEnemies() {
             if (Math.random() < 0.01 + level * 0.002) { // Increase attack frequency with level
                 fireEnemyBullet(enemy);
             }
-
-            // Add custom attack patterns if needed
         }
 
         // Draw the enemy
