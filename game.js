@@ -1332,7 +1332,7 @@ function drawPowerup(p) {
 }
 
 // Function to draw the game HUD (score, lives, etc.)
-//function drawHUD() {
+function drawHUD() {
     ctx.save();
     
     // Draw score
