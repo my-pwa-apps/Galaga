@@ -1733,3 +1733,43 @@ function updateEnemies() {
         }
     }
 }
+
+// Function to handle player movement and firing
+function updatePlayer() {
+    // Handle player movement
+    if (keys['ArrowLeft'] || keys['KeyA']) {
+        player.x -= player.speed;
+        if (player.x < player.w / 2) player.x = player.w / 2; // Prevent going offscreen
+    }
+    if (keys['ArrowRight'] || keys['KeyD']) {
+        player.x += player.speed;
+        if (player.x > canvas.width - player.w / 2) player.x = canvas.width - player.w / 2; // Prevent going offscreen
+    }
+
+    // Handle player firing
+    if (keys['Space'] && player.cooldown <= 0 && player.alive) {
+        const bullet = {
+            x: player.x,
+            y: player.y - player.h / 2,
+            w: 3,
+            h: 12,
+            speed: 10,
+            type: player.power === 'double' ? 'double' : 'normal',
+            from: dualShip ? 'dual' : 'player'
+        };
+        bullets.push(bullet);
+
+        // Dual ship fires an additional bullet
+        if (dualShip) {
+            const dualBullet = { ...bullet, x: player.x - 24 };
+            bullets.push(dualBullet);
+        }
+
+        player.cooldown = 15; // Cooldown period before next shot
+    }
+
+    // Reduce cooldown timer
+    if (player.cooldown > 0) {
+        player.cooldown--;
+    }
+}
