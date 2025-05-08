@@ -1674,6 +1674,16 @@ function checkCollision(a, b) {
     );
 }
 
+// Enhanced function to check if an object is off-screen
+function isOffScreen(obj) {
+    return (
+        obj.x + obj.w < 0 ||
+        obj.x > canvas.width ||
+        obj.y + obj.h < 0 ||
+        obj.y > canvas.height + 50 // Allow a bit of buffer below the screen
+    );
+}
+
 // Function to create explosion particles
 function createExplosion(x, y, color) {
     // Add screen shake effect for explosions
@@ -1810,8 +1820,12 @@ function spawnEnemies() {
     // Always spawn a new wave when called
     console.log("Spawning new wave of enemies for level: " + level);
     
-    // Clear any existing enemies first (safety check)
+    // Clear any existing enemies first
     enemies = [];
+    
+    // Reset attack queue and ensure no leftover state
+    attackQueue = [];
+    levelTransition = 0;
     
     // Setup fresh formation for the new wave
     setupFormation();
@@ -1898,7 +1912,7 @@ function spawnEnemies() {
             path: entrancePath, // Store the path for this enemy
             pathProgress: 0, // Progress along the path (0.0 to 1.0)
             pathSpeed: 0.01 + (Math.random() * 0.005), // Variable speed for more natural movement
-            attackCooldown: 0, // Cooldown before this enemy can attack
+            attackCooldown: Math.floor(Math.random() * 120) + 60, // Initialize with cooldown
             attackChance: enemyType === 'basic' ? 0.002 : 
                           enemyType === 'fast' ? 0.005 :
                           enemyType === 'tank' ? 0.003 : 0.004, // Chance to break formation and attack
@@ -1910,8 +1924,6 @@ function spawnEnemies() {
     }
 
     console.log(`Total enemies created: ${enemies.length}`);
-    // Reset level transition
-    levelTransition = 0;
 }
 
 function spawnEnemyWave(waveSize) {
@@ -1953,6 +1965,7 @@ function bezierPoint(p0, p1, p2, p3, t) {
 // Function to update all enemies
 function updateEnemies() {
     let allEnemiesInFormation = true; // Track if all enemies are in formation
+    let enemiesRemaining = enemies.length; // Track how many enemies are left
     
     // Pick a random enemy to potentially break formation and attack
     if (Math.random() < 0.01 + (level * 0.005)) {
@@ -1961,7 +1974,7 @@ function updateEnemies() {
             const randomEnemy = formationEnemies[Math.floor(Math.random() * formationEnemies.length)];
             // Only attack if cooldown is zero
             if (randomEnemy.attackCooldown <= 0) {
-                console.log(`Enemy #${randomEnemy.id} breaking formation to attack`);
+                console.log(`Enemy #${randomEnemy #${randomEnemy.id} breaking formation to attack`);
                 randomEnemy.state = ENEMY_STATE.ATTACK;
                 randomEnemy.attackStage = 0; // Start of attack sequence
                 randomEnemy.attackTime = 0; // Track the attack time
@@ -2118,24 +2131,42 @@ function updateEnemies() {
             }
         }
 
-        // Remove enemy if it goes offscreen (safety check)
-        if (enemy.y > canvas.height + 50) {
+        // Remove enemy if it goes offscreen - enhanced logic
+        if (isOffScreen(enemy)) {
+            // If enemy was in formation, free up the spot
+            if (enemy.targetX && enemy.targetY) {
+                for (const spot of formationSpots) {
+                    if (spot.x === enemy.targetX && spot.y === enemy.targetY) {
+                        spot.taken = false;
+                        break;
+                    }
+                }
+            }
+            
+            // Track that this enemy left the screen
+            console.log(`Enemy #${enemy.id} exited screen at (${enemy.x}, ${enemy.y})`);
+            
+            // Remove from array
             enemies.splice(i, 1);
-            console.log(`Enemy #${enemy.id} exited bottom of screen`);
             continue;
         }
     }
     
     // Check if all enemies are cleared to transition to the next level
-    if (enemies.length === 0 && levelTransition === 0) {
-        console.log("All enemies cleared, transitioning to next level");
-        levelTransition = 60; // Add a delay before transitioning to the next level
-        setTimeout(() => {
-            level++;
-            console.log("Spawning enemies for level " + level);
-            spawnEnemies();
-            levelTransition = 0;
-        }, 2000); // 2-second delay before the next level starts
+    // This logging will help us diagnose the issue
+    if (enemies.length === 0) {
+        console.log("All enemies cleared, checking level transition state:", levelTransition);
+        
+        if (levelTransition === 0) {
+            console.log("Starting level transition to level " + (level + 1));
+            levelTransition = 60; // Add a delay before transitioning to the next level
+            setTimeout(() => {
+                level++;
+                console.log("Spawning enemies for level " + level);
+                spawnEnemies();
+                levelTransition = 0;
+            }, 2000); // 2-second delay before the next level starts
+        }
     }
 }
 
@@ -2154,45 +2185,35 @@ function updatePlayer() {
     // Handle player firing
     if (keys['Space'] && player.cooldown <= 0 && player.alive) {
         const bullet = {
-            x: player.x,
-            y: player.y - player.h / 2,
-            w: 3,
-            h: 12,
+            x: player.x,// Reduce cooldown timer
+            y: player.y - player.h / 2,wn > 0) {
+            w: 3,own--;
+            h: 12,}
             speed: 10,
             type: player.power === 'double' ? 'double' : 'normal',
-            from: dualShip ? 'dual' : 'player'
-        };
+            from: dualShip ? 'dual' : 'player'unction to update all gameplay elements
+        };y() {
         bullets.push(bullet);
-        
+        updateBullets();
         // Dual ship fires an additional bullet
-        if (dualShip) {
-            const dualBullet = { ...bullet, x: player.x - 24 };
-            bullets.push(dualBullet);
-        }
-
-        player.cooldown = 15; // Cooldown period before next shot
-    }
-
-    // Reduce cooldown timer
-    if (player.cooldown > 0) {
         player.cooldown--;
-    }
+    }updateEnemies();
 }
-
+er
 // Function to update all gameplay elements
 function updateGameplay() {
     // Update bullets
     updateBullets();
     
-    // Update enemies
-    updateEnemies();
+    // Update enemies   // Update particles
+    updateEnemies();    updateParticles();
     
-    // Update player
+    // Update player development (uncomment when needed)
     updatePlayer();
-    
+        // ctx.font = '12px monospace';
     // Update powerups
-    updatePowerups();
-    
+    updatePowerups();t';
+    }, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
     // Update particles
     updateParticles();
     
@@ -2202,37 +2223,37 @@ function updateGameplay() {
     // ctx.fillStyle = '#fff';
     // ctx.textAlign = 'left';
     // ctx.fillText(`Enemies: ${enemies.length}, Bullets: ${bullets.length}, Enemy Bullets: ${enemyBullets.length}`, 10, canvas.height - 40);
-    // ctx.restore();
-}
+    // ctx.restore();e if (state === GAME_STATE.PLAYING) {
+}        // Apply screen shake if active
 
 // Main game loop
-function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+function gameLoop() {            ctx.translate(
+    ctx.clearRect(0, 0, canvas.width, canvas.height);creenShake / 2,
+hake - screenShake / 2
     if (state === GAME_STATE.SPLASH) {
-        drawArcadeSplash();
-    } else if (state === GAME_STATE.PLAYING) {
+        drawArcadeSplash();   screenShake *= 0.9; // Reduce shake effect over time
+    } else if (state === GAME_STATE.PLAYING) {ke = 0;
         // Apply screen shake if active
         if (screenShake > 0) {
-            ctx.save();
+            ctx.save();// Update all gameplay elements
             ctx.translate(
                 Math.random() * screenShake - screenShake / 2,
-                Math.random() * screenShake - screenShake / 2
-            );
-            screenShake *= 0.9; // Reduce shake effect over time
+                Math.random() * screenShake - screenShake / 2 player and enemy)
+            );or (const bullet of bullets) {
+            screenShake *= 0.9; // Reduce shake effect over time            drawBullet(bullet);
             if (screenShake < 0.5) screenShake = 0;
-        }
+        }) {
 
         // Update all gameplay elements
-        updateGameplay();
-
-        // Draw bullets (both player and enemy)
+        updateGameplay();        
+tly
+        // Draw bullets (both player and enemy)of enemies) {
         for (const bullet of bullets) {
             drawBullet(bullet);
         }
-        for (const bullet of enemyBullets) {
-            drawBullet(bullet);
-        }
+        for (const bullet of enemyBullets) {ps
+            drawBullet(bullet);of powerups) {
+        }owerup);
         
         // Draw enemies explicitly
         for (const enemy of enemies) {
@@ -2245,29 +2266,24 @@ function gameLoop() {
         }
 
         // Draw boss if present
-        if (bossGalaga) {
-            drawBossGalaga(bossGalaga);
+        if (bossGalaga) {        // Draw level transition message if applicable
+            drawBossGalaga(bossGalaga);0) {
+        }ld 30px monospace';
+   ctx.fillStyle = '#ff0';
+        // Draw player            ctx.textAlign = 'center';
+        if (player.alive) { COMPLETE!`, canvas.width / 2, canvas.height / 2);
+            drawPlayer();nt = '20px monospace';
         }
-
-        // Draw player
-        if (player.alive) {
-            drawPlayer();
-        }
-
-        // Draw level transition message if applicable
+t(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);
+        // Draw level transition message if applicable   }
         if (levelTransition > 0) {
             ctx.font = 'bold 30px monospace';
-            ctx.fillStyle = '#ff0';
-            ctx.textAlign = 'center';
-            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
-            ctx.font = '20px monospace';
-            ctx.fillStyle = '#0ff';
-            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillStyle = '#ff0';           ctx.restore();
         }
 
-        if (screenShake > 0) {
-            ctx.restore();
-        }
+
+
+}    requestAnimationFrame(gameLoop);    }        drawGameOver();    } else if (state === GAME_STATE.GAME_OVER) {        drawHUD();        // Game HUD (score, lives, etc.)        }            ctx.restore();        if (screenShake > 0) {        }            ctx.fillText(`NEXT LEVEL STARTING...`, canvas.width / 2, canvas.height / 2 + 40);            ctx.fillStyle = '#0ff';            ctx.font = '20px monospace';            ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);            ctx.textAlign = 'center';        }
 
         // Game HUD (score, lives, etc.)
         drawHUD();
