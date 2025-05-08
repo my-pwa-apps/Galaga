@@ -1142,15 +1142,72 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+// Add event listener for keydown and keyup to track player movement
+document.addEventListener('keydown', (event) => {
+    keys[event.code] = true;
+});
+document.addEventListener('keyup', (event) => {
+    keys[event.code] = false;
+});
+
+// Function to handle player movement
+function updatePlayer() {
+    if (keys['ArrowLeft'] || keys['KeyA']) {
+        player.x = Math.max(player.x - player.speed, 0);
+    }
+    if (keys['ArrowRight'] || keys['KeyD']) {
+        player.x = Math.min(player.x + player.speed, canvas.width - player.w);
+    }
+    if (keys['ArrowUp'] || keys['KeyW']) {
+        player.y = Math.max(player.y - player.speed, 0);
+    }
+    if (keys['ArrowDown'] || keys['KeyS']) {
+        player.y = Math.min(player.y + player.speed, canvas.height - player.h);
+    }
+}
+
+// Function to spawn enemies periodically
+function spawnEnemies() {
+    if (enemies.length < 10 && Math.random() < 0.02) {
+        const enemy = {
+            x: Math.random() * (canvas.width - 40) + 20,
+            y: -20,
+            w: 32,
+            h: 32,
+            speed: 2,
+            state: ENEMY_STATE.ENTRANCE,
+        };
+        enemies.push(enemy);
+    }
+}
+
+// Function to update and draw enemies
+function updateEnemies() {
+    enemies.forEach((enemy, index) => {
+        enemy.y += enemy.speed;
+        if (enemy.y > canvas.height) {
+            enemies.splice(index, 1); // Remove enemy if it goes off-screen
+        }
+        drawEnemy(enemy);
+    });
+}
+
+// Update gameplay logic
+function updateGameplay() {
+    updatePlayer();
+    spawnEnemies();
+    updateEnemies();
+}
+
+// Update game loop to include gameplay logic
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (state === GAME_STATE.SPLASH) {
         drawArcadeSplash();
     } else if (state === GAME_STATE.PLAYING) {
-        // Draw player and other gameplay elements
+        updateGameplay();
         drawPlayer();
-        // ...add calls to draw enemies, bullets, powerups, etc., as needed...
     } else if (state === GAME_STATE.GAME_OVER) {
         // ...existing game over logic...
     }
