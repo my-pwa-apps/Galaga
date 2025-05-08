@@ -1679,3 +1679,57 @@ function spawnEnemyWave() {
         enemies.push(enemy);
     }
 }
+
+// Function to update all enemies
+function updateEnemies() {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+
+        // Handle enemy entrance
+        if (enemy.state === ENEMY_STATE.ENTRANCE) {
+            if (enemy.entranceDelay > 0) {
+                enemy.entranceDelay--;
+                continue;
+            }
+
+            // Move enemy towards its formation spot
+            const targetSpot = getEmptyFormationSpot();
+            if (targetSpot) {
+                enemy.targetX = targetSpot.x;
+                enemy.targetY = targetSpot.y;
+                targetSpot.taken = true;
+                enemy.state = ENEMY_STATE.FORMATION;
+            }
+        }
+
+        // Handle enemy movement to formation
+        if (enemy.state === ENEMY_STATE.FORMATION) {
+            const dx = enemy.targetX - enemy.x;
+            const dy = enemy.targetY - enemy.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 1) {
+                enemy.x += (dx / distance) * enemy.speed;
+                enemy.y += (dy / distance) * enemy.speed;
+            } else {
+                enemy.x = enemy.targetX;
+                enemy.y = enemy.targetY;
+                enemy.state = ENEMY_STATE.ATTACK;
+            }
+        }
+
+        // Handle enemy attack behavior
+        if (enemy.state === ENEMY_STATE.ATTACK) {
+            if (Math.random() < 0.01) {
+                fireEnemyBullet(enemy);
+            }
+
+            // Add custom attack patterns if needed
+        }
+
+        // Remove enemy if it goes offscreen (safety check)
+        if (enemy.y > canvas.height + 50) {
+            enemies.splice(i, 1);
+        }
+    }
+}
