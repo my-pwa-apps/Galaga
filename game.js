@@ -1915,6 +1915,154 @@ function spawnEnemies() {
     }
 }
 
+// Function to update enemies
+function updateEnemies() {
+    // Check if level is completed
+    if (enemies.length === 0 && !bossGalaga) { // Also check for boss
+        if (levelTransition <= 0) {
+            levelTransition = 3; // Show message for 3 seconds
+        } else {
+            levelTransition -= dt;
+            if (levelTransition <= 0) {
+                level++;
+                spawnEnemies(); // Spawn next wave
+            }
+        }
+        return;
+    }
+    
+    // Update enemy positions and behaviors based on their state
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        
+        // Skip if marked for removal (e.g. by collision)
+        if (enemy.markedForRemoval) {
+            // enemies.splice(i, 1); // Consider if splicing here is safe or if it should be done in a separate pass
+            continue;
+        }
+        
+        // Update based on state
+        if (enemy.state === ENEMY_STATE.ENTRANCE) {
+            // Move along entrance path
+            enemy.pathTime += dt;
+            const t = Math.min(1, enemy.pathTime / 3); // Complete path in 3 seconds
+            
+            // Move along entrance curve (quadratic Bezier)
+            const curveX = (1-t) * (1-t) * enemy.startX + 2 * (1-t) * t * enemy.controlX + t * t * enemy.targetX;
+            const curveY = (1-t) * (1-t) * enemy.startY + 2 * (1-t) * t * enemy.controlY + t * t * enemy.targetY;
+            
+            enemy.x = curveX;
+            enemy.y = curveY;
+            
+            // Check if arrived at formation position
+            if (t >= 1) {
+                enemy.state = ENEMY_STATE.FORMATION;
+            }
+        } else if (enemy.state === ENEMY_STATE.FORMATION) {
+            // Hover in formation
+            const hoverSpeed = 0.5 + (level * 0.1); // Increase with level
+            const hoverX = Math.sin(Date.now() / 1000 + enemy.index * 0.5) * 10; // Vary hover per enemy
+            const hoverY = Math.cos(Date.now() / 1500 + enemy.index * 0.5) * 5;
+            
+            // Move toward target with slight hover (lerp for smooth movement)
+            enemy.x = enemy.x * 0.95 + (enemy.targetX + hoverX) * 0.05;
+            enemy.y = enemy.y * 0.95 + (enemy.targetY + hoverY) * 0.05;
+            
+            // Random chance to enter attack state
+            const attackChance = 0.001 + (level * 0.0005); // Increases with level
+            if (Math.random() < attackChance) {
+                // Add to attack queue - only attacks if not too many are already attacking
+                if (attackQueue.filter(e => e.state === ENEMY_STATE.ATTACK).length < (2 + Math.floor(level/3))) { // Max attackers increase with level
+                    enemy.state = ENEMY_STATE.ATTACK;
+                    // Define attack path properties (can be more complex)
+                    enemy.attackTargetX = player.alive ? player.x : CANVAS_WIDTH / 2;
+                    enemy.attackTargetY = CANVAS_HEIGHT + enemy.h; // Target below screen
+                    attackQueue.push(enemy);
+                }
+            }
+            
+            // Random chance to fire
+            const fireChance = 0.002 + (level * 0.0005); // Increases with level
+            if (Math.random() < fireChance) {
+                fireEnemyBullet(enemy);
+            }
+        } else if (enemy.state === ENEMY_STATE.ATTACK) {
+            // Dive attack toward player or a designated path
+            const attackSpeed = (enemy.type === ENEMY_TYPE.FAST ? 300 : 200) + (level * 15); // Faster for FAST type
+            
+            // Calculate direction to attack target
+            const dx = enemy.attackTargetX - enemy.x;
+            const dy = enemy.attackTargetY - enemy.y; // Target is usually below player or off-screen
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > 5) { // Move if not at target
+                const vx = dx / dist * attackSpeed;
+                const vy = dy / dist * attackSpeed;
+                enemy.x += vx * dt;
+                enemy.y += vy * dt;
+            } else { // Reached attack path end
+                 enemy.y = CANVAS_HEIGHT + enemy.h * 2; // Ensure it's off-screen
+            }
+            
+            // Fire at player occasionally during dive
+            const diveFireChance = 0.015 + (level * 0.003);
+            if (Math.random() < diveFireChance && enemy.y < player.y) { // Only fire if above player
+                fireEnemyBullet(enemy);
+            }
+            
+            // Check if enemy is offscreen - return to formation or remove
+            if (isOffScreen(enemy)) {
+                // Remove from attack queue
+                const qIndex = attackQueue.indexOf(enemy);
+                if (qIndex > -1) attackQueue.splice(qIndex, 1);
+
+                // If enemy has a formation spot, try to return
+                const spot = formationSpots.find(s => s.x === enemy.targetX && s.y === enemy.targetY);
+                if (spot && !spot.taken) {
+                    enemy.state = ENEMY_STATE.ENTRANCE; // Re-enter
+                    enemy.startX = enemy.x < CANVAS_WIDTH / 2 ? -enemy.w : CANVAS_WIDTH + enemy.w; // Start from side
+                    enemy.startY = Math.random() * CANVAS_HEIGHT / 2; // Random Y entry
+                    enemy.pathTime = 0;
+                    enemy.controlX = CANVAS_WIDTH / 2;
+                    enemy.controlY = enemy.startY - 100;
+                    spot.taken = true; // Re-claim spot
+                } else {
+                    // If no formation spot or spot is taken, remove enemy
+                    enemies.splice(i, 1);
+                }
+            }
+        }
+    }
+    
+    // Update boss Galaga if present
+    if (bossGalaga) {
+        // Basic boss movement (e.g., side to side)
+        bossGalaga.x += Math.sin(Date.now() / 2000) * 50 * dt;
+        if (bossGalaga.x < bossGalaga.w / 2) bossGalaga.x = bossGalaga.w / 2;
+        if (bossGalaga.x > CANVAS_WIDTH - bossGalaga.w / 2) bossGalaga.x = CANVAS_WIDTH - bossGalaga.w / 2;
+
+        bossGalaga.timer -= dt;
+        if (bossGalaga.timer <= 0) {
+            fireEnemyBullet(bossGalaga);
+            bossGalaga.timer = 1.5 - Math.min(1, level * 0.1); // Fires faster at higher levels
+            
+            // Boss capture attempt logic (simplified)
+            if (!bossGalaga.hasCaptured && !capturedShip && Math.random() < 0.2) { // 20% chance to try capture
+                // Placeholder for tractor beam animation start
+                console.log("Boss attempting capture!");
+                // Actual capture logic would involve player interaction/timing
+                // For now, let's simulate a chance of capture if player is near
+                if (player.alive && Math.abs(player.x - bossGalaga.x) < 100 && player.y > bossGalaga.y) {
+                    // bossGalaga.hasCaptured = true;
+                    // capturedShip = true;
+                    // lives--; // Player loses a life (or ship is captured)
+                    // console.log("Player ship captured by Boss!");
+                }
+            }
+        }
+    }
+}
+
 // Updates player movement and powerup timers
 function updatePlayer() {
     if (!player.alive) return;
