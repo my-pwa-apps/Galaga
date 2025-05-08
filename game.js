@@ -1632,51 +1632,38 @@ gameLoop();
 
 // Function to spawn enemies in Galaga style
 function spawnEnemies() {
-    // Gradually increase the maximum number of enemies based on the level
-    const maxEnemies = 10 + level * 3; // Start with 10 enemies, increase by 3 per level
-    
-    // Calculate empty formation spots
-    const emptySpots = formationSpots.filter(spot => !spot.taken);
-    
-    // If we have empty spots and fewer enemies than our max, spawn a wave
-    if (emptySpots.length > 0 && enemies.length < maxEnemies && Math.random() < 0.05) {
-        spawnEnemyWave();
+    // Spawn enemies only if no enemies exist and no level transition is in progress
+    if (enemies.length === 0 && levelTransition === 0) {
+        const totalEnemies = 5 + level * 2; // Start with 5 enemies, increase by 2 per level
+        for (let i = 0; i < totalEnemies; i++) {
+            spawnEnemyWave(1); // Spawn one wave with all enemies
+        }
     }
 }
 
-// Function to spawn a wave of enemies in Galaga style
-function spawnEnemyWave() {
-    // Gradually increase wave size based on the level
-    const waveSize = Math.min(5 + Math.floor(level / 2), 10); // Start with 5, max out at 10
+function spawnEnemyWave(waveSize) {
     const startX = Math.random() > 0.5 ? -30 : canvas.width + 30; // Start from left or right side
     const entryY = -30;
-    
+
     // Choose a primary enemy type for this wave
     const enemyTypes = ['basic', 'fast', 'zigzag'];
     const waveType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-    
-    // Spawn enemies in this wave
+
     for (let i = 0; i < waveSize; i++) {
-        // Have a chance for variety in the wave
-        let enemyType = waveType;
-        if (Math.random() < 0.2) {
-            enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-        }
-        
         const enemy = {
             x: startX,
             y: entryY - i * 40, // Space them out vertically
             w: 32,
             h: 32,
-            speed: 2 + level * 0.2, // Increase speed slightly with each level
-            type: enemyType,
+            speed: 1.5 + level * 0.1, // Start slower and increase speed slightly with each level
+            type: waveType,
             state: ENEMY_STATE.ENTRANCE,
-            color: enemyType === 'basic' ? '#0f8' : 
-                   enemyType === 'fast' ? '#f80' : '#f0f',
+            color: waveType === 'basic' ? '#0f8' : 
+                   waveType === 'fast' ? '#f80' : '#f0f',
             entranceDelay: i * 15, // Delay each enemy in the wave
             waveIndex: i
         };
-        
+
         enemies.push(enemy);
     }
 }
@@ -1735,6 +1722,16 @@ function updateEnemies() {
         if (enemy.y > canvas.height + 50) {
             enemies.splice(i, 1);
         }
+    }
+
+    // Check if all enemies are cleared to transition to the next level
+    if (enemies.length === 0 && levelTransition === 0) {
+        levelTransition = 60; // Add a delay before transitioning to the next level
+        setTimeout(() => {
+            level++;
+            spawnEnemies();
+            levelTransition = 0;
+        }, 2000); // 2-second delay before the next level starts
     }
 }
 
