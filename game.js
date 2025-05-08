@@ -163,7 +163,7 @@ function drawArcadeSplash() {
     ctx.fillText('HIGH SCORES:', canvas.width / 2, 220);
     if (firebaseHighScores.length > 0) {
         firebaseHighScores.slice(0, 5).forEach((entry, index) => { // Display top 5
-            ctx.fillText(`${index + 1}. ${entry.name.substring(0, 3)} - ${entry.score}`, canvas.width / 2, 250 + index * 25);
+            ctx.fillText(`${index + 1}. ${entry.name.substring(0, 5)} - ${entry.score}`, canvas.width / 2, 250 + index * 25);
         });
     } else {
         ctx.fillStyle = '#aaa';
@@ -1422,7 +1422,7 @@ function drawGameOver() {
     ctx.fillText('HIGH SCORES:', canvas.width / 2, 260); // Adjusted Y position
     if (firebaseHighScores.length > 0) {
         firebaseHighScores.slice(0, 5).forEach((entry, index) => { // Display top 5
-            ctx.fillText(`${index + 1}. ${entry.name.substring(0,3)} - ${entry.score}`, canvas.width / 2, 290 + index * 25);
+            ctx.fillText(`${index + 1}. ${entry.name.substring(0,5)} - ${entry.score}`, canvas.width / 2, 290 + index * 25);
         });
     } else {
         ctx.fillStyle = '#aaa';
