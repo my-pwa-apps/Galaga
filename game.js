@@ -65,6 +65,7 @@ let screenShake = 0; // Initialize screen shake variable
 
 let playerInitials = ["_", "_", "_"];
 let currentInitialIndex = 0;
+let autoShootActive = false; // For touch auto-shoot
 
 // Touch Controls
 let isTouchDevice = false;
@@ -72,6 +73,7 @@ const touchControls = {
     buttons: {
         left: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'ArrowLeft', label: '<' },
         right: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'ArrowRight', label: '>' },
+        autoShoot: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: null, label: 'AUTO' }, // Key is null as it's a toggle
         fire: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'Space', label: 'O' }
     }
 };
@@ -168,7 +170,11 @@ function drawArcadeSplash() {
     // Insert coin
     ctx.font = '18px monospace';
     ctx.fillStyle = arcadeColors[Math.floor(Date.now()/100)%arcadeColors.length];
-    ctx.fillText('PRESS SPACE TO START', canvas.width/2, canvas.height-100);
+    if (isTouchDevice) {
+        ctx.fillText('TAP SCREEN TO START', canvas.width/2, canvas.height-100);
+    } else {
+        ctx.fillText('PRESS SPACE TO START', canvas.width/2, canvas.height-100);
+    }
     ctx.restore();
 }
 
@@ -1326,7 +1332,7 @@ function drawPowerup(p) {
 }
 
 // Function to draw the game HUD (score, lives, etc.)
-function drawHUD() {
+//function drawHUD() {
     ctx.save();
     
     // Draw score
@@ -1339,9 +1345,9 @@ function drawHUD() {
     ctx.textAlign = 'center';
     ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width / 2, 30);
     
-    // Draw level
+    // Draw level - Adjusted X to give more space from lives icons
     ctx.textAlign = 'right';
-    ctx.fillText(`LEVEL: ${level}`, canvas.width - 150, 30); // Adjusted for lives
+    ctx.fillText(`LEVEL: ${level}`, canvas.width - 100, 30); 
     
     // Draw lives (moved to top right)
     ctx.textAlign = 'right';
@@ -1426,12 +1432,16 @@ function drawGameOver() {
     // Restart instructions
     ctx.font = '18px monospace';
     ctx.fillStyle = '#0ff';
-    ctx.fillText('PRESS SPACE TO RESTART', canvas.width/2, canvas.height-100);
+    if (isTouchDevice) {
+        ctx.fillText('TAP SCREEN TO RESTART', canvas.width/2, canvas.height-100);
+    } else {
+        ctx.fillText('PRESS SPACE TO RESTART', canvas.width/2, canvas.height-100);
+    }
     
     ctx.restore();
     
-    // Listen for space to restart
-    if (keys['Space']) {
+    // Listen for space to restart (keyboard only)
+    if (!isTouchDevice && keys['Space']) {
         state = GAME_STATE.SPLASH;
         fetchHighScores(); // Fetch scores when returning to splash
     }
@@ -1481,8 +1491,8 @@ function drawEnterHighScoreScreen() {
 document.addEventListener('keydown', (event) => {
     keys[event.code] = true;
     
-    // Handle splash screen transition
-    if (state === GAME_STATE.SPLASH && event.code === 'Space') {
+    // Handle splash screen transition (keyboard only)
+    if (!isTouchDevice && state === GAME_STATE.SPLASH && event.code === 'Space') {
         state = GAME_STATE.PLAYING;
         // Initialize game elements when transitioning to playing state
         console.clear();
@@ -1521,7 +1531,10 @@ document.addEventListener('keyup', (event) => {
 function resetGame() {
     // Reset player
     player.x = canvas.width / 2;
-    player.y = canvas.height - 60;
+    // Adjust player Y position if touch controls are active
+    const buttonAreaHeight = isTouchDevice ? (canvas.height * 0.12 + canvas.height * 0.05) : 0; // buttonHeight + bottomMargin
+    player.y = canvas.height - (isTouchDevice ? (buttonAreaHeight + player.h + 15) : 60);
+
     player.alive = true;
     player.shield = false;
     player.power = 'normal';
@@ -1529,6 +1542,7 @@ function resetGame() {
     
     playerInitials = ["_", "_", "_"]; // Reset initials
     currentInitialIndex = 0;         // Reset initial index
+    autoShootActive = false;         // Reset auto-shoot
 
     // Clear arrays
     bullets = [];
@@ -2436,25 +2450,18 @@ function updatePlayer() {
     }
     
     // Handle player firing
-    if (keys['Space'] && player.cooldown <= 0 && player.alive) {
-        const bullet = {
-            x: player.x,
-            y: player.y - player.h / 2,
-            w: 3,
-            h: 12,
-            speed: 10,
-            type: player.power === 'double' ? 'double' : 'normal',
-            from: dualShip ? 'dual' : 'player'
-        };
-        bullets.push(bullet);
-        
-        // Dual ship fires an additional bullet
-        if (dualShip) {
-            const dualBullet = { ...bullet, x: player.x - 24 }; // Adjust x for the second ship
-            bullets.push(dualBullet);
-        }
+    const canFire = player.cooldown <= 0 && player.alive;
+    let firedThisFrame = false;
 
-        player.cooldown = 15; // Cooldown period before next shot
+    // Auto-shoot for touch devices
+    if (isTouchDevice && autoShootActive && canFire) {
+        firePlayerBullet();
+        firedThisFrame = true;
+    }
+
+    // Manual fire (keyboard or touch button)
+    if (keys['Space'] && canFire && !firedThisFrame) { // Avoid double firing if auto-shoot already fired
+        firePlayerBullet();
     }
 
     // Reduce cooldown timer
@@ -2463,20 +2470,46 @@ function updatePlayer() {
     }
 }
 
+function firePlayerBullet() {
+    const bullet = {
+        x: player.x,
+        y: player.y - player.h / 2,
+        w: 3,
+        h: 12,
+        speed: 10,
+        type: player.power === 'double' ? 'double' : 'normal',
+        from: dualShip ? 'dual' : 'player'
+    };
+    bullets.push(bullet);
+    
+    // Dual ship fires an additional bullet
+    if (dualShip) {
+        const dualBullet = { ...bullet, x: player.x - 24 }; // Adjust x for the second ship
+        bullets.push(dualBullet);
+    }
+    player.cooldown = 15; // Cooldown period before next shot
+}
+
+
 // --- Touch Control Functions ---
 function initTouchControls() {
     isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
     if (isTouchDevice) {
         console.log("Touch device detected. Initializing touch controls.");
-        const buttonWidth = canvas.width * 0.2;
+        const numButtons = 4;
+        const buttonWidth = canvas.width * 0.18; // Adjusted for 4 buttons
         const buttonHeight = canvas.height * 0.12;
         const bottomMargin = canvas.height * 0.05;
-        const spacing = canvas.width * 0.05;
+        const totalButtonWidth = numButtons * buttonWidth;
+        const totalSpacing = (numButtons - 1) * (canvas.width * 0.03); // Adjusted spacing
+        const controlsBlockWidth = totalButtonWidth + totalSpacing;
+        const startX = (canvas.width - controlsBlockWidth) / 2;
+        const spacing = canvas.width * 0.03;
 
         touchControls.buttons.left.w = buttonWidth;
         touchControls.buttons.left.h = buttonHeight;
-        touchControls.buttons.left.x = canvas.width * 0.1;
+        touchControls.buttons.left.x = startX;
         touchControls.buttons.left.y = canvas.height - buttonHeight - bottomMargin;
 
         touchControls.buttons.right.w = buttonWidth;
@@ -2484,15 +2517,24 @@ function initTouchControls() {
         touchControls.buttons.right.x = touchControls.buttons.left.x + buttonWidth + spacing;
         touchControls.buttons.right.y = canvas.height - buttonHeight - bottomMargin;
         
-        touchControls.buttons.fire.w = buttonWidth * 1.2; // Fire button slightly larger
+        touchControls.buttons.autoShoot.w = buttonWidth;
+        touchControls.buttons.autoShoot.h = buttonHeight;
+        touchControls.buttons.autoShoot.x = touchControls.buttons.right.x + buttonWidth + spacing;
+        touchControls.buttons.autoShoot.y = canvas.height - buttonHeight - bottomMargin;
+        touchControls.buttons.autoShoot.label = "AUTO";
+
+        touchControls.buttons.fire.w = buttonWidth;
         touchControls.buttons.fire.h = buttonHeight;
-        touchControls.buttons.fire.x = canvas.width - buttonWidth * 1.2 - canvas.width * 0.1;
+        touchControls.buttons.fire.x = touchControls.buttons.autoShoot.x + buttonWidth + spacing;
         touchControls.buttons.fire.y = canvas.height - buttonHeight - bottomMargin;
 
-        canvas.addEventListener('touchstart', handleTouch);
-        canvas.addEventListener('touchmove', handleTouch);
-        canvas.addEventListener('touchend', handleTouch);
-        canvas.addEventListener('touchcancel', handleTouch);
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        canvas.addEventListener('touchmove', handleTouch, { passive: false });
+        canvas.addEventListener('touchend', handleTouch, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouch, { passive: false });
+
+        // Listener for splash/game over taps
+        canvas.addEventListener('touchend', handleCanvasTap);
     }
 }
 
@@ -2501,12 +2543,19 @@ function pointInRect(px, py, rect) {
 }
 
 function processTouches(eventTouches) {
-    // Reset pressed state for all buttons and corresponding keys
+    // Reset pressed state for all buttons and corresponding keys (except autoShoot toggle)
     for (const btnKey in touchControls.buttons) {
         const button = touchControls.buttons[btnKey];
-        button.pressed = false;
-        keys[button.key] = false; // Ensure key is reset before re-evaluating
+        if (button.key) { // Only reset buttons that map to a 'key'
+            button.pressed = false;
+            keys[button.key] = false;
+        } else {
+            // For toggle buttons like autoShoot, don't reset 'pressed' here,
+            // their state is toggled on tap.
+        }
     }
+
+    let autoShootTappedThisFrame = false;
 
     // Check each active touch against each button
     for (let i = 0; i < eventTouches.length; i++) {
@@ -2526,24 +2575,86 @@ function processTouches(eventTouches) {
             touchControls.buttons.fire.pressed = true;
             keys[touchControls.buttons.fire.key] = true;
         }
+        // AutoShoot is handled on tap (touchend of a specific touch), not continuous press
     }
 }
 
+
 function handleTouch(event) {
     event.preventDefault(); // Prevent default touch behaviors like scrolling
-    processTouches(event.touches); // Process all currently active touches on the screen
+    
+    const changedTouches = event.changedTouches; // Use changedTouches for tap detection
+
+    if (event.type === 'touchstart' || event.type === 'touchmove') {
+        processTouches(event.touches);
+    } else if (event.type === 'touchend' || event.type === 'touchcancel') {
+        // Check if any of the ended touches were on the auto-shoot button
+        for (let i = 0; i < changedTouches.length; i++) {
+            const touch = changedTouches[i];
+            const touchX = touch.clientX - canvas.offsetLeft;
+            const touchY = touch.clientY - canvas.offsetTop;
+
+            if (pointInRect(touchX, touchY, touchControls.buttons.autoShoot)) {
+                autoShootActive = !autoShootActive;
+                touchControls.buttons.autoShoot.label = autoShootActive ? "AUTO ON" : "AUTO";
+                // No need to set .pressed for a toggle button in the same way as hold buttons
+                break; 
+            }
+        }
+        // After processing taps, update based on remaining active touches
+        processTouches(event.touches);
+    }
 }
+
+function handleCanvasTap(event) {
+    if (!isTouchDevice) return;
+    // Only handle tap if it's for splash or game over, and not over a game control button
+    const touchX = event.changedTouches[0].clientX - canvas.offsetLeft;
+    const touchY = event.changedTouches[0].clientY - canvas.offsetTop;
+
+    // Check if tap is over any game control button
+    for (const btnKey in touchControls.buttons) {
+        if (pointInRect(touchX, touchY, touchControls.buttons[btnKey])) {
+            return; // Tap was on a control button, not for splash/game over
+        }
+    }
+    
+    if (state === GAME_STATE.SPLASH) {
+        event.preventDefault();
+        state = GAME_STATE.PLAYING;
+        console.clear();
+        console.log("Game starting (touch) - initializing game elements...");
+        resetGame();
+    } else if (state === GAME_STATE.GAME_OVER) {
+        event.preventDefault();
+        // Ensure not in high score entry mode
+        let isNewHighScore = false;
+        if (firebaseHighScores.length < MAX_HIGH_SCORES) isNewHighScore = true;
+        else if (firebaseHighScores.length > 0 && score > firebaseHighScores[firebaseHighScores.length - 1].score) isNewHighScore = true;
+        if (firebaseHighScores.length === 0 && score > 0) isNewHighScore = true;
+
+        if (!(isNewHighScore && !player.highScoreSubmitted)) {
+            state = GAME_STATE.SPLASH;
+            fetchHighScores();
+        }
+    }
+}
+
 
 function drawTouchControls() {
     ctx.save();
     ctx.globalAlpha = 0.5; // Semi-transparent buttons
-    ctx.font = 'bold 30px monospace';
+    ctx.font = 'bold 20px monospace'; // Slightly smaller font for more buttons
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     for (const btnKey in touchControls.buttons) {
         const button = touchControls.buttons[btnKey];
-        ctx.fillStyle = button.pressed ? '#0f0' : '#888'; // Green when pressed, gray otherwise
+        if (btnKey === 'autoShoot') {
+            ctx.fillStyle = autoShootActive ? '#0f0' : '#888'; // Green if auto-shoot is on
+        } else {
+            ctx.fillStyle = button.pressed ? '#0f0' : '#888'; // Green when pressed, gray otherwise
+        }
         ctx.fillRect(button.x, button.y, button.w, button.h);
         ctx.fillStyle = '#fff';
         ctx.fillText(button.label, button.x + button.w / 2, button.y + button.h / 2);
