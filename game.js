@@ -1157,34 +1157,175 @@ function drawPowerup(p) {
     ctx.restore();
 }
 
-// Add event listener for keydown to handle splash screen transition
+// Function to draw the game HUD (score, lives, etc.)
+function drawHUD() {
+    ctx.save();
+    
+    // Draw score
+    ctx.font = '16px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText(`SCORE: ${score}`, 20, 30);
+    
+    // Draw high score
+    ctx.textAlign = 'center';
+    ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width / 2, 30);
+    
+    // Draw level
+    ctx.textAlign = 'right';
+    ctx.fillText(`LEVEL: ${level}`, canvas.width - 20, 30);
+    
+    // Draw lives
+    ctx.textAlign = 'left';
+    ctx.fillText(`LIVES: ${lives}`, 20, canvas.height - 20);
+    
+    // Draw ship icons for lives
+    for (let i = 0; i < lives; i++) {
+        ctx.save();
+        ctx.translate(90 + i * 25, canvas.height - 25);
+        ctx.scale(0.5, 0.5);
+        
+        // Draw mini ships for lives
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(0, -8); 
+        ctx.lineTo(-4, 0);
+        ctx.lineTo(-4, 8);
+        ctx.lineTo(4, 8);
+        ctx.lineTo(4, 0);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    }
+    
+    ctx.restore();
+}
+
+// Function to draw game over screen
+function drawGameOver() {
+    ctx.save();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Game Over text
+    ctx.font = 'bold 40px monospace';
+    ctx.fillStyle = '#f00';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', canvas.width/2, 200);
+    
+    // Score display
+    ctx.font = '20px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`FINAL SCORE: ${score}`, canvas.width/2, 260);
+    
+    if (score > highScore) {
+        ctx.fillStyle = '#ff0';
+        ctx.fillText('NEW HIGH SCORE!', canvas.width/2, 300);
+    } else {
+        ctx.fillText(`HIGH SCORE: ${highScore}`, canvas.width/2, 300);
+    }
+    
+    // Restart instructions
+    ctx.font = '18px monospace';
+    ctx.fillStyle = '#0ff';
+    ctx.fillText('PRESS SPACE TO RESTART', canvas.width/2, canvas.height-100);
+    
+    ctx.restore();
+    
+    // Listen for space to restart
+    if (keys['Space']) {
+        state = GAME_STATE.SPLASH;
+        if (score > highScore) highScore = score;
+    }
+}
+
+// Add event listeners for keyboard input
 document.addEventListener('keydown', (event) => {
+    keys[event.code] = true;
+    
+    // Handle splash screen transition
     if (state === GAME_STATE.SPLASH && event.code === 'Space') {
         state = GAME_STATE.PLAYING;
+        // Initialize game elements when transitioning to playing state
+        resetGame();
     }
 });
 
-// Add event listener for keydown and keyup to track player movement
-document.addEventListener('keydown', (event) => {
-    keys[event.code] = true;
-});
 document.addEventListener('keyup', (event) => {
     keys[event.code] = false;
 });
 
+// Function to reset the game state
+function resetGame() {
+    // Reset player
+    player.x = canvas.width / 2;
+    player.y = canvas.height - 60;
+    player.alive = true;
+    player.shield = false;
+    player.power = 'normal';
+    
+    // Clear arrays
+    bullets = [];
+    enemies = [];
+    enemyBullets = [];
+    powerups = [];
+    
+    // Reset game variables
+    score = 0;
+    lives = 3;
+    level = 1;
+    levelTransition = 0;
+    
+    // Reset other game elements
+    formationSpots = [];
+    attackQueue = [];
+    bossGalaga = null;
+    capturedShip = false;
+    dualShip = false;
+    screenShake = 0;
+    
+    // Setup formation spots for enemies
+    setupFormation();
+}
+
+// Function to set up enemy formation positions
+function setupFormation() {
+    formationSpots = [];
+    const rows = 5;
+    const cols = 8;
+    const startX = 80;
+    const startY = 80;
+    const spacingX = 40;
+    const spacingY = 40;
+    
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            formationSpots.push({
+                x: startX + col * spacingX,
+                y: startY + row * spacingY,
+                taken: false
+            });
+        }
+    }
+}
+
 // Function to handle player movement
 function updatePlayer() {
+    if (!player.alive) return;
+    
+    // Handle player movement with proper boundaries
     if (keys['ArrowLeft'] || keys['KeyA']) {
-        player.x = Math.max(player.x - player.speed, 0);
+        player.x = Math.max(player.x - player.speed, 16); // 16 is half the player width
     }
     if (keys['ArrowRight'] || keys['KeyD']) {
-        player.x = Math.min(player.x + player.speed, canvas.width - player.w);
+        player.x = Math.min(player.x + player.speed, canvas.width - 16); // 16 is half the player width
     }
     if (keys['ArrowUp'] || keys['KeyW']) {
-        player.y = Math.max(player.y - player.speed, 0);
+        player.y = Math.max(player.y - player.speed, 16); // Allow vertical movement but limit to screen
     }
     if (keys['ArrowDown'] || keys['KeyS']) {
-        player.y = Math.min(player.y + player.speed, canvas.height - player.h);
+        player.y = Math.min(player.y + player.speed, canvas.height - 60); // Limit bottom movement
     }
 }
 
@@ -1222,10 +1363,10 @@ function updateEnemies() {
 }
 
 // Update gameplay logic
+// Main update function for gameplay
 function updateGameplay() {
-    updatePlayer();
-    spawnEnemies();
-    updateEnemies();
+    // This function is called once per frame to update all game elements
+    // Player movement and firing is handled in the game loop
 }
 
 // Update game loop to include gameplay logic
@@ -1235,10 +1376,57 @@ function gameLoop() {
     if (state === GAME_STATE.SPLASH) {
         drawArcadeSplash();
     } else if (state === GAME_STATE.PLAYING) {
-        updateGameplay();
-        drawPlayer();
+        // Apply screen shake if active
+        if (screenShake > 0) {
+            ctx.save();
+            ctx.translate(
+                Math.random() * screenShake - screenShake/2,
+                Math.random() * screenShake - screenShake/2
+            );
+            screenShake *= 0.9; // Reduce shake effect over time
+            if (screenShake < 0.5) screenShake = 0;
+        }
+        
+        // Draw and update enemies
+        updateEnemies();
+        
+        // Draw bullets (both player and enemy)
+        for (const bullet of bullets) {
+            drawBullet(bullet);
+        }
+        for (const bullet of enemyBullets) {
+            drawBullet(bullet);
+        }
+        
+        // Draw powerups
+        for (const powerup of powerups) {
+            drawPowerup(powerup);
+        }
+        
+        // Draw boss if present
+        if (bossGalaga) {
+            drawBossGalaga(bossGalaga);
+        }
+        
+        // Draw player
+        if (player.alive) {
+            drawPlayer();
+        }
+        
+        // Update player movement and firing
+        updatePlayer();
+        
+        // Spawn new enemies if needed
+        spawnEnemies();
+        
+        if (screenShake > 0) {
+            ctx.restore();
+        }
+        
+        // Game HUD (score, lives, etc)
+        drawHUD();
     } else if (state === GAME_STATE.GAME_OVER) {
-        // ...existing game over logic...
+        drawGameOver();
     }
 
     requestAnimationFrame(gameLoop);
