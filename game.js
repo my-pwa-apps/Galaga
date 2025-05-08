@@ -62,7 +62,7 @@ function drawArcadeSplash() {
     ctx.fillStyle = arcadeColors[Math.floor(Date.now()/100)%arcadeColors.length];
     ctx.fillText('PRESS SPACE TO START', canvas.width/2, canvas.height-100);
     ctx.restore();
-}
+
 
 function drawPlayer() {
     ctx.save();
