@@ -1641,7 +1641,7 @@ function spawnEnemies() {
 
 function spawnEnemyWave(waveSize) {
     const startX = canvas.width / 2; // Start from the center horizontally
-    const entryY = -30; // Start slightly above the canvas
+    const entryY = -50; // Start slightly above the canvas
 
     // Choose a primary enemy type for this wave
     const enemyTypes = ['basic', 'fast', 'zigzag'];
@@ -1668,6 +1668,8 @@ function spawnEnemyWave(waveSize) {
 
 // Function to update all enemies
 function updateEnemies() {
+    let allEnemiesInFormation = true; // Track if all enemies are in formation
+
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
 
@@ -1675,6 +1677,7 @@ function updateEnemies() {
         if (enemy.state === ENEMY_STATE.ENTRANCE) {
             if (enemy.entranceDelay > 0) {
                 enemy.entranceDelay--;
+                allEnemiesInFormation = false; // Not all enemies are in formation
                 continue;
             }
 
@@ -1697,6 +1700,7 @@ function updateEnemies() {
             if (distance > 1) {
                 enemy.x += (dx / distance) * enemy.speed;
                 enemy.y += (dy / distance) * enemy.speed;
+                allEnemiesInFormation = false; // Not all enemies are in formation
             } else {
                 enemy.x = enemy.targetX;
                 enemy.y = enemy.targetY;
@@ -1721,7 +1725,7 @@ function updateEnemies() {
     }
 
     // Check if all enemies are cleared to transition to the next level
-    if (enemies.length === 0 && levelTransition === 0) {
+    if (enemies.length === 0 && allEnemiesInFormation && levelTransition === 0) {
         levelTransition = 60; // Add a delay before transitioning to the next level
         setTimeout(() => {
             level++;
