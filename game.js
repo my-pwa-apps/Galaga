@@ -371,6 +371,20 @@ function resetGame() {
     spawnEnemies();
 }
 
+function drawStarfield() {
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 120; i++) {
+        ctx.fillStyle = arcadeColors[i % arcadeColors.length];
+        let sx = (i * 71) % canvas.width;
+        let sy = ((i * 113 + Date.now() / 10) % canvas.height);
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 500 + i);
+        ctx.fillRect(sx, sy, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+}
+
 function updateGame() {
     // Player movement
     let moveSpeed = player.speed + (player.power === 'speed' ? 2 : 0);
@@ -444,27 +458,23 @@ function updateGame() {
     attackQueue.forEach(e => {
         if (!e.alive) return;
         e.attackTimer++;
-        // Swoop down toward player, then curve back up
-        let t = e.attackTimer/90;
+        let t = e.attackTimer / 120;
         let px = player.x;
         let py = player.y;
         if (t < 1) {
-            // Dive
-            e.x += (px-e.x)*0.04 + Math.sin(t*6+e.zigzagPhase)*2;
-            e.y += (py-e.y)*0.04 + Math.abs(Math.sin(t*3+e.zigzagPhase))*2.5;
-            // Shoot at player
-            if (e.fireCooldown <= 0 && Math.abs(e.x-px)<40 && Math.random()<0.2) {
-                let dx = px-e.x;
-                let dy = py-e.y;
-                let mag = Math.sqrt(dx*dx+dy*dy);
-                enemyBullets.push({x: e.x, y: e.y+10, vy: 2.5+level*0.1, vx: dx/mag*2, type: e.type});
-                e.fireCooldown = 40+Math.random()*30;
+            e.x += (px - e.x) * 0.05 + Math.sin(t * 8 + e.zigzagPhase) * 3;
+            e.y += (py - e.y) * 0.05 + Math.abs(Math.sin(t * 4 + e.zigzagPhase)) * 3;
+            if (e.fireCooldown <= 0 && Math.abs(e.x - px) < 50 && Math.random() < 0.3) {
+                let dx = px - e.x;
+                let dy = py - e.y;
+                let mag = Math.sqrt(dx * dx + dy * dy);
+                enemyBullets.push({ x: e.x, y: e.y + 10, vy: 3 + level * 0.1, vx: dx / mag * 2, type: e.type });
+                e.fireCooldown = 30 + Math.random() * 20;
             }
         } else {
-            // Curve back to formation
-            e.x += (e.formationX-e.x)*0.07;
-            e.y += (e.formationY-e.y)*0.07;
-            if (Math.abs(e.x-e.formationX)<2 && Math.abs(e.y-e.formationY)<2) {
+            e.x += (e.formationX - e.x) * 0.08;
+            e.y += (e.formationY - e.y) * 0.08;
+            if (Math.abs(e.x - e.formationX) < 2 && Math.abs(e.y - e.formationY) < 2) {
                 e.x = e.formationX;
                 e.y = e.formationY;
                 e.state = ENEMY_STATE.FORMATION;
@@ -588,7 +598,7 @@ function updateGame() {
     }
 }
 
-// Particle drawing and updating
+// Enhanced particle effects for explosions
 function drawParticles() {
     particles.forEach((p, idx) => {
         ctx.save();
@@ -606,40 +616,38 @@ function drawParticles() {
 }
 
 function drawGame() {
-    // Animated starfield background
+    // Improved background rendering
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (let i=0; i<100; i++) {
+    // Enhanced starfield
+    for (let i = 0; i < 150; i++) {
         ctx.save();
-        let color = arcadeColors[i%arcadeColors.length];
-        ctx.globalAlpha = 0.7 + 0.3*Math.sin(Date.now()/800 + i);
-        ctx.fillStyle = color;
-        let sx = (i*53)%canvas.width;
-        let sy = ((i*97 + Date.now()/12 + i*13)%canvas.height);
-        ctx.beginPath();
-        ctx.arc(sx, sy, 1.5 + 1.5*Math.abs(Math.sin(Date.now()/1000 + i)), 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillStyle = arcadeColors[i % arcadeColors.length];
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 500 + i);
+        let sx = (i * 89) % canvas.width;
+        let sy = ((i * 137 + Date.now() / 8) % canvas.height);
+        ctx.fillRect(sx, sy, 2, 2);
         ctx.restore();
     }
     // Entities
     if (player.alive) drawPlayer();
     bullets.forEach(drawBullet);
-    enemies.forEach(drawEnemy);
+    enemies.forEach(e => { if (e.alive) drawEnemy(e); });
     enemyBullets.forEach(drawEnemyBullet);
     powerups.forEach(drawPowerup);
-    drawParticles(); // Add particle drawing here
+    drawParticles();
     drawHUD();
     // Level transition
     if (levelTransition > 0) {
         ctx.save();
         ctx.globalAlpha = 0.8;
         ctx.fillStyle = '#000';
-        ctx.fillRect(0, canvas.height/2-40, canvas.width, 80);
+        ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
         ctx.globalAlpha = 1;
         ctx.font = 'bold 32px monospace';
         ctx.fillStyle = '#ff0';
         ctx.textAlign = 'center';
-        ctx.fillText('LEVEL ' + (level+1), canvas.width/2, canvas.height/2+10);
+        ctx.fillText('LEVEL ' + (level + 1), canvas.width / 2, canvas.height / 2 + 10);
         ctx.restore();
     }
 }
