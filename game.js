@@ -60,6 +60,7 @@ let capturedShip = false;
 let dualShip = false;
 let highScore = 0;
 let challengeStage = false;
+let screenShake = 0; // Initialize screen shake variable
 
 function drawArcadeSplash() {
     ctx.save();
@@ -568,6 +569,7 @@ function updateGame() {
             Math.random() * screenShake - screenShake/2
         );
         screenShake -= 0.5;
+        // Don't forget to restore after applying translation
     }
     
     // Player movement
@@ -743,10 +745,12 @@ function updateGame() {
                 player.shield = false;
                 player.power = 'normal';
                 enemyBullets.splice(bi,1);
+                screenShake = 5; // Add mild screen shake when shield is hit
             } else {
                 lives--;
                 player.alive = false;
                 playExplosionSound();
+                screenShake = 15; // Add stronger screen shake when player loses a life
                 setTimeout(()=>{
                     if (lives > 0) {
                         player.x = canvas.width/2;
