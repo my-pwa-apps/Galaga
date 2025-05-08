@@ -1176,6 +1176,7 @@ function spawnEnemies() {
             h: 32,
             speed: 2,
             state: ENEMY_STATE.ENTRANCE,
+            color: '#f00', // Add color for visibility
         };
         enemies.push(enemy);
     }
