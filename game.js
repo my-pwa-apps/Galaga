@@ -220,19 +220,31 @@ function spawnEnemies() {
     enemies = [];
     let cols = 5 + Math.min(level, 5); // up to 10 columns
     let rows = 2 + Math.floor(level/2); // more rows as level increases
-    let colors = ['#0f0', '#f0f', '#ff0', '#0ff', '#f00'];
+    // Diverse enemy types
+    let types = [
+        {name: 'basic', color: '#0f0', fireRate: 0.7, speed: 1, hp: 1},
+        {name: 'fast', color: '#ff0', fireRate: 0.4, speed: 2, hp: 1},
+        {name: 'tank', color: '#0ff', fireRate: 0.9, speed: 0.7, hp: 3},
+        {name: 'sniper', color: '#f0f', fireRate: 0.2, speed: 1, hp: 1},
+        {name: 'zigzag', color: '#f00', fireRate: 0.5, speed: 1.2, hp: 1}
+    ];
     for (let i=0; i<cols; i++) {
         for (let j=0; j<rows; j++) {
+            // Pick type based on level and position
+            let t = types[(i+j+level)%Math.min(types.length, 2+Math.floor(level/2))];
             enemies.push({
                 x: 40 + i*((canvas.width-80)/(cols-1)),
                 y: 60 + j*44,
                 w: 32,
                 h: 24,
-                dx: (Math.random()-0.5)*(1+level*0.2),
+                dx: (Math.random()-0.5)*t.speed*(0.7+level*0.1),
                 dy: 0,
                 alive: true,
-                fireCooldown: Math.random()*(100-Math.min(level*8,80))+40,
-                color: colors[(i+j+level)%colors.length],
+                fireCooldown: Math.random()*(120-Math.min(level*6,60))+60/t.fireRate,
+                color: t.color,
+                type: t.name,
+                hp: t.hp,
+                zigzagPhase: Math.random()*Math.PI*2
             });
         }
     }
@@ -285,19 +297,39 @@ function updateGame() {
     bullets = bullets.filter(b => b.y > -20);
     // Enemies
     enemies.forEach(e => {
-        e.x += e.dx;
+        // Diverse movement
+        if (e.type === 'zigzag') {
+            e.x += Math.sin(Date.now()/200 + e.zigzagPhase) * 2.5 * (1+level*0.1);
+            e.y += Math.cos(Date.now()/300 + e.zigzagPhase) * 0.7 * (1+level*0.1);
+        } else if (e.type === 'fast') {
+            e.x += e.dx * 1.5;
+        } else if (e.type === 'tank') {
+            e.x += e.dx * 0.7;
+        } else {
+            e.x += e.dx;
+        }
+        if (e.type === 'sniper' && player.alive && Math.random() < 0.01 + 0.002*level) {
+            // Sniper aims at player
+            let dx = player.x - e.x;
+            let dy = player.y - e.y;
+            let mag = Math.sqrt(dx*dx + dy*dy);
+            enemyBullets.push({x: e.x, y: e.y+10, vy: 3.5 + level*0.2, vx: dx/mag*2, type: 'sniper'});
+        }
         // Sine wave movement for higher levels
-        if (level > 2) e.y += Math.sin(Date.now()/400 + e.x/40) * 0.7 * (level-1);
+        if (level > 2 && e.type === 'basic') e.y += Math.sin(Date.now()/400 + e.x/40) * 0.7 * (level-1);
         if (e.x < 30 || e.x > canvas.width-30) e.dx *= -1;
         e.fireCooldown--;
-        if (e.fireCooldown < 0 && e.alive) {
-            enemyBullets.push({x: e.x, y: e.y+10, vy: 3.5 + level*0.2});
-            e.fireCooldown = Math.random()*(100-Math.min(level*8,80))+40;
+        if (e.fireCooldown < 0 && e.alive && e.type !== 'sniper') {
+            enemyBullets.push({x: e.x, y: e.y+10, vy: 2.5 + level*0.15, vx: 0, type: e.type});
+            e.fireCooldown = Math.random()*(120-Math.min(level*6,60))+60/(e.type==='fast'?1.5:1);
         }
     });
     // Enemy bullets
-    enemyBullets.forEach(b => b.y += b.vy);
-    enemyBullets = enemyBullets.filter(b => b.y < canvas.height+20);
+    enemyBullets.forEach(b => {
+        b.y += b.vy;
+        if (b.vx) b.x += b.vx;
+    });
+    enemyBullets = enemyBullets.filter(b => b.y < canvas.height+20 && b.x > -10 && b.x < canvas.width+10);
     // Powerups
     powerups.forEach(p => p.y += 2);
     powerups = powerups.filter(p => p.y < canvas.height+20);
@@ -305,16 +337,28 @@ function updateGame() {
     bullets.forEach((b, bi) => {
         enemies.forEach((e, ei) => {
             if (e.alive && Math.abs(b.x-e.x)<18 && Math.abs(b.y-e.y)<16) {
-                e.alive = false;
-                bullets.splice(bi,1);
-                score += 100 + level*10;
-                playExplosionSound();
-                // Powerup drop chance
-                if (Math.random() < 0.12 + 0.01*level) {
-                    let types = ['double','shield','speed'];
-                    let type = types[Math.floor(Math.random()*types.length)];
-                    powerups.push({x: e.x, y: e.y, type});
+                e.hp--;
+                if (e.hp <= 0) {
+                    e.alive = false;
+                    score += 100 + level*10;
+                    playExplosionSound();
+                    // Powerup drop chance
+                    if (Math.random() < 0.12 + 0.01*level) {
+                        let types = ['double','shield','speed'];
+                        let type = types[Math.floor(Math.random()*types.length)];
+                        powerups.push({x: e.x, y: e.y, type});
+                    }
                 }
+                bullets.splice(bi,1);
+            }
+        });
+    });
+    // Destroy enemy bullets with player bullets
+    bullets.forEach((b, bi) => {
+        enemyBullets.forEach((eb, ei) => {
+            if (Math.abs(b.x-eb.x)<7 && Math.abs(b.y-eb.y)<12) {
+                bullets.splice(bi,1);
+                enemyBullets.splice(ei,1);
             }
         });
     });
