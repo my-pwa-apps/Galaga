@@ -1272,12 +1272,25 @@ function drawHUD() {
     ctx.fillText('HIGH: ' + highScore, 20, 50);
     ctx.fillText('LIVES: ' + lives, canvas.width-120, 30);
     ctx.fillText('LEVEL: ' + level, canvas.width/2, 30);
-    
-    // Display challenge stage text
+      // Display challenge stage text and progress
     if (challengeStage) {
         ctx.font = 'bold 16px monospace';
         ctx.fillStyle = '#ff0';
-        ctx.fillText('CHALLENGE STAGE', canvas.width/2, 50);
+        ctx.fillText('CHALLENGE STAGE ' + (challengeStageCounter + 1), canvas.width/2, 50);
+        
+        // Show enemies destroyed
+        ctx.fillStyle = '#0ff';
+        ctx.fillText('ENEMIES: ' + challengeStageEnemiesDestroyed + '/24', canvas.width/2, 70);
+        
+        // Show bonus status during level transition
+        if (levelTransition > 0 && challengePerfectBonus) {
+            ctx.save();
+            ctx.font = 'bold 24px monospace';
+            ctx.fillStyle = '#f0f';
+            ctx.globalAlpha = 0.8 + Math.sin(Date.now() / 100) * 0.2;
+            ctx.fillText('PERFECT! 10,000 PTS', canvas.width/2, canvas.height/2 - 40);
+            ctx.restore();
+        }
     }
     
     if (player.power !== 'normal') {
@@ -1334,9 +1347,30 @@ function spawnEnemies() {
     if (level >= 3) maxType = 2;
     if (level >= 5) maxType = 3;
     if (level >= 7) maxType = 4;
-    
-    // Special challenge stage every 3 levels
+      // Special challenge stage every 3 levels - follows authentic Galaga pattern
     challengeStage = (level % 3 === 0 && level > 0);
+    
+    // Announce challenge stage with fanfare
+    if (challengeStage) {
+        // Add visual fanfare for challenge stage
+        for (let i = 0; i < 30; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 100 + Math.random() * canvas.width * 0.4;
+            
+            particles.push({
+                x: canvas.width/2 + Math.cos(angle) * distance,
+                y: canvas.height/2 + Math.sin(angle) * distance,
+                vx: Math.cos(angle) * -2,
+                vy: Math.sin(angle) * -2,
+                size: 2 + Math.random() * 3,
+                alpha: 0.9,
+                color: arcadeColors[Math.floor(Math.random() * arcadeColors.length)],
+                type: 'spark',
+                life: 60 + Math.random() * 30,
+                initialLife: 60 + Math.random() * 30
+            });
+        }
+    }
     
     if (challengeStage) {
         // Challenge stage has unique formation and behavior
@@ -1520,33 +1554,96 @@ function spawnEnemies() {
 
 // Set up a special challenge stage with authentic Galaga mechanics
 function setupChallengeStage() {
-    // Challenge stages have special formations that fly in set patterns
+    // Challenge stages have special formations that fly in elaborate patterns
+    // Authentic Galaga challenge stages featured coordinated movements
     const centerX = canvas.width / 2;
     const rows = 3;
     const enemiesPerRow = 8;
     const xSpacing = 40;
     const yStart = 60;
     
-    // No attacking in challenge stage, just formation flying
+    // Define challenge stage patterns based on stage number
+    // Higher challenge stages have more complex patterns
+    const patternType = (challengeStageCounter % 3);
+    
+    // Determine formation pattern based on challenge stage counter
+    let formationPattern;
+    switch (patternType) {
+        case 0:
+            formationPattern = 'circle'; // Enemies form a circle and rotate
+            break;
+        case 1:
+            formationPattern = 'figure8'; // Enemies move in figure-8 pattern
+            break;
+        case 2:
+            formationPattern = 'spiral'; // Enemies form an expanding/contracting spiral
+            break;
+        default:
+            formationPattern = 'circle';
+    }
+    
+    // Points increase with each challenge stage
+    const basePoints = 100 * (1 + challengeStageCounter * 0.5);
+    
+    // Get color schemes based on challenge stage level
+    const colorSchemes = [
+        [
+            {name: 'basic', color: '#0f8', hp: 1, points: basePoints},
+            {name: 'fast', color: '#ff0', hp: 1, points: basePoints * 1.2},
+            {name: 'sniper', color: '#f0f', hp: 1, points: basePoints * 1.5}
+        ],
+        [
+            {name: 'tank', color: '#0ff', hp: 1, points: basePoints * 1.5},
+            {name: 'zigzag', color: '#f80', hp: 1, points: basePoints * 1.7},
+            {name: 'sniper', color: '#f0f', hp: 1, points: basePoints * 2}
+        ],
+        [
+            {name: 'basic', color: '#f00', hp: 1, points: basePoints * 2},
+            {name: 'zigzag', color: '#0ff', hp: 1, points: basePoints * 2.3},
+            {name: 'fast', color: '#ff0', hp: 1, points: basePoints * 2.5}
+        ]
+    ][challengeStageCounter % 3];
+    
+    // Create enemies in formation
     for (let j = 0; j < rows; j++) {
         for (let i = 0; i < enemiesPerRow; i++) {
-            // Distribute enemies in a grid
-            const x = centerX + (i - enemiesPerRow/2 + 0.5) * xSpacing;
-            const y = yStart + j * 40;
+            // Initial formation positions in grid
+            let x, y;
             
-            // Challenge stage uses 3 different enemy types in rows
+            // Different initial formations based on pattern type
+            if (formationPattern === 'circle') {
+                // Calculate positions for circular formation
+                const angle = (i / enemiesPerRow) * Math.PI * 2;
+                const radius = 80 + j * 40;
+                x = centerX + Math.cos(angle) * radius;
+                y = yStart + 100 + Math.sin(angle) * radius;
+            } 
+            else if (formationPattern === 'figure8') {
+                // Initial positions for figure-8 pattern
+                const segmentPos = (i / enemiesPerRow) + (j / rows) * 0.33;
+                x = centerX + Math.sin(segmentPos * Math.PI * 2) * 100;
+                y = yStart + 100 + Math.sin(segmentPos * Math.PI * 4) * 50;
+            }
+            else {
+                // Default grid for spiral pattern
+                x = centerX + (i - enemiesPerRow/2 + 0.5) * xSpacing;
+                y = yStart + j * 40;
+            }
+            
+            // Get enemy type for this row
             const rowEnemyType = j % 3;
-            const t = [
-                {name: 'basic', color: '#0f8', hp: 1, points: 100},
-                {name: 'fast', color: '#ff0', hp: 1, points: 100},
-                {name: 'sniper', color: '#f0f', hp: 1, points: 100}
-            ][rowEnemyType];
+            const t = colorSchemes[rowEnemyType];
             
-            // Starting positions for challenge stage swarm
-            let ex = (Math.random() > 0.5) ? -40 : canvas.width + 40;
-            let ey = canvas.height * 0.2 + Math.random() * 40;
+            // Starting positions offscreen for entrance animation
+            const entryAngle = (i / enemiesPerRow) * Math.PI * 2;
+            let ex = centerX + Math.cos(entryAngle) * (canvas.width * 0.6);
+            let ey = canvas.height + 40;
             
-            // Add to enemy array with challenge stage properties
+            // Make sure entry points are offscreen
+            if (ex < 0) ex = -40;
+            if (ex > canvas.width) ex = canvas.width + 40;
+            
+            // Add to enemy array with enhanced challenge stage properties
             enemies.push({
                 x: ex,
                 y: ey,
@@ -1558,21 +1655,30 @@ function setupChallengeStage() {
                 color: t.color,
                 type: t.name,
                 hp: t.hp,
-                points: t.points * 2, // Double points in challenge stages
+                points: t.points,
                 row: j,
                 col: i,
                 zigzagPhase: Math.random() * Math.PI * 2,
                 state: ENEMY_STATE.ENTRANCE,
                 formationX: x,
                 formationY: y,
-                entranceT: -i * 0.05 - j * 0.2, // Timing for wave entrance
+                entranceT: -i * 0.03 - j * 0.1, // Coordinated entrance timing
                 entrancePath: 'challenge',
                 isChallenge: true,
                 patternPhase: 0,
-                patternTimer: 0
+                patternTimer: 0,
+                patternType: formationPattern,
+                patternOffset: i + j * enemiesPerRow, // Unique offset for each enemy
+                patternSpeed: 0.5 + (challengeStageCounter * 0.1), // Speed increases with each challenge
+                specialEffect: Math.random() < 0.2 ? 'glow' : null
             });
         }
     }
+    
+    // Reset challenge stage tracking values
+    challengeStageEnemiesDestroyed = 0;
+    challengeStagePoints = 0;
+    challengePerfectBonus = false;
 }
 
 function resetGame() {
@@ -1593,6 +1699,13 @@ function resetGame() {
     capturedShip = false;
     dualShip = false;
     challengeStage = false;
+    
+    // Initialize challenge stage variables
+    challengeStageCounter = 0;     // Count of completed stages
+    challengeStagePoints = 0;      // Points earned in current challenge stage
+    challengeStageEnemiesDestroyed = 0;  // Enemies destroyed in current challenge
+    challengePerfectBonus = false; // Track if perfect bonus was awarded
+    
     spawnEnemies();
 }
 
@@ -1762,6 +1875,223 @@ function updateGame() {
         // Don't forget to restore after applying translation
     }
     
+    // Update boss Galaga if present - authentic behavior
+    if (bossGalaga) {
+        // Boss movement based on state
+        if (bossGalaga.state === 'entering') {
+            // Boss flies in from the edge of the screen
+            bossGalaga.x += (bossGalaga.targetX - bossGalaga.x) * 0.03;
+            bossGalaga.y += (bossGalaga.targetY - bossGalaga.y) * 0.03;
+            
+            // Once in position, transition to attacking
+            if (Math.abs(bossGalaga.x - bossGalaga.targetX) < 10 && 
+                Math.abs(bossGalaga.y - bossGalaga.targetY) < 10) {
+                bossGalaga.state = 'waiting';
+                bossGalaga.waitTimer = 120;
+            }
+        } 
+        else if (bossGalaga.state === 'waiting') {
+            // Wait before attacking
+            bossGalaga.waitTimer--;
+            
+            // Add intimidating pulsing effect
+            if (bossGalaga.waitTimer < 30 && Math.random() < 0.2) {
+                particles.push({
+                    x: bossGalaga.x + (Math.random() - 0.5) * 30,
+                    y: bossGalaga.y + (Math.random() - 0.5) * 20,
+                    vx: (Math.random() - 0.5) * 1,
+                    vy: (Math.random() - 0.5) * 1,
+                    size: 2 + Math.random() * 3,
+                    alpha: 0.7,
+                    color: '#f0f',
+                    type: 'smoke',
+                    life: 20,
+                    initialLife: 20
+                });
+            }
+            
+            // Transition to attack
+            if (bossGalaga.waitTimer <= 0) {
+                bossGalaga.state = 'attacking';
+                bossGalaga.attackTimer = 0;
+                bossGalaga.targetX = player.x;
+                bossGalaga.targetY = player.y - 100;
+            }
+        }
+        else if (bossGalaga.state === 'attacking') {
+            // Move toward player for capture attempt
+            bossGalaga.attackTimer++;
+            
+            if (bossGalaga.attackTimer < 90) {
+                // Approach player position
+                bossGalaga.x += (bossGalaga.targetX - bossGalaga.x) * 0.04;
+                bossGalaga.y += (bossGalaga.targetY - bossGalaga.y) * 0.03;
+                
+                // Update target occasionally to track player
+                if (bossGalaga.attackTimer % 15 === 0) {
+                    bossGalaga.targetX = player.x;
+                }
+                
+                // Fire at player occasionally
+                if (bossGalaga.attackTimer % 20 === 0 && Math.random() < 0.6) {
+                    const angle = Math.atan2(player.y - bossGalaga.y, player.x - bossGalaga.x);
+                    
+                    // Triple shot
+                    for (let i = -1; i <= 1; i++) {
+                        enemyBullets.push({
+                            x: bossGalaga.x + Math.cos(angle + i * 0.2) * 20,
+                            y: bossGalaga.y + Math.sin(angle + i * 0.2) * 20,
+                            vx: Math.cos(angle + i * 0.2) * 3,
+                            vy: Math.sin(angle + i * 0.2) * 3,
+                            type: 'boss'
+                        });
+                    }
+                }
+            } 
+            else if (bossGalaga.attackTimer === 90) {
+                // Start tractor beam if player is in range and we don't already have a captured ship
+                if (Math.abs(bossGalaga.x - player.x) < 60 && !bossGalaga.hasCaptured && !capturedShip && !dualShip) {
+                    bossGalaga.tractorBeam = true;
+                    bossGalaga.captureTimer = 0;
+                    
+                    // Play warning sound
+                    playWarningSound();
+                }
+            }
+            else if (bossGalaga.tractorBeam) {
+                // Tractor beam active - attempt to capture player
+                bossGalaga.captureTimer++;
+                
+                if (bossGalaga.captureTimer < 120) {
+                    // Hold position above player
+                    bossGalaga.x += (player.x - bossGalaga.x) * 0.1;
+                    
+                    // Create tractor beam particles
+                    if (Math.random() < 0.3) {
+                        const beamX = bossGalaga.x + (Math.random() - 0.5) * 30;
+                        const beamY = bossGalaga.y + Math.random() * (player.y - bossGalaga.y);
+                        
+                        particles.push({
+                            x: beamX,
+                            y: beamY,
+                            vx: (beamX - bossGalaga.x) * 0.01,
+                            vy: 1,
+                            size: 1 + Math.random() * 2,
+                            alpha: 0.7,
+                            color: '#ff0',
+                            type: 'spark',
+                            life: 10 + Math.random() * 10,
+                            initialLife: 10 + Math.random() * 10
+                        });
+                    }
+                    
+                    // Check if player is caught in beam
+                    if (player.alive && Math.abs(player.x - bossGalaga.x) < 20 && !player.shield) {
+                        player.vy = -2; // Pull player up
+                        player.y += player.vy;
+                        
+                        // If player is close enough to boss, capture
+                        if (player.y <= bossGalaga.y + 40) {
+                            capturedShip = true;
+                            player.alive = false;
+                            lives--; // Lose a life when captured
+                            
+                            // Boss now has the ship
+                            bossGalaga.hasCaptured = true;
+                            bossGalaga.tractorBeam = false;
+                            
+                            // Boss retreats with captured ship
+                            bossGalaga.state = 'retreating';
+                            bossGalaga.targetY = 40;
+                            
+                            // Add visual effect for capture
+                            for (let i = 0; i < 20; i++) {
+                                particles.push({
+                                    x: player.x + (Math.random() - 0.5) * 20,
+                                    y: player.y + (Math.random() - 0.5) * 20,
+                                    vx: (Math.random() - 0.5) * 3,
+                                    vy: (Math.random() - 0.5) * 3,
+                                    size: 2 + Math.random() * 2,
+                                    alpha: 0.8,
+                                    color: '#ff0',
+                                    type: 'spark',
+                                    life: 20 + Math.random() * 20,
+                                    initialLife: 20 + Math.random() * 20
+                                });
+                            }
+                            
+                            // Start new ship after a delay if lives remain
+                            setTimeout(() => {
+                                if (lives > 0) {
+                                    player.x = canvas.width/2;
+                                    player.y = canvas.height-60;
+                                    player.alive = true;
+                                } else {
+                                    state = GAME_STATE.GAME_OVER;
+                                }
+                            }, 1000);
+                        }
+                    }
+                } else {
+                    // End tractor beam if time runs out
+                    bossGalaga.tractorBeam = false;
+                    bossGalaga.state = 'retreating';
+                    bossGalaga.targetY = 40;
+                }
+            }
+            else if (bossGalaga.attackTimer > 150) {
+                // Return to top of screen
+                bossGalaga.state = 'retreating';
+                bossGalaga.targetY = 40;
+            }
+        }
+        else if (bossGalaga.state === 'retreating') {
+            // Retreat to the top of the screen
+            bossGalaga.x += (canvas.width/2 - bossGalaga.x) * 0.02;
+            bossGalaga.y += (bossGalaga.targetY - bossGalaga.y) * 0.03;
+            
+            // Once retreated, wait before next attack
+            if (Math.abs(bossGalaga.y - bossGalaga.targetY) < 5) {
+                bossGalaga.state = 'waiting';
+                bossGalaga.waitTimer = 180;
+            }
+        }
+        else if (bossGalaga.state === 'rescued') {
+            // Rescued state when player destroys boss with captured ship
+            bossGalaga.rescueTimer--;
+            
+            // Create dramatic explosion
+            if (bossGalaga.rescueTimer % 5 === 0) {
+                const explosionX = bossGalaga.x + (Math.random() - 0.5) * 30;
+                const explosionY = bossGalaga.y + (Math.random() - 0.5) * 20;
+                
+                // Create explosion particles
+                for (let i = 0; i < 8; i++) {
+                    particles.push({
+                        x: explosionX,
+                        y: explosionY,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        size: 2 + Math.random() * 3,
+                        alpha: 0.9,
+                        color: ['#f00', '#ff0', '#fff'][Math.floor(Math.random() * 3)],
+                        type: 'explosion',
+                        shape: 'circle',
+                        life: 30 + Math.random() * 20,
+                        initialLife: 30 + Math.random() * 20
+                    });
+                }
+            }
+            
+            // End rescue sequence
+            if (bossGalaga.rescueTimer <= 0) {
+                // Player gains dual ship capability
+                dualShip = true;
+                bossGalaga = null;
+            }
+        }
+    }
+    
     // Player movement
     let moveSpeed = player.speed + (player.power === 'speed' ? 2 : 0);
     if (keys['ArrowLeft'] && player.x > 20) player.x -= moveSpeed;
@@ -1786,14 +2116,218 @@ function updateGame() {
     enemies.forEach((e, idx) => {
         if (!e.alive) return;
         if (e.state === ENEMY_STATE.ENTRANCE) {
-            e.entranceT += 0.018 + 0.002*level;
-            // Swoop: parametric curve from (e.x, e.y) to (formationX, formationY)
-            let t = e.entranceT;
-            let sx = (idx%2===0) ? -40 : canvas.width+40;
-            let sy = e.formationY + Math.sin(idx)*30;
-            // Swoop in a loop
-            e.x = sx + (e.formationX-sx)*0.5*(1-Math.cos(Math.PI*t));
-            e.y = sy + (e.formationY-sy)*0.5*(1-Math.cos(Math.PI*t)) + Math.sin(Math.PI*t*2+idx)*10;
+            // Skip update if delay hasn't elapsed yet
+            if (e.entranceT < 0) {
+                e.entranceT += 0.02;
+                allInFormation = false;
+                return;
+            }
+            
+            // Adjust entrance speed based on level and enemy type
+            const speedFactor = e.speed ? e.speed : 1;
+            e.entranceT += (0.015 + 0.001 * level) * speedFactor;
+            
+            // Get animation progress
+            let t = Math.min(e.entranceT, 1);
+            
+            // Calculate position based on entrance path type
+            if (e.entrancePath === 'loop_left') {
+                // Classic Galaga left loop
+                const startX = -40;
+                const startY = canvas.height * 0.4;
+                const midX = canvas.width * 0.25;
+                const midY = canvas.height * 0.2;
+                
+                if (t < 0.5) {
+                    // First half: move in arc to middle position
+                    const angle = Math.PI + t * Math.PI;
+                    const radius = canvas.width * 0.25;
+                    e.x = midX + Math.cos(angle) * radius;
+                    e.y = midY + Math.sin(angle) * radius;
+                } else {
+                    // Second half: move in arc to formation
+                    const t2 = (t - 0.5) * 2; // 0 to 1
+                    const angle = 0 + t2 * Math.PI;
+                    const radius = Math.sqrt(
+                        Math.pow(midX - e.formationX, 2) + 
+                        Math.pow(midY - e.formationY, 2)
+                    ) * 0.6;
+                    e.x = e.formationX + Math.cos(angle) * radius * (1 - t2);
+                    e.y = e.formationY + Math.sin(angle) * radius * (1 - t2);
+                }
+            } 
+            else if (e.entrancePath === 'loop_right') {
+                // Classic Galaga right loop
+                const startX = canvas.width + 40;
+                const startY = canvas.height * 0.4;
+                const midX = canvas.width * 0.75;
+                const midY = canvas.height * 0.2;
+                
+                if (t < 0.5) {
+                    // First half: move in arc to middle position
+                    const angle = 0 + t * Math.PI;
+                    const radius = canvas.width * 0.25;
+                    e.x = midX + Math.cos(angle) * radius;
+                    e.y = midY + Math.sin(angle) * radius;
+                } else {
+                    // Second half: move in arc to formation
+                    const t2 = (t - 0.5) * 2; // 0 to 1
+                    const angle = Math.PI + t2 * Math.PI;
+                    const radius = Math.sqrt(
+                        Math.pow(midX - e.formationX, 2) + 
+                        Math.pow(midY - e.formationY, 2)
+                    ) * 0.6;
+                    e.x = e.formationX + Math.cos(angle) * radius * (1 - t2);
+                    e.y = e.formationY + Math.sin(angle) * radius * (1 - t2);
+                }
+            }
+            else if (e.entrancePath === 'spiral') {
+                // Spiral path (more complex)
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height * 0.4;
+                const startRadius = canvas.width * 0.4;
+                const endRadius = Math.sqrt(
+                    Math.pow(centerX - e.formationX, 2) + 
+                    Math.pow(centerY - e.formationY, 2)
+                );
+                
+                const rotations = 1.5; // Number of spiral turns
+                const angle = t * Math.PI * 2 * rotations;
+                const radius = startRadius * (1 - t) + endRadius * t;
+                
+                // Generate spiral coordinates
+                e.x = centerX + Math.cos(angle) * radius;
+                e.y = centerY + Math.sin(angle) * radius;
+                
+                // Final approach to formation spot
+                if (t > 0.8) {
+                    const finalT = (t - 0.8) / 0.2;
+                    e.x = e.x * (1 - finalT) + e.formationX * finalT;
+                    e.y = e.y * (1 - finalT) + e.formationY * finalT;
+                }
+            }
+            else if (e.entrancePath === 'dive_right') {
+                // Quick attack dive from right side
+                const startX = canvas.width + 40;
+                const startY = canvas.height * 0.3;
+                const diveY = canvas.height * 0.6;
+                
+                if (t < 0.3) {
+                    // Initial approach
+                    e.x = startX * (1 - t/0.3) + canvas.width * 0.7 * (t/0.3);
+                    e.y = startY * (1 - t/0.3) + diveY * (t/0.3);
+                } else if (t < 0.6) {
+                    // Quick dive down
+                    const t2 = (t - 0.3) / 0.3;
+                    e.x = canvas.width * 0.7 * (1 - t2) + canvas.width * 0.4 * t2;
+                    e.y = diveY * (1 - t2) + canvas.height * 0.8 * t2;
+                } else {
+                    // Return to formation
+                    const t2 = (t - 0.6) / 0.4;
+                    e.x = (canvas.width * 0.4) * (1 - t2) + e.formationX * t2;
+                    e.y = (canvas.height * 0.8) * (1 - t2) + e.formationY * t2;
+                }
+            }            else if (e.entrancePath === 'challenge') {
+                // Special challenge stage patterns - elaborate synchronized movements
+                const centerX = canvas.width / 2;
+                const phase = Math.floor(t * 6); // More phases for more elaborate entrance
+                const phaseT = (t * 6) % 1; // 0-1 within current phase
+                const entryDelay = e.patternOffset / 100; // Slight staggered timing
+                const adjustedT = Math.max(0, phaseT - entryDelay);
+                
+                // Create particle trail during entrance
+                if (Math.random() < 0.1 && phase > 0) {
+                    particles.push({
+                        x: e.x + (Math.random() - 0.5) * 8,
+                        y: e.y + (Math.random() - 0.5) * 8,
+                        vx: (Math.random() - 0.5) * 1,
+                        vy: (Math.random() - 0.5) * 1,
+                        size: 1 + Math.random() * 2,
+                        alpha: 0.6,
+                        color: e.color,
+                        type: 'spark',
+                        life: 10 + Math.random() * 10,
+                        initialLife: 10 + Math.random() * 10
+                    });
+                }
+                
+                switch (phase) {
+                    case 0:
+                        // Entry from bottom of screen in waves
+                        e.x = centerX + (e.col - 3.5) * 60 * adjustedT;
+                        e.y = canvas.height - (canvas.height - 250) * adjustedT;
+                        break;
+                        
+                    case 1:
+                        // Form a large circle
+                        const angle1 = (e.patternOffset / 24) * Math.PI * 2;
+                        const radius1 = canvas.width * 0.35;
+                        e.x = centerX + Math.cos(angle1) * radius1 * adjustedT;
+                        e.y = canvas.height * 0.4 + Math.sin(angle1) * radius1 * adjustedT;
+                        break;
+                        
+                    case 2:
+                        // Rotate in the circle
+                        const baseAngle = (e.patternOffset / 24) * Math.PI * 2;
+                        const rotateAngle = baseAngle + adjustedT * Math.PI;
+                        const radius2 = canvas.width * 0.35;
+                        e.x = centerX + Math.cos(rotateAngle) * radius2;
+                        e.y = canvas.height * 0.4 + Math.sin(rotateAngle) * radius2;
+                        break;
+                        
+                    case 3:
+                        // Split into two rotating rings by row
+                        const splitAngle = (e.patternOffset / 24) * Math.PI * 2 + adjustedT * Math.PI * 1.5;
+                        const splitRadius = (e.row === 1) ? 
+                            canvas.width * 0.2 + adjustedT * 80 : 
+                            canvas.width * 0.35 - adjustedT * 40;
+                        e.x = centerX + Math.cos(splitAngle) * splitRadius;
+                        e.y = canvas.height * 0.4 + Math.sin(splitAngle) * splitRadius * 0.8;
+                        break;
+                        
+                    case 4:
+                        // Create weaving pattern
+                        const weaveAngle = (e.patternOffset / 8) * Math.PI * 2 + adjustedT * Math.PI;
+                        const weaveX = Math.sin(weaveAngle) * 120;
+                        const weaveY = Math.cos(weaveAngle * 2) * 60;
+                        e.x = centerX + weaveX;
+                        e.y = canvas.height * 0.4 + weaveY;
+                        break;
+                        
+                    case 5:
+                        // Move to final formation positions
+                        e.x = e.x * (1 - adjustedT) + e.formationX * adjustedT;
+                        e.y = e.y * (1 - adjustedT) + e.formationY * adjustedT;
+                        
+                        // Final flash effect when reaching position
+                        if (adjustedT > 0.9 && Math.random() < 0.3) {
+                            for (let i = 0; i < 3; i++) {
+                                particles.push({
+                                    x: e.x + (Math.random() - 0.5) * 20,
+                                    y: e.y + (Math.random() - 0.5) * 20,
+                                    vx: (Math.random() - 0.5) * 2,
+                                    vy: (Math.random() - 0.5) * 2,
+                                    size: 2 + Math.random() * 2,
+                                    alpha: 0.8,
+                                    color: e.color,
+                                    type: 'spark',
+                                    life: 10 + Math.random() * 5,
+                                    initialLife: 10 + Math.random() * 5
+                                });
+                            }
+                        }
+                        break;
+                }
+            }
+            else {
+                // Default path (simple curved approach)
+                const startX = (idx % 2 === 0) ? -40 : canvas.width + 40;
+                const startY = e.formationY + Math.sin(idx) * 30;
+                e.x = startX + (e.formationX - startX) * 0.5 * (1 - Math.cos(Math.PI * t));
+                e.y = startY + (e.formationY - startY) * 0.5 * (1 - Math.cos(Math.PI * t)) + Math.sin(Math.PI * t * 2 + idx) * 15;
+            }
+            
+            // Check if entrance animation is complete
             if (t >= 1) {
                 e.x = e.formationX;
                 e.y = e.formationY;
@@ -1818,18 +2352,254 @@ function updateGame() {
                 }
             }
         }
-    }
-    // 3. ATTACK: Enemies dive toward the player, then return to formation
+    }    // 3. ATTACK: Enemies dive toward the player using authentic Galaga attack patterns
     attackQueue = attackQueue.filter(e => e.alive && e.state === ENEMY_STATE.ATTACK);
     attackQueue.forEach(e => {
         if (!e.alive) return;
         e.attackTimer++;
-        let t = e.attackTimer / 120;
+        
+        // Get player position for targeting
         let px = player.x;
         let py = player.y;
-        if (t < 1) {
-            e.x += (px - e.x) * 0.05 + Math.sin(t * 8 + e.zigzagPhase) * 3;
-            e.y += (py - e.y) * 0.05 + Math.abs(Math.sin(t * 4 + e.zigzagPhase)) * 3;
+        
+        // Different attack patterns based on enemy type and attack pattern
+        if (e.type === 'basic') {
+            // Basic enemies (bees) - simple dive attack
+            const attackDuration = 180;
+            const t = e.attackTimer / attackDuration;
+            
+            if (t < 0.4) {
+                // Initial dive toward player
+                e.x += (px - e.x) * 0.03;
+                e.y += (canvas.height * 0.6 - e.y) * 0.04;
+            } else if (t < 0.7) {
+                // Swoop toward bottom of screen
+                e.x += (px - e.x) * 0.02;
+                e.y += (canvas.height + 30 - e.y) * 0.06;
+            } else {
+                // Return to formation
+                e.x += (e.formationX - e.x) * 0.06;
+                e.y += (e.formationY - e.y) * 0.04;
+                
+                // Snap back to exact position when close
+                if (Math.abs(e.x - e.formationX) < 3 && Math.abs(e.y - e.formationY) < 3) {
+                    e.x = e.formationX;
+                    e.y = e.formationY;
+                    e.state = ENEMY_STATE.FORMATION;
+                }
+            }
+            
+            // Attempt to fire when close to player
+            const distToPlayer = Math.sqrt(Math.pow(e.x - px, 2) + Math.pow(e.y - py, 2));
+            if (e.fireCooldown <= 0 && distToPlayer < 120 && Math.random() < e.fireRate) {
+                enemyBullets.push({ x: e.x, y: e.y + 10, vy: 3 + level * 0.1, vx: 0, type: e.type });
+                e.fireCooldown = 30 + Math.random() * 20;
+            }
+        } 
+        else if (e.type === 'fast') {
+            // Fast enemies (butterflies) - quick swooping attack
+            const attackDuration = 150;
+            const t = e.attackTimer / attackDuration;
+            
+            if (t < 0.3) {
+                // Quick dive
+                e.x += (px - e.x) * 0.06;
+                e.y += (py - 80 - e.y) * 0.08;
+            } else if (t < 0.5) {
+                // Horizontal pass
+                const dir = e.x > canvas.width/2 ? 1 : -1;
+                e.x += dir * 5;
+                e.y += (py - 40 - e.y) * 0.06;
+            } else if (t < 0.8) {
+                // Curved return path
+                const angle = (t - 0.5) * 5;
+                e.x += Math.cos(angle) * 4;
+                e.y += (e.formationY - e.y) * 0.03;
+            } else {
+                // Final approach to formation
+                e.x += (e.formationX - e.x) * 0.1;
+                e.y += (e.formationY - e.y) * 0.1;
+                
+                if (Math.abs(e.x - e.formationX) < 3 && Math.abs(e.y - e.formationY) < 3) {
+                    e.x = e.formationX;
+                    e.y = e.formationY;
+                    e.state = ENEMY_STATE.FORMATION;
+                }
+            }
+            
+            // Fast enemies fire quickly but with less accuracy
+            if (e.fireCooldown <= 0 && e.y > canvas.height * 0.3 && Math.random() < e.fireRate) {
+                // Spread shot
+                enemyBullets.push({ x: e.x, y: e.y + 10, vy: 4 + level * 0.15, vx: (Math.random() - 0.5) * 2, type: e.type });
+                e.fireCooldown = 20 + Math.random() * 15;
+            }
+        }
+        else if (e.type === 'tank') {
+            // Tank enemies - slow but persistent attack
+            const attackDuration = 240;
+            const t = e.attackTimer / attackDuration;
+            
+            if (t < 0.5) {
+                // Slow direct approach
+                e.x += (px - e.x) * 0.02;
+                e.y += (py - 100 - e.y) * 0.03;
+            } else {
+                // Return to formation
+                e.x += (e.formationX - e.x) * 0.03;
+                e.y += (e.formationY - e.y) * 0.03;
+                
+                if (Math.abs(e.x - e.formationX) < 3 && Math.abs(e.y - e.formationY) < 3) {
+                    e.x = e.formationX;
+                    e.y = e.formationY;
+                    e.state = ENEMY_STATE.FORMATION;
+                }
+            }
+            
+            // Tanks fire heavy, accurate shots
+            if (e.fireCooldown <= 0 && Math.abs(e.x - px) < 80 && Math.random() < e.fireRate) {
+                // Calculate direction to player for accuracy
+                let dx = px - e.x;
+                let dy = py - e.y;
+                let mag = Math.sqrt(dx * dx + dy * dy);
+                
+                // Aimed shot
+                enemyBullets.push({ 
+                    x: e.x, 
+                    y: e.y + 10, 
+                    vy: 2 + level * 0.08, 
+                    vx: dx / mag * 1.5, 
+                    type: e.type 
+                });
+                e.fireCooldown = 40 + Math.random() * 30;
+            }
+        }
+        else if (e.type === 'sniper') {
+            // Sniper enemies - precise targeting attacks
+            const attackDuration = 200;
+            const t = e.attackTimer / attackDuration;
+            
+            // Calculate player prediction (where the player will be)
+            const predictedX = px + (player.x - px) * 0.5;
+            
+            if (t < 0.2) {
+                // Quick positioning above player
+                e.x += (predictedX - e.x) * 0.1;
+                e.y += (canvas.height * 0.3 - e.y) * 0.05;
+            } else if (t < 0.4) {
+                // Hover and aim
+                e.x += (predictedX - e.x) * 0.08;
+                e.y += Math.sin(t * 20) * 2;
+                
+                // Highly accurate shots during this phase
+                if (e.fireCooldown <= 0 && Math.abs(e.x - px) < 100 && Math.random() < e.fireRate * 2) {
+                    let dx = px - e.x;
+                    let dy = py - e.y;
+                    let mag = Math.sqrt(dx * dx + dy * dy);
+                    
+                    enemyBullets.push({ 
+                        x: e.x, 
+                        y: e.y + 10, 
+                        vy: 5 + level * 0.1, 
+                        vx: dx / mag * 3, 
+                        type: e.type 
+                    });
+                    e.fireCooldown = 40;
+                }
+            } else if (t < 0.6) {
+                // Quick dive past player
+                e.x += (px - e.x) * 0.04;
+                e.y += (py + 50 - e.y) * 0.08;
+            } else {
+                // Return to formation
+                e.x += (e.formationX - e.x) * 0.07;
+                e.y += (e.formationY - e.y) * 0.05;
+                
+                if (Math.abs(e.x - e.formationX) < 3 && Math.abs(e.y - e.formationY) < 3) {
+                    e.x = e.formationX;
+                    e.y = e.formationY;
+                    e.state = ENEMY_STATE.FORMATION;
+                }
+            }
+        }
+        else if (e.type === 'zigzag') {
+            // Zigzag enemies - unpredictable attack patterns
+            const attackDuration = 220;
+            const t = e.attackTimer / attackDuration;
+            
+            if (t < 0.6) {
+                // Erratic approach with zigzag pattern
+                const zigAmp = 40; // Amplitude of zigzag
+                const zigFreq = 15; // Frequency of zigzag
+                
+                // Base movement toward player
+                const targetX = px + Math.sin(t * zigFreq + e.zigzagPhase) * zigAmp;
+                const targetY = py - 50 + Math.cos(t * zigFreq + e.zigzagPhase) * zigAmp * 0.5;
+                
+                e.x += (targetX - e.x) * 0.05;
+                e.y += (targetY - e.y) * 0.04;
+                
+                // Create electric sparks occasionally
+                if (Math.random() < 0.1) {
+                    particles.push({
+                        x: e.x + (Math.random() - 0.5) * 20,
+                        y: e.y + (Math.random() - 0.5) * 20,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: (Math.random() - 0.5) * 2,
+                        size: 1 + Math.random() * 2,
+                        alpha: 0.8,
+                        color: '#0ff',
+                        type: 'spark',
+                        life: 10 + Math.random() * 10,
+                        initialLife: 10 + Math.random() * 10
+                    });
+                }
+            } else {
+                // Return to formation with small zigzags
+                e.x += (e.formationX - e.x) * 0.06 + Math.sin(t * 30) * 2;
+                e.y += (e.formationY - e.y) * 0.04;
+                
+                if (Math.abs(e.x - e.formationX) < 5 && Math.abs(e.y - e.formationY) < 5) {
+                    e.x = e.formationX;
+                    e.y = e.formationY;
+                    e.state = ENEMY_STATE.FORMATION;
+                }
+            }
+            
+            // Electric shots that zigzag
+            if (e.fireCooldown <= 0 && e.y > canvas.height * 0.3 && Math.random() < e.fireRate) {
+                enemyBullets.push({ 
+                    x: e.x, 
+                    y: e.y + 10, 
+                    vy: 3 + level * 0.1, 
+                    vx: Math.sin(Date.now() / 100) * 2, 
+                    zigzag: true,
+                    type: e.type 
+                });
+                e.fireCooldown = 25 + Math.random() * 20;
+            }
+        } 
+        else {
+            // Default behavior for any other enemy type
+            const attackDuration = 160;
+            const t = e.attackTimer / attackDuration;
+            
+            if (t < 0.5) {
+                // Basic dive attack
+                e.x += (px - e.x) * 0.05 + Math.sin(t * 8 + e.zigzagPhase) * 3;
+                e.y += (py - e.y) * 0.05 + Math.abs(Math.sin(t * 4 + e.zigzagPhase)) * 3;
+            } else {
+                // Return to formation
+                e.x += (e.formationX - e.x) * 0.08;
+                e.y += (e.formationY - e.y) * 0.08;
+                
+                if (Math.abs(e.x - e.formationX) < 3 && Math.abs(e.y - e.formationY) < 3) {
+                    e.x = e.formationX;
+                    e.y = e.formationY;
+                    e.state = ENEMY_STATE.FORMATION;
+                }
+            }
+            
+            // Standard firing
             if (e.fireCooldown <= 0 && Math.abs(e.x - px) < 50 && Math.random() < 0.3) {
                 let dx = px - e.x;
                 let dy = py - e.y;
@@ -1837,43 +2607,261 @@ function updateGame() {
                 enemyBullets.push({ x: e.x, y: e.y + 10, vy: 3 + level * 0.1, vx: dx / mag * 2, type: e.type });
                 e.fireCooldown = 30 + Math.random() * 20;
             }
-        } else {
-            e.x += (e.formationX - e.x) * 0.08;
-            e.y += (e.formationY - e.y) * 0.08;
-            if (Math.abs(e.x - e.formationX) < 2 && Math.abs(e.y - e.formationY) < 2) {
-                e.x = e.formationX;
-                e.y = e.formationY;
-                e.state = ENEMY_STATE.FORMATION;
-            }
         }
+        
         e.fireCooldown--;
-    });
-    // 4. FORMATION: Enemies wiggle in place
+    });    // 4. FORMATION: Enemies move in formation patterns
     enemies.forEach(e => {
         if (!e.alive) return;
         if (e.state === ENEMY_STATE.FORMATION) {
-            e.x = e.formationX + Math.sin(Date.now()/400 + e.formationY/30)*4;
-            e.y = e.formationY + Math.sin(Date.now()/300 + e.formationX/40)*2;
+            // Standard formation behavior for regular enemies
+            if (!e.isChallenge) {
+                e.x = e.formationX + Math.sin(Date.now()/400 + e.formationY/30)*4;
+                e.y = e.formationY + Math.sin(Date.now()/300 + e.formationX/40)*2;
+            }
+            // Special formation movement for challenge stage enemies
+            else {
+                e.patternTimer = (e.patternTimer || 0) + e.patternSpeed;
+                const t = e.patternTimer;
+                const offset = e.patternOffset / 24; // Individual timing offset
+                
+                // Execute pattern based on type
+                if (e.patternType === 'circle') {
+                    // Rotating circle pattern
+                    const radius = 80 + (e.row * 40);
+                    const angle = t * 0.03 + offset * Math.PI * 2;
+                    e.x = canvas.width/2 + Math.cos(angle) * radius;
+                    e.y = 120 + Math.sin(angle) * radius;
+                    
+                    // Occasionally switch rotation direction
+                    if (Math.random() < 0.001) {
+                        e.patternSpeed = -e.patternSpeed;
+                    }
+                }
+                else if (e.patternType === 'figure8') {
+                    // Figure-8 pattern (lemniscate)
+                    const angle = t * 0.02 + offset * Math.PI * 2;
+                    const scale = 100;
+                    const a = Math.sqrt(2) * Math.cos(angle) / (Math.pow(Math.sin(angle), 2) + 1);
+                    e.x = canvas.width/2 + a * scale;
+                    e.y = 120 + a * Math.sin(angle) * scale * 0.5;
+                }
+                else if (e.patternType === 'spiral') {
+                    // Expanding/contracting spiral
+                    const centerX = canvas.width/2;
+                    const centerY = 120;
+                    const angle = t * 0.05 + offset * 0.5;
+                    const minRadius = 30 + e.row * 15;
+                    const maxRadius = 120 + e.row * 15;
+                    const pulseAmount = Math.sin(t * 0.02) * 0.5 + 0.5;
+                    const radius = minRadius + (maxRadius - minRadius) * pulseAmount;
+                    
+                    e.x = centerX + Math.cos(angle) * radius;
+                    e.y = centerY + Math.sin(angle) * radius;
+                }
+                
+                // Add special visual effects for challenge stage enemies
+                if (e.specialEffect === 'glow' && Math.random() < 0.1) {
+                    particles.push({
+                        x: e.x + (Math.random() - 0.5) * 10,
+                        y: e.y + (Math.random() - 0.5) * 10,
+                        vx: (Math.random() - 0.5) * 1,
+                        vy: (Math.random() - 0.5) * 1,
+                        size: 1 + Math.random() * 2,
+                        alpha: 0.7,
+                        color: e.color,
+                        type: 'spark',
+                        life: 10 + Math.random() * 5,
+                        initialLife: 10 + Math.random() * 5
+                    });
+                }
+            }
+        }
+    });// --- End Galaga logic ---
+    // Enemy bullets with enhanced movement patterns
+    enemyBullets.forEach(b => {
+        // Basic movement
+        b.y += b.vy;
+        
+        // Apply horizontal movement if defined
+        if (b.vx) b.x += b.vx;
+        
+        // Special movement patterns based on enemy type
+        if (b.type === 'zigzag' && b.zigzag) {
+            // Zigzag bullets move in a sine wave pattern
+            b.x += Math.sin(b.y / 20) * 2;
+            
+            // Add electric particle trail
+            if (Math.random() < 0.3) {
+                particles.push({
+                    x: b.x + (Math.random() - 0.5) * 5,
+                    y: b.y + (Math.random() - 0.5) * 5,
+                    vx: (Math.random() - 0.5) * 1,
+                    vy: (Math.random() - 0.5) * 1,
+                    size: 1 + Math.random(),
+                    alpha: 0.6,
+                    color: '#0ff',
+                    type: 'spark',
+                    life: 5 + Math.random() * 5,
+                    initialLife: 5 + Math.random() * 5
+                });
+            }
+        }
+        else if (b.type === 'fast') {
+            // Fast bullets accelerate
+            b.vy *= 1.01;
+        }
+        else if (b.type === 'tank') {
+            // Tank bullets have slight homing capability
+            if (player.alive && Math.random() < 0.2) {
+                const dx = player.x - b.x;
+                b.vx = (b.vx || 0) * 0.9 + dx * 0.005;
+            }
+        }
+        else if (b.type === 'sniper') {
+            // Sniper bullets leave tracer effect
+            if (Math.random() < 0.2) {
+                particles.push({
+                    x: b.x,
+                    y: b.y,
+                    vx: 0,
+                    vy: 0,
+                    size: 1,
+                    alpha: 0.5,
+                    color: '#f0f',
+                    type: 'smoke',
+                    life: 10,
+                    initialLife: 10
+                });
+            }
+        }
+        
+        // Add subtle glow effect to all bullets occasionally
+        if (Math.random() < 0.1) {
+            particles.push({
+                x: b.x,
+                y: b.y,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                size: 3 + Math.random() * 2,
+                alpha: 0.3,
+                color: b.type === 'tank' ? '#f00' : 
+                       b.type === 'sniper' ? '#f0f' :
+                       b.type === 'zigzag' ? '#0ff' : '#fff',
+                type: 'smoke',
+                life: 5,
+                initialLife: 5
+            });
         }
     });
-
-    // --- End Galaga logic ---
-    // Enemy bullets
-    enemyBullets.forEach(b => {
-        b.y += b.vy;
-        if (b.vx) b.x += b.vx;
-    });
+    
+    // Remove bullets that are offscreen
     enemyBullets = enemyBullets.filter(b => b.y < canvas.height+20 && b.x > -10 && b.x < canvas.width+10);
     // Powerups
     powerups.forEach(p => p.y += 2);
-    powerups = powerups.filter(p => p.y < canvas.height+20);
-    // Collisions: bullets vs enemies
+    powerups = powerups.filter(p => p.y < canvas.height+20);    // Collisions: bullets vs enemies and boss
     bullets.forEach((b, bi) => {
+        // Check for boss hit
+        if (bossGalaga && Math.abs(b.x - bossGalaga.x) < 25 && Math.abs(b.y - bossGalaga.y) < 20) {
+            // Remove bullet
+            bullets.splice(bi, 1);
+            
+            // Damage boss
+            bossGalaga.hp--;
+            
+            // Visual feedback for hit
+            screenShake = 3;
+            
+            // Create hit particles
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x: b.x + (Math.random() - 0.5) * 10,
+                    y: b.y + (Math.random() - 0.5) * 10,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: (Math.random() - 0.5) * 3,
+                    size: 2 + Math.random() * 2,
+                    alpha: 0.8,
+                    color: '#f0f',
+                    type: 'spark',
+                    life: 15 + Math.random() * 10,
+                    initialLife: 15 + Math.random() * 10
+                });
+            }
+            
+            // Check if boss is defeated
+            if (bossGalaga.hp <= 0) {
+                score += 1000;
+                playExplosionSound();
+                screenShake = 15;
+                
+                // If boss had captured player's ship, trigger rescue sequence
+                if (bossGalaga.hasCaptured) {
+                    bossGalaga.state = 'rescued';
+                    bossGalaga.rescueTimer = 60;
+                    capturedShip = false;
+                    
+                    // Create dramatic rescue effect
+                    for (let i = 0; i < 30; i++) {
+                        particles.push({
+                            x: bossGalaga.x + (Math.random() - 0.5) * 40,
+                            y: bossGalaga.y + (Math.random() - 0.5) * 30,
+                            vx: (Math.random() - 0.5) * 5,
+                            vy: (Math.random() - 0.5) * 5,
+                            size: 3 + Math.random() * 4,
+                            alpha: 0.9,
+                            color: ['#f0f', '#ff0', '#0ff'][Math.floor(Math.random() * 3)],
+                            type: 'explosion',
+                            shape: Math.random() < 0.5 ? 'circle' : 'irregular',
+                            life: 40 + Math.random() * 30,
+                            initialLife: 40 + Math.random() * 30
+                        });
+                    }
+                } else {
+                    // Regular boss destruction
+                    bossGalaga = null;
+                    
+                    // Spectacular boss explosion
+                    const explosionColors = ['#f0f', '#ff0', '#fff', '#f00'];
+                    for (let i = 0; i < 40; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 1 + Math.random() * 6;
+                        const color = explosionColors[Math.floor(Math.random() * explosionColors.length)];
+                        
+                        particles.push({
+                            x: b.x,
+                            y: b.y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            size: 3 + Math.random() * 4,
+                            alpha: 0.9,
+                            color: color,
+                            type: 'explosion',
+                            shape: Math.random() < 0.7 ? 'circle' : 'irregular',
+                            life: 40 + Math.random() * 30,
+                            initialLife: 40 + Math.random() * 30
+                        });
+                    }
+                }
+                return;
+            }
+        }
+        
+        // Check for regular enemy collisions
         enemies.forEach((e, ei) => {
             if (e.alive && Math.abs(b.x - e.x) < 18 && Math.abs(b.y - e.y) < 16) {
                 e.hp--;                if (e.hp <= 0) {
                     e.alive = false;
-                    score += 100 + level * 10;
+                    
+                    // Calculate score based on enemy type
+                    const pointValue = e.points || (100 + level * 10);
+                    score += pointValue;
+                    
+                    // Special tracking for challenge stage
+                    if (challengeStage) {
+                        challengeStagePoints += pointValue;
+                        challengeStageEnemiesDestroyed++;
+                    }
+                    
                     playExplosionSound();
                     
                     // Create spectacular explosion with multiple particle types
@@ -2018,15 +3006,37 @@ function updateGame() {
                 }, 1000);
             }
         }
-    });
-    // Win condition: next level
+    });    // Win condition: next level
     if (enemies.length === 0 && levelTransition === 0) {
         levelTransition = 60;
+          // Special handling for challenge stage completion
+        if (challengeStage) {
+            // Calculate perfect bonus: 10,000 points for destroying all enemies
+            if (challengeStageEnemiesDestroyed === 24) { // 3 rows of 8 enemies
+                challengePerfectBonus = true;
+                score += 10000;
+                
+                // Play special audio fanfare for perfect score
+                playPerfectSound();
+            }
+        }
     }
+    
     if (levelTransition > 0) {
         levelTransition--;
         if (levelTransition === 0) {
             level++;
+            
+            // Track challenge stage completion
+            if (challengeStage) {
+                challengeStageCounter++;
+            }
+            
+            // Reset challenge stage variables for next round
+            challengeStagePoints = 0;
+            challengeStageEnemiesDestroyed = 0;
+            challengePerfectBonus = false;
+            
             spawnEnemies();
         }
     }
@@ -2233,6 +3243,37 @@ function drawGame() {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
+    // Draw perfect challenge completion splash
+    if (challengePerfectBonus && levelTransition > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1.0, levelTransition / 30);
+        
+        // Background effect
+        const gradient = ctx.createRadialGradient(
+            canvas.width/2, canvas.height/2, 10,
+            canvas.width/2, canvas.height/2, 300
+        );
+        gradient.addColorStop(0, 'rgba(255, 255, 0, 0.4)');
+        gradient.addColorStop(0.7, 'rgba(255, 0, 255, 0.2)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw text
+        ctx.font = 'bold 48px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = arcadeColors[Math.floor(Date.now()/100) % arcadeColors.length];
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 15;
+        ctx.fillText('PERFECT!', canvas.width/2, canvas.height/2 - 40);
+        
+        ctx.font = 'bold 36px monospace';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('10,000 PTS', canvas.width/2, canvas.height/2 + 20);
+        ctx.restore();
+    }
+    
     // Far stars (small, slow)
     for (let i = 0; i < 70; i++) {
         ctx.fillStyle = '#666';
@@ -2335,6 +3376,7 @@ function playShootSound() {
     o.frequency.linearRampToValueAtTime(440, audioCtx.currentTime+0.08);
     o.stop(audioCtx.currentTime+0.09);
 }
+
 function playExplosionSound() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let o = audioCtx.createOscillator();
@@ -2347,6 +3389,122 @@ function playExplosionSound() {
     o.frequency.linearRampToValueAtTime(60, audioCtx.currentTime+0.18);
     g.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.2);
     o.stop(audioCtx.currentTime+0.21);
+}
+
+function playWarningSound() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // First warning beep
+    let o1 = audioCtx.createOscillator();
+    let g1 = audioCtx.createGain();
+    o1.type = 'sine';
+    o1.frequency.value = 440;
+    g1.gain.value = 0.2;
+    o1.connect(g1).connect(audioCtx.destination);
+    o1.start();
+    o1.frequency.linearRampToValueAtTime(880, audioCtx.currentTime+0.2);
+    g1.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.3);
+    o1.stop(audioCtx.currentTime+0.3);
+    
+    // Second warning beep (delayed)
+    setTimeout(() => {
+        let o2 = audioCtx.createOscillator();
+        let g2 = audioCtx.createGain();
+        o2.type = 'sine';
+        o2.frequency.value = 440;
+        g2.gain.value = 0.2;
+        o2.connect(g2).connect(audioCtx.destination);
+        o2.start();
+        o2.frequency.linearRampToValueAtTime(880, audioCtx.currentTime+0.2);
+        g2.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.3);
+        o2.stop(audioCtx.currentTime+0.3);
+    }, 400);
+    
+    // Third warning beep (delayed more)
+    setTimeout(() => {
+        let o3 = audioCtx.createOscillator();
+        let g3 = audioCtx.createGain();
+        o3.type = 'sine';
+        o3.frequency.value = 440;
+        g3.gain.value = 0.3; // Louder for emphasis
+        o3.connect(g3).connect(audioCtx.destination);
+        o3.start();
+        o3.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime+0.4); // Higher pitch
+        g3.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.5);
+        o3.stop(audioCtx.currentTime+0.5);
+    }, 800);
+}
+
+// Special sound for perfect challenge stage completion
+function playPerfectSound() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Create a celebratory sound sequence
+    // First ascending notes
+    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+    
+    notes.forEach((freq, i) => {
+        setTimeout(() => {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            
+            // Use square wave for arcade sound
+            osc.type = 'square';
+            osc.frequency.value = freq;
+            
+            // Add slight vibrato for richer sound
+            let lfo = audioCtx.createOscillator();
+            let lfoGain = audioCtx.createGain();
+            lfo.frequency.value = 6;
+            lfoGain.gain.value = 5;
+            lfo.connect(lfoGain).connect(osc.frequency);
+            lfo.start();
+            
+            // Volume envelope
+            gain.gain.value = 0;
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.15);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+            
+            // Clean up
+            setTimeout(() => {
+                lfo.stop();
+            }, 300);
+            
+        }, i * 150); // Stagger notes
+    });
+    
+    // Final chord after the sequence
+    setTimeout(() => {
+        // Play a triumphant chord (C major)
+        const chordNotes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+        
+        chordNotes.forEach(freq => {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            
+            // Use square wave for arcade sound
+            osc.type = 'square';
+            osc.frequency.value = freq;
+            
+            // Volume envelope
+            gain.gain.value = 0;
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.4);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
+            
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.8);
+        });
+    }, 700);
+}
 }
 
 // --- Main Loop ---
