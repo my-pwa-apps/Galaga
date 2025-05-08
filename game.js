@@ -1911,7 +1911,7 @@ function isOffScreen(obj) {
         obj.x + obj.w < 0 ||
         obj.x > canvas.width ||
         obj.y + obj.h < 0 ||
-        obj.y > canvas.height + 50 // Allow a bit of buffer below the screen
+        obj.y > canvas.height +  20 // Allow a bit of buffer below the screen
     );
 }
 
@@ -1921,15 +1921,21 @@ function createExplosion(x, y, color) {
     screenShake = 5; // Screen shake intensity, decay is handled in updateGameplay
     
     // Create particles
-    for (let i = 0; i < 15; i++) {
+    const numParticles = 15;
+    for (let i = 0; i < numParticles; i++) {
+        const angle = Math.random() * Math.PI * 2; // Random direction
+        const speed = 50 + Math.random() * 150;    // Random speed (50-200 pixels/sec)
+        const initialLife = Math.random() * 0.4 + 0.2; // Seconds (0.2 to 0.6 seconds)
+
         particles.push({
             x: x,
             y: y,
-            vx: (Math.random() - 0.5) * 250, // Pixels per second
-            vy: (Math.random() - 0.5) * 250, // Pixels per second
-            size: Math.random() * 4 + 2,
+            vx: Math.cos(angle) * speed, // Velocity x component
+            vy: Math.sin(angle) * speed, // Velocity y component
+            size: Math.random() * 3 + 1, // Smaller, faster particles (1 to 4)
             color: color,
-            life: Math.random() * 0.5 + 0.16 // Seconds (approx 10-40 frames at 60fps)
+            life: initialLife,
+            initialLife: initialLife // Store initial life for alpha calculation
         });
     }
 }
@@ -1953,7 +1959,7 @@ function updateParticles() {
         }
         
         // Draw particle
-        ctx.globalAlpha = p.life / 0.66; // Fade out based on original max life approx
+        ctx.globalAlpha = p.life / p.initialLife; // Fade out based on its own initial life
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
