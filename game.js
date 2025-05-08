@@ -16,6 +16,7 @@ let state = GAME_STATE.SPLASH;
 let splashTimer = 0;
 let keys = {};
 let previousStateBeforePause = null; // To store state before pausing
+let lastTime = 0; // For delta time calculation
 
 // Arcade splash colors
 const arcadeColors = ['#0ff', '#f0f', '#ff0', '#fff', '#0f0', '#f00', '#00f'];
@@ -26,11 +27,11 @@ const player = {
     y: canvas.height - 60,
     w: 32,
     h: 24,
-    speed: 5,
-    cooldown: 0,
+    speed: 250, // Pixels per second
+    cooldown: 0, // Seconds
     alive: true,
     power: 'normal', // 'normal', 'double', 'shield', 'speed'
-    powerTimer: 0,
+    powerTimer: 0, // Seconds
     shield: false,
 };
 
@@ -43,7 +44,7 @@ let powerups = [];
 let score = 0;
 let lives = 3;
 let level = 1;
-let levelTransition = 0;
+let levelTransition = 0; // Seconds for transition message
 
 // Galaga-style enemy states
 const ENEMY_STATE = {
@@ -1704,7 +1705,7 @@ function updateBullets() {
         const bullet = bullets[i];
         
         // Move bullet
-        bullet.y -= bullet.speed;
+        bullet.y -= bullet.speed * dt; // Use dt
         
         // Check if bullet is offscreen
         if (bullet.y < -20) {
@@ -1733,7 +1734,7 @@ function updateBullets() {
                         y: enemy.y,
                         w: 20,
                         h: 16,
-                        speed: 2,
+                        speed: 100, // Pixels per second
                         type: randomType
                     });
                 }
@@ -1767,35 +1768,37 @@ function updateBullets() {
         switch(bullet.type) {
             case 'straight':
                 // Standard straight-line movement
-                bullet.y += bullet.speed;
+                bullet.y += bullet.speed * dt; // Use dt
                 break;
             
             case 'fast':
                 // Faster bullet that slightly adjusts towards player
-                bullet.y += bullet.speed;
-                // Slight homing effect every 10 frames
+                bullet.y += bullet.speed * dt; // Use dt
+                // Slight homing effect every 10 frames - convert to time-based?
+                // For now, let's keep age as frame count for simplicity of this step
+                // but acknowledge this might need dt adjustment for consistency.
                 if (bullet.age % 10 === 0 && player.alive) {
                     const angle = Math.atan2(player.y - bullet.y, player.x - bullet.x);
-                    const targetX = bullet.x + Math.cos(angle) * bullet.speed;
-                    bullet.x = bullet.x * 0.9 + targetX * 0.1; // 10% adjustment towards player
+                    const targetX = bullet.x + Math.cos(angle) * bullet.speed * dt; // Use dt
+                    bullet.x = bullet.x * 0.9 + targetX * 0.1; 
                 }
                 break;
             
             case 'zigzag':
                 // Zig-zag movement pattern
-                bullet.y += bullet.speed;
-                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 2;
+                bullet.y += bullet.speed * dt; // Use dt
+                bullet.x += Math.sin(bullet.age / 5 + bullet.wobble) * 2; // Wobble might need dt adjustment
                 break;
             
             case 'split':
                 // Movement based on angle
-                bullet.x += Math.cos(bullet.angle) * bullet.speed * 0.5;
-                bullet.y += Math.sin(bullet.angle) * bullet.speed * 0.5;
+                bullet.x += Math.cos(bullet.angle) * bullet.speed * 0.5 * dt; // Use dt
+                bullet.y += Math.sin(bullet.angle) * bullet.speed * 0.5 * dt; // Use dt
                 break;
                 
             default:
                 // Default straight movement
-                bullet.y += bullet.speed;
+                bullet.y += bullet.speed * dt; // Use dt
         }
         
         // Check if bullet is offscreen
@@ -1851,7 +1854,7 @@ function updatePowerups() {
         const powerup = powerups[i];
         
         // Move powerup down
-        powerup.y += powerup.speed;
+        powerup.y += powerup.speed * dt; // Use dt
         
         // Check if powerup is offscreen
         if (powerup.y > canvas.height + 20) {
@@ -1864,14 +1867,14 @@ function updatePowerups() {
             // Apply powerup effect
             if (powerup.type === 'double') {
                 player.power = 'double';
-                player.powerTimer = 500; // 500 frames ~ 8.3 seconds at 60fps
+                player.powerTimer = 8.3; // Seconds
             } else if (powerup.type === 'shield') {
                 player.shield = true;
-                player.powerTimer = 600; // 600 frames = 10 seconds
+                player.powerTimer = 10; // Seconds
             } else if (powerup.type === 'speed') {
                 player.power = 'speed';
-                player.speed = 8; // Temporary speed boost
-                player.powerTimer = 450; // 450 frames = 7.5 seconds
+                player.speed = 400; // Temporary speed boost (pixels per second)
+                player.powerTimer = 7.5; // Seconds
             }
             
             // Remove powerup
@@ -1881,12 +1884,12 @@ function updatePowerups() {
     
     // Update power timer
     if (player.powerTimer > 0) {
-        player.powerTimer--;
+        player.powerTimer -= dt; // Use dt
         
         if (player.powerTimer <= 0) {
             // Reset power
             player.power = 'normal';
-            player.speed = 5;
+            player.speed = 250; // Reset to default pixels per second
             player.shield = false;
         }
     }
@@ -1915,18 +1918,18 @@ function isOffScreen(obj) {
 // Function to create explosion particles
 function createExplosion(x, y, color) {
     // Add screen shake effect for explosions
-    screenShake = 5;
+    screenShake = 5; // Screen shake intensity, decay is handled in updateGameplay
     
     // Create particles
     for (let i = 0; i < 15; i++) {
         particles.push({
             x: x,
             y: y,
-            vx: (Math.random() - 0.5) * 5,
-            vy: (Math.random() - 0.5) * 5,
+            vx: (Math.random() - 0.5) * 250, // Pixels per second
+            vy: (Math.random() - 0.5) * 250, // Pixels per second
             size: Math.random() * 4 + 2,
             color: color,
-            life: Math.random() * 30 + 10
+            life: Math.random() * 0.5 + 0.16 // Seconds (approx 10-40 frames at 60fps)
         });
     }
 }
@@ -1937,11 +1940,11 @@ function updateParticles() {
         const p = particles[i];
         
         // Move particle
-        p.x += p.vx;
-        p.y += p.vy;
+        p.x += p.vx * dt; // Use dt
+        p.y += p.vy * dt; // Use dt
         
         // Reduce life
-        p.life--;
+        p.life -= dt; // Use dt
         
         // Remove if dead
         if (p.life <= 0) {
@@ -1950,7 +1953,7 @@ function updateParticles() {
         }
         
         // Draw particle
-        ctx.globalAlpha = p.life / 40; // Fade out as life decreases
+        ctx.globalAlpha = p.life / 0.66; // Fade out based on original max life approx
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -1979,7 +1982,7 @@ function updateGameplay() {
     
     // Update screen shake
     if (screenShake > 0) {
-        screenShake *= 0.9; // Reduce shake effect over time
+        screenShake *= (1 - (10 * dt)); // Decay screen shake based on dt, aiming for similar decay rate
         if (screenShake < 0.5) screenShake = 0;
     }
 
@@ -2050,6 +2053,16 @@ function drawGameScreenElements() {
 }
 
 function gameLoop() {
+    const currentTime = performance.now();
+    dt = (currentTime - (lastTime || currentTime)) / 1000; // Delta time in seconds
+    lastTime = currentTime;
+
+    // Cap dt to prevent large jumps if tab loses focus for a long time then regains it
+    // especially before pause on blur/focus is fully robust.
+    // A common cap is around 1/15th of a second (targetting at least 15fps for physics)
+    dt = Math.min(dt, 1/15);
+
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (state === GAME_STATE.SPLASH) {
@@ -2109,35 +2122,35 @@ function spawnEnemies() {
             {x: -50, y: 100}, // Start off-screen left
             {x: 100, y: 50},  // Control point 1
             {x: 200, y: 200}, // Control point 2
-            {x: 300, y: 100}  // End point (formation spot)
+            {x: canvas.width * 0.3}  // End point (formation spot x, y will be from spot)
         ],
         // Path 2: Swooping in from right
         [
             {x: canvas.width + 50, y: 100}, // Start off-screen right
             {x: canvas.width - 100, y: 50},  // Control point 1
             {x: canvas.width - 200, y: 200}, // Control point 2
-            {x: canvas.width - 300, y: 100}  // End point (formation spot)
+            {x: canvas.width * 0.7}  // End point (formation spot x, y will be from spot)
         ],
         // Path 3: Loop from top
         [
             {x: canvas.width / 2, y: -50}, // Start off-screen top
             {x: canvas.width / 2 - 100, y: 100},  // Control point 1
             {x: canvas.width / 2 + 100, y: 200}, // Control point 2
-            {x: canvas.width / 2, y: 120}  // End point (formation spot)
+            {x: canvas.width / 2}  // End point (formation spot x, y will be from spot)
         ],
         // Path 4: Figure-8 from top-left
         [
             {x: -50, y: -50}, // Start off-screen top-left
             {x: 100, y: 150},  // Control point 1
             {x: 200, y:  50}, // Control point 2
-            {x: 250, y: 150}  // End point (formation spot)
+            {x: canvas.width * 0.4}  // End point (formation spot x, y will be from spot)
         ],
         // Path 5: Figure-8 from top-right
         [
             {x: canvas.width + 50, y: -50}, // Start off-screen top-right
             {x: canvas.width - 100, y: 150},  // Control point 1
             {x: canvas.width - 200, y: 50}, // Control point 2
-            {x: canvas.width - 250, y: 150}  // End point (formation spot)
+            {x: canvas.width * 0.6}  // End point (formation spot x, y will be from spot)
         ]
     ];
 
@@ -2182,7 +2195,7 @@ function spawnEnemies() {
             y: entrancePath[0].y,
             w: 32,
             h: 32,
-            speed: 2 + (level * 0.2), // Increase speed slightly with level
+            speed: 100 + (level * 10), // Pixels per second
             type: enemyType,
             state: ENEMY_STATE.ENTRANCE,
             targetX: spot.x,
@@ -2192,12 +2205,17 @@ function spawnEnemies() {
                    enemyType === 'tank' ? '#f44' : 
                    enemyType === 'zigzag' ? '#f0f' :
                    enemyType === 'sniper' ? '#0bb' : '#ccc', // Added sniper color, default fallback
-            entranceDelay: i * 15, // Stagger the entrance
+            entranceDelay: i * 0.25, // Seconds (stagger entrance)
             id: i, // Unique ID for debugging
-            path: entrancePath, // Store the path for this enemy
+            path: [ // Ensure path has 4 points for bezier, dynamically setting the last point's Y
+                entrancePath[0],
+                entrancePath[1],
+                entrancePath[2],
+                { x: entrancePath[3].x, y: spot.y } // Use spot.y for the final y of bezier
+            ],
             pathProgress: 0, // Progress along the path (0.0 to 1.0)
-            pathSpeed: 0.01 + (Math.random() * 0.005), // Variable speed for more natural movement
-            attackCooldown: Math.floor(Math.random() * 120) + 60, // Initialize with cooldown
+            pathSpeed: 0.5 + (Math.random() * 0.25), // Units of progress per second
+            attackCooldown: (Math.random() * 2) + 1, // Seconds (1 to 3 seconds)
             attackChance: enemyType === 'basic' ? 0.002 : 
                           enemyType === 'fast' ? 0.005 :
                           enemyType === 'tank' ? 0.003 : 
@@ -2259,7 +2277,7 @@ function updateEnemies() {
     let enemiesRemaining = enemies.length; // Track how many enemies are left
     
     // Pick a random enemy to potentially break formation and attack
-    if (Math.random() < 0.01 + (level * 0.005)) {
+    if (Math.random() < (0.01 + (level * 0.005)) * (dt * 60) ) { // Scale chance by dt, assuming 60fps baseline
         const formationEnemies = enemies.filter(e => e.state === ENEMY_STATE.FORMATION);
         if (formationEnemies.length > 0) {
             const randomEnemy = formationEnemies[Math.floor(Math.random() * formationEnemies.length)];
@@ -2309,13 +2327,13 @@ function updateEnemies() {
         
         // Decrement attack cooldown
         if (enemy.attackCooldown > 0) {
-            enemy.attackCooldown--;
+            enemy.attackCooldown -= dt; // Use dt
         }
 
         // Handle enemy entrance
         if (enemy.state === ENEMY_STATE.ENTRANCE) {
             if (enemy.entranceDelay > 0) {
-                enemy.entranceDelay--;
+                enemy.entranceDelay -= dt; // Use dt
                 allEnemiesInFormation = false; // Not all enemies are in formation
                 continue;
             }
@@ -2333,7 +2351,7 @@ function updateEnemies() {
                 enemy.y = point.y;
                 
                 // Advance along the path
-                enemy.pathProgress += enemy.pathSpeed;
+                enemy.pathProgress += enemy.pathSpeed * dt; // Use dt
                 allEnemiesInFormation = false; // Not all enemies are in formation
             } else {
                 // Path completed, move directly to formation spot
@@ -2341,16 +2359,16 @@ function updateEnemies() {
                 const dy = enemy.targetY - enemy.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
-                if (distance > enemy.speed) {
-                    enemy.x += dx / distance * enemy.speed;
-                    enemy.y += dy / distance * enemy.speed;
+                if (distance > enemy.speed * dt) { // Compare with distance moved in one frame
+                    enemy.x += (dx / distance) * enemy.speed * dt; // Use dt
+                    enemy.y += (dy / distance) * enemy.speed * dt; // Use dt
                     allEnemiesInFormation = false; // Not all enemies are in formation
                 } else {
                     // Reached formation position
                     enemy.x = enemy.targetX;
                     enemy.y = enemy.targetY;
                     enemy.state = ENEMY_STATE.FORMATION;
-                    enemy.attackCooldown = Math.floor(Math.random() * 120) + 60; // Random cooldown
+                    enemy.attackCooldown = (Math.random() * 2) + 1; // Seconds
                 }
             }
         }
@@ -2361,23 +2379,23 @@ function updateEnemies() {
             enemy.y = enemy.targetY + Math.sin(Date.now() / 1500 + enemy.id * 2) * 2;
             
             // Chance to fire while in formation
-            if (Math.random() < enemy.attackChance / 2) {
+            if (Math.random() < (enemy.attackChance / 2) * (dt * 60) ) { // Scale chance by dt
                 fireEnemyBullet(enemy);
             }
         }
         // Handle enemy attack behavior
         else if (enemy.state === ENEMY_STATE.ATTACK) {
-            enemy.attackTime++;
+            enemy.attackTime += dt; // Use dt, attackTime is now in seconds
             
             // Calculate the position on the attack path
             const pathLength = enemy.attackPath.length - 1; // Number of segments
-            const segmentTime = 100; // Time to complete each segment
-            const totalPathTime = pathLength * segmentTime;
+            const segmentDuration = 1.66; // Seconds to complete each segment (approx 100 frames at 60fps)
+            const totalPathTime = pathLength * segmentDuration;
             
             if (enemy.attackTime < totalPathTime) {
                 // Determine which segment we're in
-                const segment = Math.min(Math.floor(enemy.attackTime / segmentTime), pathLength - 1);
-                const segmentProgress = (enemy.attackTime % segmentTime) / segmentTime;
+                const segment = Math.min(Math.floor(enemy.attackTime / segmentDuration), pathLength - 1);
+                const segmentProgress = (enemy.attackTime % segmentDuration) / segmentDuration;
                 
                 // Get start and end points for the current segment
                 const p0 = enemy.attackPath[segment];
@@ -2399,15 +2417,15 @@ function updateEnemies() {
                 enemy.y = point.y;
                 
                 // Higher chance to fire during attack
-                if (Math.random() < enemy.attackChance * 2) {
+                if (Math.random() < (enemy.attackChance * 2) * (dt * 60) ) { // Scale chance by dt
                     fireEnemyBullet(enemy);
                 }
             } else {
                 // Path completed
                 // If we're at the end of a looping path, return to formation
-                if (enemy.attackPattern === 2 && enemy.attackTime < totalPathTime + 100) { // Give time for loop return
+                if (enemy.attackPattern === 2 && enemy.attackTime < totalPathTime + 1.66) { // Give time for loop return (seconds)
                     // Continue along path to return to formation position
-                    const returnProgress = (enemy.attackTime - totalPathTime) / 100;
+                    const returnProgress = (enemy.attackTime - totalPathTime) / 1.66; // Normalize to 0-1 over 1.66s
                     enemy.x = enemy.x * (1 - returnProgress) + enemy.targetX * returnProgress;
                     enemy.y = enemy.y * (1 - returnProgress) + enemy.targetY * returnProgress;
                     
@@ -2415,11 +2433,11 @@ function updateEnemies() {
                         enemy.state = ENEMY_STATE.FORMATION;
                         enemy.x = enemy.targetX;
                         enemy.y = enemy.targetY;
-                        enemy.attackCooldown = Math.floor(Math.random() * 180) + 120; // Longer cooldown after attack
+                        enemy.attackCooldown = (Math.random() * 3) + 2; // Seconds (longer cooldown)
                     }
                 } else {
                     // For non-looping paths or after a loop attempt, continue moving downwards
-                    enemy.y += enemy.speed * 1.5; // Move down faster after attack run
+                    enemy.y += enemy.speed * 1.5 * dt; // Use dt
                 }
             }
         }
@@ -2461,14 +2479,17 @@ function updateEnemies() {
         
         if (levelTransition === 0) { // Only start a new transition if one isn't already active
             console.log("Starting level transition. Current level: " + level + ". Next level: " + (level + 1));
-            levelTransition = 120; // Duration for the "LEVEL COMPLETE" message (e.g., 2 seconds at 60fps)
+            levelTransition = 2.0; // Duration in seconds for the "LEVEL COMPLETE" message
             
             setTimeout(() => {
                 level++;
                 console.log("setTimeout: Spawning enemies for level " + level);
                 spawnEnemies(); // This should populate the enemies array
                 levelTransition = 0; // Reset transition flag *after* new level setup is complete
-            }, 2000); // 2-second delay
+            }, 2000); // 2-second delay (setTimeout is already in ms)
+        } else if (levelTransition > 0 && state === GAME_STATE.PLAYING) { // Ensure we only decrement if playing
+             levelTransition -= dt;
+             if (levelTransition < 0) levelTransition = 0;
         }
     }
 }
@@ -2477,11 +2498,11 @@ function updateEnemies() {
 function updatePlayer() {
     // Handle player movement
     if (keys['ArrowLeft'] || keys['KeyA']) {
-        player.x -= player.speed;
+        player.x -= player.speed * dt; // Use dt
         if (player.x < player.w / 2) player.x = player.w / 2; // Prevent going offscreen
     }
     if (keys['ArrowRight'] || keys['KeyD']) {
-        player.x += player.speed;
+        player.x += player.speed * dt; // Use dt
         if (player.x > canvas.width - player.w / 2) player.x = canvas.width - player.w / 2; // Prevent going offscreen
     }
     
@@ -2502,7 +2523,7 @@ function updatePlayer() {
 
     // Reduce cooldown timer
     if (player.cooldown > 0) {
-        player.cooldown--;
+        player.cooldown -= dt; // Use dt
     }
 }
 
@@ -2512,7 +2533,7 @@ function firePlayerBullet() {
         y: player.y - player.h / 2,
         w: 3,
         h: 12,
-        speed: 10,
+        speed: 600, // Pixels per second
         type: player.power === 'double' ? 'double' : 'normal',
         from: dualShip ? 'dual' : 'player'
     };
@@ -2523,7 +2544,7 @@ function firePlayerBullet() {
         const dualBullet = { ...bullet, x: player.x - 24 }; // Adjust x for the second ship
         bullets.push(dualBullet);
     }
-    player.cooldown = 15; // Cooldown period before next shot
+    player.cooldown = 0.25; // Seconds (cooldown period before next shot)
 }
 
 
