@@ -2137,7 +2137,7 @@ function updateEnemies() {
             } else {
                 // Path completed
                 // If we're at the end of a looping path, return to formation
-                if (enemy.attackPattern === 2 && enemy.attackTime < totalPathTime + 100) {
+                if (enemy.attackPattern === 2 && enemy.attackTime < totalPathTime + 100) { // Give time for loop return
                     // Continue along path to return to formation position
                     const returnProgress = (enemy.attackTime - totalPathTime) / 100;
                     enemy.x = enemy.x * (1 - returnProgress) + enemy.targetX * returnProgress;
@@ -2149,8 +2149,10 @@ function updateEnemies() {
                         enemy.y = enemy.targetY;
                         enemy.attackCooldown = Math.floor(Math.random() * 180) + 120; // Longer cooldown after attack
                     }
+                } else {
+                    // For non-looping paths or after a loop attempt, continue moving downwards
+                    enemy.y += enemy.speed * 1.5; // Move down faster after attack run
                 }
-                // For non-looping paths, just continue downwards
             }
         }
 
