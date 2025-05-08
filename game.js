@@ -129,34 +129,95 @@ function drawBullet(b) {
 function drawEnemy(e) {
     ctx.save();
     ctx.translate(e.x, e.y);
-    // Improved bug body
     ctx.save();
-    ctx.shadowColor = '#f0f';
+    ctx.shadowColor = e.color;
     ctx.shadowBlur = 8;
-    ctx.fillStyle = e.color || '#0f0';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 16, 12, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-    // Wings
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.ellipse(-10, 0, 6, 12, Math.PI/6, 0, Math.PI*2);
-    ctx.ellipse(10, 0, 6, 12, -Math.PI/6, 0, Math.PI*2);
-    ctx.fill();
-    // Eyes
-    ctx.fillStyle = '#222';
-    ctx.beginPath();
-    ctx.arc(-5, -2, 2, 0, Math.PI*2);
-    ctx.arc(5, -2, 2, 0, Math.PI*2);
-    ctx.fill();
-    // Antennae
-    ctx.strokeStyle = '#ff0';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-4, -8); ctx.lineTo(-8, -16);
-    ctx.moveTo(4, -8); ctx.lineTo(8, -16);
-    ctx.stroke();
+    // Draw different shapes for each type
+    if (e.type === 'basic') {
+        // Classic bug
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 16, 12, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+        // Wings
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.ellipse(-10, 0, 6, 12, Math.PI/6, 0, Math.PI*2);
+        ctx.ellipse(10, 0, 6, 12, -Math.PI/6, 0, Math.PI*2);
+        ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(-5, -2, 2, 0, Math.PI*2);
+        ctx.arc(5, -2, 2, 0, Math.PI*2);
+        ctx.fill();
+    } else if (e.type === 'fast') {
+        // Arrowhead
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.moveTo(0, -14);
+        ctx.lineTo(12, 10);
+        ctx.lineTo(0, 4);
+        ctx.lineTo(-12, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        // Center stripe
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-2, -8, 4, 12);
+    } else if (e.type === 'tank') {
+        // Rectangle body with armor
+        ctx.fillStyle = e.color;
+        ctx.fillRect(-14, -10, 28, 20);
+        ctx.restore();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(-14, -10, 28, 20);
+        // Treads
+        ctx.fillStyle = '#888';
+        ctx.fillRect(-16, -10, 4, 20);
+        ctx.fillRect(12, -10, 4, 20);
+    } else if (e.type === 'sniper') {
+        // Diamond shape
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.moveTo(0, -14);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(0, 14);
+        ctx.lineTo(-10, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        // Eye
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI*2);
+        ctx.fill();
+    } else if (e.type === 'zigzag') {
+        // Lightning bolt
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-10, -10);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(-6, 8);
+        ctx.lineTo(10, 10);
+        ctx.stroke();
+        ctx.restore();
+        // Glow
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(-10, -10);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(-6, 8);
+        ctx.lineTo(10, 10);
+        ctx.stroke();
+        ctx.restore();
+    }
     ctx.restore();
 }
 // Powerup drawing
@@ -218,29 +279,36 @@ function drawHUD() {
 
 function spawnEnemies() {
     enemies = [];
-    let cols = 5 + Math.min(level, 5); // up to 10 columns
-    let rows = 2 + Math.floor(level/2); // more rows as level increases
-    // Diverse enemy types
+    // Gradual difficulty: start with fewer, slower, less aggressive enemies
+    let baseCols = 4 + Math.floor(level/2);
+    let baseRows = 2 + Math.floor(level/4);
+    let cols = Math.min(baseCols, 8);
+    let rows = Math.min(baseRows, 5);
+    // Enemy types unlocked by level
     let types = [
-        {name: 'basic', color: '#0f0', fireRate: 0.7, speed: 1, hp: 1},
-        {name: 'fast', color: '#ff0', fireRate: 0.4, speed: 2, hp: 1},
-        {name: 'tank', color: '#0ff', fireRate: 0.9, speed: 0.7, hp: 3},
-        {name: 'sniper', color: '#f0f', fireRate: 0.2, speed: 1, hp: 1},
-        {name: 'zigzag', color: '#f00', fireRate: 0.5, speed: 1.2, hp: 1}
+        {name: 'basic', color: '#0f0', fireRate: 0.7, speed: 0.7, hp: 1},
+        {name: 'fast', color: '#ff0', fireRate: 0.3, speed: 1.2, hp: 1},
+        {name: 'tank', color: '#0ff', fireRate: 0.9, speed: 0.5, hp: 3},
+        {name: 'sniper', color: '#f0f', fireRate: 0.15, speed: 0.7, hp: 1},
+        {name: 'zigzag', color: '#f00', fireRate: 0.4, speed: 1.0, hp: 1}
     ];
+    let maxType = 1;
+    if (level >= 3) maxType = 2;
+    if (level >= 5) maxType = 3;
+    if (level >= 7) maxType = 4;
     for (let i=0; i<cols; i++) {
         for (let j=0; j<rows; j++) {
             // Pick type based on level and position
-            let t = types[(i+j+level)%Math.min(types.length, 2+Math.floor(level/2))];
+            let t = types[Math.min((i+j+level)%Math.min(types.length, maxType+1), maxType)];
             enemies.push({
                 x: 40 + i*((canvas.width-80)/(cols-1)),
                 y: 60 + j*44,
                 w: 32,
                 h: 24,
-                dx: (Math.random()-0.5)*t.speed*(0.7+level*0.1),
+                dx: (Math.random()-0.5)*t.speed*(0.6+level*0.07),
                 dy: 0,
                 alive: true,
-                fireCooldown: Math.random()*(120-Math.min(level*6,60))+60/t.fireRate,
+                fireCooldown: Math.random()*(160-Math.min(level*8,80))+80/t.fireRate,
                 color: t.color,
                 type: t.name,
                 hp: t.hp,
@@ -267,7 +335,6 @@ function resetGame() {
     spawnEnemies();
 }
 
-function updateGame() {
     // Player movement
     let moveSpeed = player.speed + (player.power === 'speed' ? 2 : 0);
     if (keys['ArrowLeft'] && player.x > 20) player.x -= moveSpeed;
@@ -299,29 +366,29 @@ function updateGame() {
     enemies.forEach(e => {
         // Diverse movement
         if (e.type === 'zigzag') {
-            e.x += Math.sin(Date.now()/200 + e.zigzagPhase) * 2.5 * (1+level*0.1);
-            e.y += Math.cos(Date.now()/300 + e.zigzagPhase) * 0.7 * (1+level*0.1);
+            e.x += Math.sin(Date.now()/200 + e.zigzagPhase) * (2.0 + 0.1*level);
+            e.y += Math.cos(Date.now()/300 + e.zigzagPhase) * (0.5 + 0.05*level);
         } else if (e.type === 'fast') {
-            e.x += e.dx * 1.5;
+            e.x += e.dx * 1.2;
         } else if (e.type === 'tank') {
-            e.x += e.dx * 0.7;
+            e.x += e.dx * 0.5;
         } else {
             e.x += e.dx;
         }
-        if (e.type === 'sniper' && player.alive && Math.random() < 0.01 + 0.002*level) {
+        if (e.type === 'sniper' && player.alive && Math.random() < 0.008 + 0.001*level) {
             // Sniper aims at player
             let dx = player.x - e.x;
             let dy = player.y - e.y;
             let mag = Math.sqrt(dx*dx + dy*dy);
-            enemyBullets.push({x: e.x, y: e.y+10, vy: 3.5 + level*0.2, vx: dx/mag*2, type: 'sniper'});
+            enemyBullets.push({x: e.x, y: e.y+10, vy: 2.5 + level*0.1, vx: dx/mag*2, type: 'sniper'});
         }
         // Sine wave movement for higher levels
-        if (level > 2 && e.type === 'basic') e.y += Math.sin(Date.now()/400 + e.x/40) * 0.7 * (level-1);
+        if (level > 2 && e.type === 'basic') e.y += Math.sin(Date.now()/400 + e.x/40) * 0.5 * (level-1);
         if (e.x < 30 || e.x > canvas.width-30) e.dx *= -1;
         e.fireCooldown--;
         if (e.fireCooldown < 0 && e.alive && e.type !== 'sniper') {
-            enemyBullets.push({x: e.x, y: e.y+10, vy: 2.5 + level*0.15, vx: 0, type: e.type});
-            e.fireCooldown = Math.random()*(120-Math.min(level*6,60))+60/(e.type==='fast'?1.5:1);
+            enemyBullets.push({x: e.x, y: e.y+10, vy: 1.8 + level*0.08, vx: 0, type: e.type});
+            e.fireCooldown = Math.random()*(160-Math.min(level*8,80))+80/(e.type==='fast'?1.5:1);
         }
     });
     // Enemy bullets
