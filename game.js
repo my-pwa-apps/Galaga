@@ -176,6 +176,55 @@ try {
 let firebaseHighScores = [];
 const MAX_HIGH_SCORES = 10; // Max number of scores to store/display
 
+// Optimized game loop with better timing
+function gameLoop() {
+    console.log("gameLoop called, state:", state); // LOGGING
+    const currentTime = performance.now();
+    // Delta time in seconds, capped to prevent spiral of death
+    dt = Math.min(0.1, (currentTime - lastTime) / 1000);
+    lastTime = currentTime;
+
+    // Clear canvas with a dark color
+    ctx.fillStyle = '#000'; // Base background
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Apply screen shake if active
+    if (screenShake > 0) {
+        const shakeX = (Math.random() - 0.5) * screenShake * 2;
+        const shakeY = (Math.random() - 0.5) * screenShake * 2;
+        ctx.translate(shakeX, shakeY);
+    }
+
+    // Game state machine
+    switch (state) {
+        case GAME_STATE.SPLASH:
+            drawArcadeSplash();
+            break;
+        case GAME_STATE.PLAYING:
+            updateGameplay();
+            drawGameplay();
+            break;
+        case GAME_STATE.PAUSED:
+            // Draw the underlying game state (e.g., gameplay) then the pause overlay
+            drawGameplay(); // Draw the game as it was
+            drawPauseScreen();
+            break;
+        case GAME_STATE.GAME_OVER:
+            drawGameOver();
+            break;
+        case GAME_STATE.ENTER_HIGH_SCORE:
+            drawEnterHighScoreScreen();
+            break;
+    }
+
+    // Reset translation if screen shake was applied
+    if (screenShake > 0) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to default transform
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
 // Function to fetch high scores from Firebase
 function fetchHighScores(callback) {
     if (!database) { // Check if database was initialized or available
@@ -240,6 +289,42 @@ function saveHighScore(name, score) {
     // For simplicity, we'll rely on limitToLast for fetching.
 }
 
+// Draw authentic Galaga logo
+function drawGalagaLogo(x, y, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    
+    // Logo outline glow effect
+    ctx.shadowColor = '#ff0';
+    ctx.shadowBlur = 20;
+    
+    // Create rainbow gradient for logo
+    const logoGradient = ctx.createLinearGradient(0, -30, 0, 30);
+    logoGradient.addColorStop(0, '#f00');    // Red top
+    logoGradient.addColorStop(0.5, '#ff0');  // Yellow middle
+    logoGradient.addColorStop(1, '#f00');    // Red bottom
+    
+    ctx.fillStyle = logoGradient;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    
+    // Draw "GALAGA" with proper spacing and styling
+    ctx.font = 'bold 48px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('GALAGA', 0, 0);
+    ctx.strokeText('GALAGA', 0, 0);
+    
+    // Add the characteristic dots in the G and A letters
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-75, 0, 3, 0, Math.PI * 2); // Dot in G
+    ctx.arc(40, 0, 3, 0, Math.PI * 2);  // Dot in A
+    ctx.fill();
+    
+    ctx.restore();
+}
 
 function drawArcadeSplash() {
     // Clear to black
@@ -1813,6 +1898,7 @@ function drawGameOver() {
     // Restart instructions
     ctx.font = '18px monospace';
     ctx.fillStyle = '#0ff';
+
     if (isTouchDevice) {
         ctx.fillText('TAP SCREEN TO RESTART', canvas.width/2, canvas.height-100);
     } else {
