@@ -2211,6 +2211,157 @@ function updateGameplay() {
     }
 }
 
+// Collision detection function
+function checkCollisions() {
+    if (!player.alive) return;
+
+    // Helper function to check if two rectangles overlap
+    function isColliding(a, b) {
+        return a.x < b.x + b.w &&
+               a.x + a.w > b.x &&
+               a.y < b.y + b.h &&
+               a.y + a.h > b.y;
+    }
+
+    // Player bullets hitting enemies
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+        
+        for (let j = enemies.length - 1; j >= 0; j--) {
+            const enemy = enemies[j];
+            
+            if (isColliding(bullet, enemy)) {
+                // Create explosion particles
+                createExplosionParticles(enemy.x + enemy.w/2, enemy.y + enemy.h/2);
+                
+                // Add score based on enemy type
+                let points = 50;
+                if (enemy.type === 'fast') points = 100;
+                else if (enemy.type === 'tank') points = 150;
+                else if (enemy.type === 'zigzag') points = 200;
+                else if (enemy.type === 'sniper') points = 250;
+                
+                score += points;
+                
+                // Remove bullet and enemy
+                bullets.splice(i, 1);
+                enemies.splice(j, 1);
+                break;
+            }
+        }
+        
+        // Check bullet hitting boss Galaga
+        if (bossGalaga && isColliding(bullet, bossGalaga)) {
+            bossGalaga.health--;
+            bullets.splice(i, 1);
+            
+            if (bossGalaga.health <= 0) {
+                createExplosionParticles(bossGalaga.x + bossGalaga.w/2, bossGalaga.y + bossGalaga.h/2);
+                score += 800;
+                bossGalaga = null;
+            }
+        }
+    }
+
+    // Enemy bullets hitting player
+    if (!player.shield) {
+        for (let i = enemyBullets.length - 1; i >= 0; i--) {
+            const bullet = enemyBullets[i];
+            
+            if (isColliding(bullet, player)) {
+                // Player hit
+                createExplosionParticles(player.x + player.w/2, player.y + player.h/2);
+                enemyBullets.splice(i, 1);
+                
+                lives--;
+                if (lives <= 0) {
+                    player.alive = false;
+                    state = GAME_STATE.GAME_OVER;
+                } else {
+                    // Brief invincibility
+                    player.shield = true;
+                    player.powerTimer = 2; // 2 seconds of shield
+                }
+                break;
+            }
+        }
+    }
+
+    // Player collecting powerups
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const powerup = powerups[i];
+        
+        if (isColliding(player, powerup)) {
+            // Apply powerup effect
+            switch(powerup.type) {
+                case 'double':
+                    player.power = 'double';
+                    player.powerTimer = 10;
+                    break;
+                case 'shield':
+                    player.shield = true;
+                    player.powerTimer = 15;
+                    break;
+                case 'speed':
+                    player.power = 'speed';
+                    player.powerTimer = 12;
+                    break;
+                case 'life':
+                    lives++;
+                    break;
+            }
+            
+            powerups.splice(i, 1);
+            score += 25;
+        }
+    }
+
+    // Player colliding with enemies (direct contact)
+    if (!player.shield) {
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const enemy = enemies[i];
+            
+            if (isColliding(player, enemy)) {
+                // Both player and enemy are destroyed
+                createExplosionParticles(player.x + player.w/2, player.y + player.h/2);
+                createExplosionParticles(enemy.x + enemy.w/2, enemy.y + enemy.h/2);
+                
+                enemies.splice(i, 1);
+                lives--;
+                
+                if (lives <= 0) {
+                    player.alive = false;
+                    state = GAME_STATE.GAME_OVER;
+                } else {
+                    // Brief invincibility
+                    player.shield = true;
+                    player.powerTimer = 2;
+                }
+                break;
+            }
+        }
+    }
+}
+
+// Helper function to create explosion particles
+function createExplosionParticles(x, y) {
+    const particleCount = 8;
+    for (let i = 0; i < particleCount; i++) {
+        const particle = getPoolObject('particles');
+        if (particle) {
+            particle.x = x;
+            particle.y = y;
+            particle.vx = (Math.random() - 0.5) * 200;
+            particle.vy = (Math.random() - 0.5) * 200;
+            particle.life = 1;
+            particle.maxLife = 1;
+            particle.color = arcadeColors[Math.floor(Math.random() * arcadeColors.length)];
+            particle.active = true;
+            particles.push(particle);
+        }
+    }
+}
+
 // Initialize graphics optimization system
 GraphicsOptimizer.init();
 
