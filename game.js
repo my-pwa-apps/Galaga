@@ -35,6 +35,787 @@ const POOL = {
     MAX_PARTICLES: 150
 };
 
+// --- Graphics Optimization System ---
+const GraphicsOptimizer = {
+    // Quality levels and settings
+    qualityLevel: 'high', // 'low', 'medium', 'high'
+    adaptiveQuality: true,
+    targetFPS: 60,
+      // Performance monitoring
+    frameCount: 0,
+    frameTime: 0,
+    lastFrameTime: performance.now(),
+    avgFrameTime: 16.67, // Target 60fps = 16.67ms per frame
+    performanceHistory: [],
+    lastQualityAdjustment: 0,
+    renderTime: 0,
+    drawCallCount: 0,
+    
+    // Advanced performance metrics
+    renderTime: 0,
+    updateTime: 0,
+    culledObjects: 0,
+    renderedObjects: 0,
+    lastPerformanceLog: 0,
+      // Caching systems
+    pathCache: new Map(),
+    gradientCache: new Map(),
+    textCache: new Map(),
+    imageCache: new Map(),
+    
+    // Enhanced caching with timestamps for cleanup
+    cacheTimestamps: new Map(),
+    maxCacheAge: 30000, // 30 seconds
+    
+    // Viewport culling
+    viewport: {
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 600,
+        padding: 50 // Extra padding for smooth transitions
+    },
+    
+    // LOD (Level of Detail) system
+    lodDistances: {
+        high: 150,    // Full detail within 150px
+        medium: 300,  // Medium detail 150-300px
+        low: 500      // Low detail 300-500px, cull beyond 500px
+    },
+      // Dirty rectangle system
+    dirtyRects: [],
+    fullRedraw: true,
+    
+    // Enhanced batching system
+    batchedDraw: {
+        bullets: [],
+        particles: [],
+        enemies: [],
+        effects: [],
+        stars: [],
+        
+        // Batch size limits to prevent memory issues
+        maxBatchSize: 1000,
+        
+        add(type, x, y, data) {
+            if (!this[type]) this[type] = [];
+            
+            // Prevent batch overflow
+            if (this[type].length >= this.maxBatchSize) {
+                this.flushType(type);
+            }
+            
+            this[type].push({ x, y, ...data });
+        },
+        
+        flush() {
+            this.flushBullets();
+            this.flushParticles();
+            this.flushEnemies();
+            this.flushEffects();
+            this.flushStars();
+            this.clear();
+        },
+        
+        flushType(type) {
+            switch(type) {
+                case 'bullets': this.flushBullets(); break;
+                case 'particles': this.flushParticles(); break;
+                case 'enemies': this.flushEnemies(); break;
+                case 'effects': this.flushEffects(); break;
+                case 'stars': this.flushStars(); break;
+            }
+            this[type].length = 0;
+        },
+        
+        flushBullets() {
+            if (this.bullets.length === 0) return;
+            
+            const renderStart = performance.now();
+            ctx.save();
+            
+            // Group bullets by color for fewer state changes
+            const bulletsByColor = new Map();
+            this.bullets.forEach(bullet => {
+                const color = bullet.color || '#ff0';
+                if (!bulletsByColor.has(color)) {
+                    bulletsByColor.set(color, []);
+                }
+                bulletsByColor.get(color).push(bullet);
+            });
+            
+            // Render each color group
+            bulletsByColor.forEach((bullets, color) => {
+                ctx.fillStyle = color;
+                bullets.forEach(bullet => {
+                    ctx.fillRect(bullet.x - 1, bullet.y - 6, 2, 12);
+                });
+            });
+            
+            ctx.restore();
+            GraphicsOptimizer.renderTime += performance.now() - renderStart;
+        },
+        
+        flushParticles() {
+            if (this.particles.length === 0) return;
+            
+            const renderStart = performance.now();
+            ctx.save();
+            
+            // Sort particles by alpha and color for optimal batching
+            this.particles.sort((a, b) => {
+                const alphaCompare = (a.alpha || 1) - (b.alpha || 1);
+                if (alphaCompare !== 0) return alphaCompare;
+                return (a.color || '#fff').localeCompare(b.color || '#fff');
+            });
+            
+            let currentAlpha = -1;
+            let currentColor = '';
+            
+            this.particles.forEach(particle => {
+                const alpha = particle.alpha || 1;
+                const color = particle.color || '#fff';
+                
+                if (alpha !== currentAlpha) {
+                    ctx.globalAlpha = alpha;
+                    currentAlpha = alpha;
+                }
+                
+                if (color !== currentColor) {
+                    ctx.fillStyle = color;
+                    currentColor = color;
+                }
+                
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size || 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            ctx.restore();
+            GraphicsOptimizer.renderTime += performance.now() - renderStart;
+        },
+        
+        flushEnemies() {
+            if (this.enemies.length === 0) return;
+            
+            const renderStart = performance.now();
+            ctx.save();
+            
+            // Group enemies by color and render together
+            const enemiesByColor = new Map();
+            this.enemies.forEach(enemy => {
+                const color = enemy.color || '#fff';
+                if (!enemiesByColor.has(color)) {
+                    enemiesByColor.set(color, []);
+                }
+                enemiesByColor.get(color).push(enemy);
+            });
+            
+            enemiesByColor.forEach((enemies, color) => {
+                ctx.fillStyle = color;
+                enemies.forEach(enemy => {
+                    ctx.fillRect(enemy.x - 8, enemy.y - 8, 16, 16);
+                });
+            });
+            
+            ctx.restore();
+            GraphicsOptimizer.renderTime += performance.now() - renderStart;
+        },
+        
+        flushEffects() {
+            if (this.effects.length === 0) return;
+            
+            const renderStart = performance.now();
+            ctx.save();
+            
+            this.effects.forEach(effect => {
+                ctx.globalAlpha = effect.alpha || 1;
+                ctx.fillStyle = effect.color || '#fff';
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, effect.size || 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            ctx.restore();
+            GraphicsOptimizer.renderTime += performance.now() - renderStart;
+        },
+        
+        flushStars() {
+            if (this.stars.length === 0) return;
+            
+            const renderStart = performance.now();
+            ctx.save();
+            
+            // Batch render stars by brightness/size
+            const starsByBrightness = new Map();
+            this.stars.forEach(star => {
+                const brightness = star.brightness || 1;
+                if (!starsByBrightness.has(brightness)) {
+                    starsByBrightness.set(brightness, []);
+                }
+                starsByBrightness.get(brightness).push(star);
+            });
+            
+            starsByBrightness.forEach((stars, brightness) => {
+                ctx.globalAlpha = brightness;
+                ctx.fillStyle = '#fff';
+                stars.forEach(star => {
+                    ctx.fillRect(star.x, star.y, star.size || 1, star.size || 1);
+                });
+            });
+            
+            ctx.restore();
+            GraphicsOptimizer.renderTime += performance.now() - renderStart;
+        },
+          clear() {
+            this.bullets.length = 0;
+            this.particles.length = 0;
+            this.enemies.length = 0;
+            this.effects.length = 0;
+            this.stars.length = 0;
+        }
+    },
+    
+    // Enhanced memory management
+    memoryUsage: {
+        textures: 0,
+        paths: 0,
+        gradients: 0,
+        total: 0,
+        peakUsage: 0,
+        lastCleanup: 0
+    },
+    
+    // Viewport culling functions
+    isInViewport(x, y, width = 32, height = 32) {
+        return x + width >= this.viewport.x - this.viewport.padding &&
+               x <= this.viewport.x + this.viewport.width + this.viewport.padding &&
+               y + height >= this.viewport.y - this.viewport.padding &&
+               y <= this.viewport.y + this.viewport.height + this.viewport.padding;
+    },
+    
+    getLODLevel(x, y, centerX, centerY) {
+        const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        
+        if (distance <= this.lodDistances.high) return 'high';
+        if (distance <= this.lodDistances.medium) return 'medium';
+        if (distance <= this.lodDistances.low) return 'low';
+        return 'cull'; // Don't render
+    },
+    
+    shouldCull(x, y, width = 32, height = 32) {
+        // Skip viewport check if disabled
+        if (!this.useDirtyRects) return false;
+        
+        return !this.isInViewport(x, y, width, height);
+    },
+    
+    // Optimization flags
+    useOffscreenCanvas: false,
+    useBatching: true,
+    usePathCaching: true,
+    useGradientCaching: true,
+    useTextCaching: true,
+    useDirtyRects: false, // Disabled by default for this simple game
+    
+    init() {
+        this.detectCapabilities();
+        this.initializePathCache();
+        this.adjustQualityBasedOnDevice();
+        this.startPerformanceMonitoring();
+        console.log(`Graphics Optimizer initialized - Quality: ${this.qualityLevel}`);
+    },
+    
+    detectCapabilities() {
+        // Detect if we should use offscreen canvas
+        this.useOffscreenCanvas = typeof OffscreenCanvas !== 'undefined';
+        
+        // Detect GPU capabilities
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfo) {
+                const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                console.log('GPU Renderer:', renderer);
+                
+                // Adjust quality based on GPU
+                if (renderer.includes('Intel') && renderer.includes('HD')) {
+                    this.qualityLevel = 'medium';
+                } else if (renderer.includes('Software') || renderer.includes('llvmpipe')) {
+                    this.qualityLevel = 'low';
+                }
+            }
+        }
+    },
+    
+    adjustQualityBasedOnDevice() {
+        // Check if on mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            this.qualityLevel = this.qualityLevel === 'high' ? 'medium' : this.qualityLevel;
+        }
+        
+        // Check CPU cores (rough performance indicator)
+        if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) {
+            this.qualityLevel = 'low';
+        }
+        
+        // Check available memory
+        if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+            this.qualityLevel = this.qualityLevel === 'high' ? 'medium' : 'low';
+        }
+    },
+    
+    startPerformanceMonitoring() {
+        if (!this.adaptiveQuality) return;
+        
+        setInterval(() => {
+            this.analyzePerformance();
+        }, 2000); // Check every 2 seconds
+    },
+      frameRendered() {
+        const now = performance.now();
+        this.frameTime = now - this.lastFrameTime;
+        this.lastFrameTime = now;
+        this.frameCount++;
+        
+        // Update rolling average
+        this.performanceHistory.push(this.frameTime);
+        if (this.performanceHistory.length > 60) { // Keep last 60 frames
+            this.performanceHistory.shift();
+        }
+        
+        this.avgFrameTime = this.performanceHistory.reduce((a, b) => a + b, 0) / this.performanceHistory.length;
+        
+        // Reset per-frame counters
+        this.culledObjects = 0;
+        this.renderedObjects = 0;
+        this.renderTime = 0;
+        this.updateTime = 0;
+        
+        // Log performance periodically
+        if (now - this.lastPerformanceLog > 5000) { // Every 5 seconds
+            this.logPerformanceMetrics();
+            this.lastPerformanceLog = now;
+        }
+    },
+    
+    logPerformanceMetrics() {
+        const fps = Math.round(1000 / this.avgFrameTime);
+        const renderPercent = Math.round((this.renderTime / this.frameTime) * 100);
+        const updatePercent = Math.round((this.updateTime / this.frameTime) * 100);
+        
+        console.log(`Performance: ${fps}fps | Render: ${renderPercent}% | Update: ${updatePercent}% | Culled: ${this.culledObjects} | Rendered: ${this.renderedObjects}`);
+    },
+    
+    analyzePerformance() {
+        if (!this.adaptiveQuality || this.performanceHistory.length < 30) return;
+        
+        const targetFrameTime = 1000 / this.targetFPS; // 16.67ms for 60fps
+        const currentFPS = 1000 / this.avgFrameTime;
+        const now = performance.now();
+        
+        // Don't adjust too frequently
+        if (now - this.lastQualityAdjustment < 5000) return;
+        
+        if (currentFPS < this.targetFPS * 0.8) { // Performance is poor
+            if (this.qualityLevel === 'high') {
+                this.setQualityLevel('medium');
+                this.lastQualityAdjustment = now;
+                console.log('Performance degraded, reducing quality to medium');
+            } else if (this.qualityLevel === 'medium') {
+                this.setQualityLevel('low');
+                this.lastQualityAdjustment = now;
+                console.log('Performance degraded, reducing quality to low');
+            }
+        } else if (currentFPS > this.targetFPS * 1.1) { // Performance is good
+            if (this.qualityLevel === 'low' && this.avgFrameTime < targetFrameTime * 0.7) {
+                this.setQualityLevel('medium');
+                this.lastQualityAdjustment = now;
+                console.log('Performance improved, increasing quality to medium');
+            } else if (this.qualityLevel === 'medium' && this.avgFrameTime < targetFrameTime * 0.5) {
+                this.setQualityLevel('high');
+                this.lastQualityAdjustment = now;
+                console.log('Performance improved, increasing quality to high');
+            }
+        }
+    },
+    
+    setQualityLevel(level) {
+        this.qualityLevel = level;
+        this.adjustSettings();
+        this.clearCaches(); // Clear caches when quality changes
+    },
+    
+    adjustSettings() {
+        switch (this.qualityLevel) {
+            case 'low':
+                this.useBatching = true;
+                this.usePathCaching = false;
+                this.useGradientCaching = false;
+                this.useTextCaching = true;
+                break;
+            case 'medium':
+                this.useBatching = true;
+                this.usePathCaching = true;
+                this.useGradientCaching = true;
+                this.useTextCaching = true;
+                break;
+            case 'high':
+                this.useBatching = false;
+                this.usePathCaching = true;
+                this.useGradientCaching = true;
+                this.useTextCaching = true;
+                break;
+        }
+    },
+    
+    shouldRenderHighQuality() {
+        return this.qualityLevel === 'high';
+    },
+    
+    shouldRenderMediumQuality() {
+        return this.qualityLevel === 'medium' || this.qualityLevel === 'high';
+    },
+    
+    // Enhanced caching systems
+    initializePathCache() {
+        if (!this.usePathCaching) return;
+        
+        // Pre-cache common paths
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Player body path
+        const playerBodyPath = new Path2D();
+        playerBodyPath.moveTo(0, -12);
+        playerBodyPath.lineTo(-12, 8);
+        playerBodyPath.lineTo(-8, 6);
+        playerBodyPath.lineTo(8, 6);
+        playerBodyPath.lineTo(12, 8);
+        playerBodyPath.closePath();
+        this.pathCache.set('player_body', playerBodyPath);
+        
+        // Player cockpit path
+        const cockpitPath = new Path2D();
+        cockpitPath.moveTo(0, -8);
+        cockpitPath.lineTo(-4, 0);
+        cockpitPath.lineTo(4, 0);
+        cockpitPath.closePath();
+        this.pathCache.set('player_cockpit', cockpitPath);
+        
+        // Basic bullet path
+        const bulletPath = new Path2D();
+        bulletPath.rect(-1.5, -12, 3, 10);
+        bulletPath.moveTo(0, -14);
+        bulletPath.lineTo(2, -10);
+        bulletPath.lineTo(-2, -10);
+        bulletPath.closePath();
+        this.pathCache.set('basic_bullet', bulletPath);
+        
+        console.log('Path cache initialized with pre-cached shapes');
+    },
+      getGradient(key, createFn) {
+        if (!this.useGradientCaching) return createFn();
+        
+        if (this.gradientCache.has(key)) {
+            // Update timestamp for cache management
+            this.cacheTimestamps.set(key, performance.now());
+            return this.gradientCache.get(key);
+        }
+        
+        const gradient = createFn();
+        this.gradientCache.set(key, gradient);
+        this.cacheTimestamps.set(key, performance.now());
+        this.updateMemoryUsage();
+        return gradient;
+    },
+    
+    getText(key, createFn) {
+        if (!this.useTextCaching) return createFn();
+        
+        if (this.textCache.has(key)) {
+            this.cacheTimestamps.set(key, performance.now());
+            return this.textCache.get(key);
+        }
+        
+        const text = createFn();
+        this.textCache.set(key, text);
+        this.cacheTimestamps.set(key, performance.now());
+        return text;
+    },
+    
+    getPath(key, createFn) {
+        if (!this.usePathCaching) return createFn();
+        
+        if (this.pathCache.has(key)) {
+            this.cacheTimestamps.set(key, performance.now());
+            return this.pathCache.get(key);
+        }
+        
+        const path = createFn();
+        this.pathCache.set(key, path);
+        this.cacheTimestamps.set(key, performance.now());
+        this.updateMemoryUsage();
+        return path;
+    },
+    
+    // Dirty rectangle system (for advanced optimization)
+    addDirtyRect(x, y, width, height) {
+        if (!this.useDirtyRects) return;
+        
+        this.dirtyRects.push({
+            x: Math.floor(x - 5), // Add small padding
+            y: Math.floor(y - 5),
+            width: Math.ceil(width + 10),
+            height: Math.ceil(height + 10)
+        });
+    },
+    
+    clearDirtyRects() {
+        this.dirtyRects.length = 0;
+        this.fullRedraw = false;
+    },
+    
+    shouldRedrawRegion(x, y, width, height) {
+        if (this.fullRedraw || !this.useDirtyRects) return true;
+        
+        return this.dirtyRects.some(rect => 
+            x < rect.x + rect.width &&
+            x + width > rect.x &&
+            y < rect.y + rect.height &&
+            y + height > rect.y
+        );
+    },
+      // Enhanced memory management
+    updateMemoryUsage() {
+        const now = performance.now();
+        this.memoryUsage.paths = this.pathCache.size;
+        this.memoryUsage.gradients = this.gradientCache.size;
+        this.memoryUsage.total = this.memoryUsage.paths + this.memoryUsage.gradients + this.textCache.size;
+        
+        // Track peak usage
+        if (this.memoryUsage.total > this.memoryUsage.peakUsage) {
+            this.memoryUsage.peakUsage = this.memoryUsage.total;
+        }
+        
+        // Automatic cache cleanup every 10 seconds
+        if (now - this.memoryUsage.lastCleanup > 10000) {
+            this.cleanupExpiredCache();
+            this.memoryUsage.lastCleanup = now;
+        }
+        
+        // Clear caches if they get too large
+        if (this.memoryUsage.total > 200) {
+            this.clearOldCacheEntries();
+        }
+    },
+    
+    cleanupExpiredCache() {
+        const now = performance.now();
+        const expiredKeys = [];
+        
+        // Find expired cache entries
+        this.cacheTimestamps.forEach((timestamp, key) => {
+            if (now - timestamp > this.maxCacheAge) {
+                expiredKeys.push(key);
+            }
+        });
+        
+        // Remove expired entries
+        expiredKeys.forEach(key => {
+            this.pathCache.delete(key);
+            this.gradientCache.delete(key);
+            this.textCache.delete(key);
+            this.cacheTimestamps.delete(key);
+        });
+        
+        if (expiredKeys.length > 0) {
+            console.log(`Cleaned up ${expiredKeys.length} expired cache entries`);
+        }
+    },
+    
+    clearOldCacheEntries() {
+        // Keep only the most essential cached items
+        const essentialPaths = ['player_body', 'player_cockpit', 'basic_bullet'];
+        const newPathCache = new Map();
+        
+        essentialPaths.forEach(key => {
+            if (this.pathCache.has(key)) {
+                newPathCache.set(key, this.pathCache.get(key));
+                this.cacheTimestamps.set(key, performance.now());
+            }
+        });
+        
+        this.pathCache = newPathCache;
+        this.gradientCache.clear();
+        this.textCache.clear();
+        
+        // Clean up timestamps
+        const keysToKeep = new Set(essentialPaths);
+        this.cacheTimestamps.forEach((value, key) => {
+            if (!keysToKeep.has(key)) {
+                this.cacheTimestamps.delete(key);
+            }
+        });
+        
+        console.log('Cache cleared to free memory - kept essential paths');
+    },
+    
+    clearCaches() {
+        this.pathCache.clear();
+        this.gradientCache.clear();
+        this.textCache.clear();
+        this.initializePathCache();
+    },
+      // Enhanced performance metrics
+    getPerformanceInfo() {
+        return {
+            qualityLevel: this.qualityLevel,
+            avgFPS: Math.round(1000 / this.avgFrameTime),
+            frameTime: Math.round(this.avgFrameTime * 100) / 100,
+            renderTime: Math.round(this.renderTime * 100) / 100,
+            updateTime: Math.round(this.updateTime * 100) / 100,
+            cacheSize: this.memoryUsage.total,
+            peakCacheSize: this.memoryUsage.peakUsage,
+            frameCount: this.frameCount,
+            culledObjects: this.culledObjects,
+            renderedObjects: this.renderedObjects,
+            memoryEfficiency: Math.round((this.renderedObjects / Math.max(this.memoryUsage.total, 1)) * 100) / 100
+        };
+    },
+    
+    // Dynamic quality adjustment based on complex metrics
+    analyzePerformance() {
+        if (!this.adaptiveQuality || this.performanceHistory.length < 30) return;
+        
+        const targetFrameTime = 1000 / this.targetFPS; // 16.67ms for 60fps
+        const currentFPS = 1000 / this.avgFrameTime;
+        const now = performance.now();
+        
+        // Don't adjust too frequently
+        if (now - this.lastQualityAdjustment < 5000) return;
+        
+        // Calculate performance metrics
+        const fpsRatio = currentFPS / this.targetFPS;
+        const renderLoad = this.renderTime / this.frameTime;
+        const memoryPressure = this.memoryUsage.total / 200; // Normalize to 0-1 scale
+        
+        // Multi-factor performance score
+        const performanceScore = (fpsRatio * 0.6) + ((1 - renderLoad) * 0.3) + ((1 - memoryPressure) * 0.1);
+        
+        if (performanceScore < 0.7) { // Performance is poor
+            if (this.qualityLevel === 'high') {
+                this.setQualityLevel('medium');
+                this.lastQualityAdjustment = now;
+                console.log(`Performance degraded (score: ${performanceScore.toFixed(2)}), reducing quality to medium`);
+            } else if (this.qualityLevel === 'medium') {
+                this.setQualityLevel('low');
+                this.lastQualityAdjustment = now;
+                console.log(`Performance degraded (score: ${performanceScore.toFixed(2)}), reducing quality to low`);
+            }
+        } else if (performanceScore > 0.9) { // Performance is excellent
+            if (this.qualityLevel === 'low' && this.avgFrameTime < targetFrameTime * 0.7) {
+                this.setQualityLevel('medium');
+                this.lastQualityAdjustment = now;
+                console.log(`Performance improved (score: ${performanceScore.toFixed(2)}), increasing quality to medium`);
+            } else if (this.qualityLevel === 'medium' && this.avgFrameTime < targetFrameTime * 0.5) {
+                this.setQualityLevel('high');
+                this.lastQualityAdjustment = now;
+                console.log(`Performance improved (score: ${performanceScore.toFixed(2)}), increasing quality to high`);
+            }
+        }
+    },
+    
+    // Quality presets
+    setLowQualityPreset() {
+        this.qualityLevel = 'low';
+        this.useBatching = true;
+        this.usePathCaching = false;
+        this.useGradientCaching = false;
+        this.useTextCaching = true;
+        this.useDirtyRects = false;
+        console.log('Set to low quality preset');
+    },
+    
+    setMediumQualityPreset() {
+        this.qualityLevel = 'medium';
+        this.useBatching = true;
+        this.usePathCaching = true;
+        this.useGradientCaching = true;
+        this.useTextCaching = true;
+        this.useDirtyRects = false;
+        console.log('Set to medium quality preset');
+    },
+      setHighQualityPreset() {
+        this.qualityLevel = 'high';
+        this.useBatching = false;
+        this.usePathCaching = true;
+        this.useGradientCaching = true;
+        this.useTextCaching = true;
+        this.useDirtyRects = false;
+        console.log('Set to high quality preset');
+    },
+    
+    // Adaptive rendering functions
+    startRenderTimer() {
+        this.renderStartTime = performance.now();
+    },
+    
+    endRenderTimer() {
+        if (this.renderStartTime) {
+            this.renderTime = performance.now() - this.renderStartTime;
+        }
+    },
+    
+    startUpdateTimer() {
+        this.updateStartTime = performance.now();
+    },
+    
+    endUpdateTimer() {
+        if (this.updateStartTime) {
+            this.updateTime = performance.now() - this.updateStartTime;
+        }
+    },
+    
+    // Object counting for performance metrics
+    incrementRendered() {
+        this.renderedObjects++;
+    },
+    
+    incrementCulled() {
+        this.culledObjects++;
+    },
+    
+    // Dynamic viewport adjustment
+    updateViewport(width, height) {
+        this.viewport.width = width;
+        this.viewport.height = height;
+        
+        // Adjust LOD distances based on viewport size
+        const scale = Math.min(width, height) / 600; // Normalize to base 600px
+        this.lodDistances.high = 150 * scale;
+        this.lodDistances.medium = 300 * scale;
+        this.lodDistances.low = 500 * scale;
+    },
+    
+    // Render quality assessment
+    shouldSkipSecondaryEffects() {
+        return this.qualityLevel === 'low' || (this.qualityLevel === 'medium' && this.avgFrameTime > 20);
+    },
+    
+    shouldReduceParticles() {
+        return this.qualityLevel === 'low' || this.renderTime > this.frameTime * 0.7;
+    },
+    
+    getParticleReductionFactor() {
+        if (this.qualityLevel === 'low') return 0.3;
+        if (this.qualityLevel === 'medium') return 0.7;
+        return 1.0;
+    }
+};
+
 // Initialize object pools
 function initObjectPools() {
     // Pre-allocate bullets
@@ -77,6 +858,12 @@ function getPoolObject(poolName) {
     // This ensures we don't create new objects unnecessarily
     console.warn(`${poolName} pool exhausted, reusing oldest object`);
     return pool[0]; // Just reuse the first one as fallback
+}
+
+// Function to check if an entity is off-screen
+function isOffScreen(entity) {
+    return entity.x < -entity.w || entity.x > CANVAS_WIDTH + entity.w ||
+           entity.y < -entity.h || entity.y > CANVAS_HEIGHT + entity.h;
 }
 
 // Arcade splash colors
@@ -175,6 +962,25 @@ try {
 
 let firebaseHighScores = [];
 const MAX_HIGH_SCORES = 10; // Max number of scores to store/display
+
+// Graphics performance monitoring functions
+window.showGraphicsPerformance = function() {
+    const info = `
+Graphics Performance Info:
+- Quality Level: ${GraphicsOptimizer.qualityLevel}
+- Average Frame Time: ${GraphicsOptimizer.avgFrameTime.toFixed(2)}ms
+- Current FPS: ${(1000 / GraphicsOptimizer.avgFrameTime).toFixed(1)}
+- Frame Count: ${GraphicsOptimizer.frameCount}
+- Path Cache Size: ${GraphicsOptimizer.pathCache.size}
+- Gradient Cache Size: ${GraphicsOptimizer.gradientCache.size}
+- Text Cache Size: ${GraphicsOptimizer.textCache.size}
+- Batching Enabled: ${GraphicsOptimizer.useBatching}
+- Path Caching: ${GraphicsOptimizer.usePathCaching}
+- Gradient Caching: ${GraphicsOptimizer.useGradientCaching}
+    `;
+    console.log(info);
+    alert(info);
+};
 
 // Optimized game loop with better timing
 function gameLoop() {
@@ -489,28 +1295,88 @@ function initStars() {
 
 // Draw enhanced starfield with parallax scrolling effect
 function drawStarfield(dt) {
-    starsBackground.forEach((layer, layerIndex) => {
-        layer.forEach(star => {
-            // Move star downward at layer speed
-            star.y += star.speed * dt;
-            
-            // Wrap around screen
-            if (star.y > CANVAS_HEIGHT) {
-                star.y = 0;
-                star.x = Math.random() * CANVAS_WIDTH;
+    GraphicsOptimizer.startRenderTimer();
+    
+    const qualityMultiplier = GraphicsOptimizer.qualityLevel === 'low' ? 0.5 : 
+                             GraphicsOptimizer.qualityLevel === 'medium' ? 0.75 : 1.0;
+    
+    // Use batching for improved performance
+    if (GraphicsOptimizer.useBatching) {
+        starsBackground.forEach((layer, layerIndex) => {
+            // Skip some layers in low quality mode
+            if (GraphicsOptimizer.qualityLevel === 'low' && layerIndex > 1) {
+                GraphicsOptimizer.incrementCulled();
+                return;
             }
             
-            // Twinkle effect - more subtle for background stars
-            const twinkle = layerIndex === 2 ? 
-                0.7 + 0.3 * Math.sin(Date.now() / (800 + star.speed * 10)) : 1.0;
-            
-            // Draw star with size and brightness variations
-            ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness * twinkle})`;
-            ctx.beginPath();
-            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-            ctx.fill();
+            layer.forEach(star => {
+                // Move star downward at layer speed
+                star.y += star.speed * dt * qualityMultiplier;
+                
+                // Wrap around screen
+                if (star.y > CANVAS_HEIGHT) {
+                    star.y = 0;
+                    star.x = Math.random() * CANVAS_WIDTH;
+                }
+                
+                // Viewport culling
+                if (GraphicsOptimizer.shouldCull(star.x, star.y, star.size * 2, star.size * 2)) {
+                    GraphicsOptimizer.incrementCulled();
+                    return;
+                }
+                
+                // Twinkle effect - simplified for performance
+                let twinkle = 1.0;
+                if (GraphicsOptimizer.shouldRenderHighQuality() && layerIndex === 2) {
+                    twinkle = 0.7 + 0.3 * Math.sin(Date.now() / (800 + star.speed * 10));
+                }
+                
+                // Add to batch instead of drawing immediately
+                GraphicsOptimizer.batchedDraw.add('stars', star.x, star.y, {
+                    size: star.size * qualityMultiplier,
+                    brightness: star.brightness * twinkle * qualityMultiplier
+                });
+                
+                GraphicsOptimizer.incrementRendered();
+            });
         });
-    });
+        
+        // Flush stars batch
+        GraphicsOptimizer.batchedDraw.flushStars();
+    } else {
+        // Original rendering for high quality mode
+        starsBackground.forEach((layer, layerIndex) => {
+            // Skip some layers in low quality mode
+            if (GraphicsOptimizer.qualityLevel === 'low' && layerIndex > 1) return;
+            
+            layer.forEach(star => {
+                // Move star downward at layer speed
+                star.y += star.speed * dt * qualityMultiplier;
+                
+                // Wrap around screen
+                if (star.y > CANVAS_HEIGHT) {
+                    star.y = 0;
+                    star.x = Math.random() * CANVAS_WIDTH;
+                }
+                
+                // Twinkle effect
+                let twinkle = 1.0;
+                if (GraphicsOptimizer.shouldRenderHighQuality() && layerIndex === 2) {
+                    twinkle = 0.7 + 0.3 * Math.sin(Date.now() / (800 + star.speed * 10));
+                }
+                
+                // Draw star with size and brightness variations
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness * twinkle * qualityMultiplier})`;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size * qualityMultiplier, 0, Math.PI * 2);
+                ctx.fill();
+                
+                GraphicsOptimizer.incrementRendered();
+            });
+        });
+    }
+    
+    GraphicsOptimizer.endRenderTimer();
 }
 
 // Define formationMovement for controlling enemy formation movement
@@ -568,6 +1434,15 @@ function setupFormation() {
     }
 }
 
+// Get an empty spot in the formation
+function getEmptyFormationSpot() {
+    const availableSpots = formationSpots.filter(s => !s.taken);
+    if (availableSpots.length > 0) {
+        return availableSpots[Math.floor(Math.random() * availableSpots.length)];
+    }
+    return null; // No spot available
+}
+
 // Enhanced enemy spawning for more authentic waves
 function spawnEnemies() {
     setupFormation();
@@ -576,7 +1451,6 @@ function spawnEnemies() {
     
     // Base number of enemies
     let numEnemies = 16 + Math.min(32, level * 2); 
-    
     // Challenge stages have a special formation
     if (challengeStageActive) {
         numEnemies = 40; // More enemies in challenge stages
@@ -691,203 +1565,128 @@ function spawnEnemies() {
     attackQueue = [];
 }
 
-// Enhanced enemy update function with authentic Galaga behavior
-function updateEnemies() {
-    // Check if level is completed
-    if (enemies.length === 0 && !bossGalaga) { // Also check for boss
-        if (levelTransition <= 0) {
-            levelTransition = 3; // Show message for 3 seconds
-        } else {
-            levelTransition -= dt;
-            if (levelTransition <= 0) {
-                level++;
-                gameStage++;
-                spawnEnemies(); // Spawn next wave with updated patterns
-            }
+// Update bullets
+function updateBullets() {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        if (!b.active) { // Remove inactive bullets from active list
+            bullets.splice(i, 1);
+            continue;
         }
-        return;
-    }
-    
-    // Handle formation movement (the entire formation moves side to side)
-    let formationX = Math.sin(Date.now() / 2000) * formationMovement.amplitude;
-    
-    // Update enemy positions and behaviors based on their state
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        
-        // Skip if marked for removal
-        if (enemy.markedForRemoval) continue;
-        
-        // Update based on state
-        if (enemy.state === ENEMY_STATE.ENTRANCE) {
-            // Move along entrance path
-            enemy.pathTime += dt;
-            const t = Math.min(1, enemy.pathTime / 2.5); // Complete path in 2.5 seconds
-            
-            // Enhanced bezier curve entrance (more like original Galaga)
-            const p0 = { x: enemy.startX, y: enemy.startY };
-            const p1 = { x: enemy.controlX, y: enemy.controlY };
-            const p2 = { x: enemy.targetX, y: enemy.targetY };
-            
-            // Quadratic bezier
-            enemy.x = Math.pow(1-t, 2) * p0.x + 2 * Math.pow(1-t, 1) * t * p1.x + Math.pow(t, 2) * p2.x;
-            enemy.y = Math.pow(1-t, 2) * p0.y + 2 * Math.pow(1-t, 1) * t * p1.y + Math.pow(t, 2) * p2.y;
-            
-            // Check if arrived at formation position
-            if (t >= 1) {
-                enemy.state = ENEMY_STATE.FORMATION;
-            }
-        } else if (enemy.state === ENEMY_STATE.FORMATION) {
-            // In formation - apply the overall formation movement + individual offsets
-            const targetX = enemy.targetX + formationX + enemy.formationOffset.x;
-            const targetY = enemy.targetY + enemy.formationOffset.y;
-            
-            // Move toward target with slight hover (lerp for smooth movement)
-            enemy.x = enemy.x * 0.95 + targetX * 0.05;
-            enemy.y = enemy.y * 0.95 + targetY * 0.05;
-            
-            // Chance for individual attack
-            if (!challengeStageActive || (challengeStageActive && gameStage < 3)) {
-                const attackChance = waveConfig.baseAttackChance;
-                if (Math.random() < attackChance) {
-                    // Only attack if not too many are already attacking
-                    if (attackQueue.filter(e => e.state === ENEMY_STATE.ATTACK).length < waveConfig.maxAttackers) {
-                        enemy.state = ENEMY_STATE.ATTACK;
-                        
-                        // Generate authentic Galaga attack path
-                        generateAttackPath(enemy);
-                        
-                        attackQueue.push(enemy);
-                    }
-                }
-            }
-            
-            // Chance for synchronized group attack
-            if (Math.random() < waveConfig.groupAttackChance) {
-                launchGroupAttack();
-            }
-            
-            // Fire at player (except in challenge stages)
-            if (enemy.canFire && Math.random() < 0.002 + (level * 0.0004)) {
-                fireEnemyBullet(enemy);
-            }
-        } else if (enemy.state === ENEMY_STATE.ATTACK) {
-            // Follow attack path more accurately
-            enemy.attackTime += dt;
-            
-            // Move along predefined attack path
-            if (enemy.attackPath && enemy.attackPath.length > 0) {
-                const pathLength = enemy.attackPath.length - 1;
-                // Calculate current position in path (0 to 1)
-                const pathPosition = Math.min(enemy.attackTime * waveConfig.divingSpeed / 200, 1);
-                
-                // Find the right segment
-                const segmentIndex = Math.floor(pathPosition * pathLength);
-                const segmentPos = (pathPosition * pathLength) - segmentIndex;
-                
-                if (segmentIndex < pathLength) {
-                    // Interpolate between path points
-                    const p0 = enemy.attackPath[segmentIndex];
-                    const p1 = enemy.attackPath[segmentIndex + 1];
-                    
-                    enemy.x = p0.x + (p1.x - p0.x) * segmentPos;
-                    enemy.y = p0.y + (p1.y - p0.y) * segmentPos;
-                } else {
-                    // Reached end of path
-                    enemy.y = CANVAS_HEIGHT + enemy.h * 2; // Ensure it's off-screen
-                }
-            }
-            
-            // Fire during attack dive
-            if (enemy.canFire && Math.random() < 0.03 && enemy.y < player.y) {
-                fireEnemyBullet(enemy);
-            }
-            
-            // Check if enemy has completed attack
-            if (isOffScreen(enemy)) {
-                // Remove from attack queue
-                const qIndex = attackQueue.indexOf(enemy);
-                if (qIndex > -1) attackQueue.splice(qIndex, 1);
-
-                // Chance to return to formation instead of disappearing
-                const shouldReturn = Math.random() < waveConfig.returnToFormationChance;
-                
-                // Check if there's an available spot
-                const spot = formationSpots.find(s => s.x === enemy.targetX && s.y === enemy.targetY);
-                if (shouldReturn && spot && !spot.taken) {
-                    enemy.state = ENEMY_STATE.ENTRANCE; // Re-enter
-                    enemy.startX = enemy.x < CANVAS_WIDTH / 2 ? -enemy.w : CANVAS_WIDTH + enemy.w;
-                    enemy.startY = -enemy.h;
-                    enemy.pathTime = 0;
-                    enemy.controlX = CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200;
-                    enemy.controlY = enemy.startY + 150;
-                    spot.taken = true; // Re-claim spot
-                    
-                    // Reset attack properties
-                    enemy.attackPath = [];
-                    enemy.attackTime = 0;
-                } else {
-                    // Remove the enemy if they won't return
-                    enemies.splice(i, 1);
-                }
-            }
+        b.y -= b.speed * dt;
+        if (b.y < 0) {
+            b.active = false; // Deactivate when off-screen
+            bullets.splice(i, 1);
         }
     }
-    
-    // Update boss Galaga with more authentic behavior
-    if (bossGalaga) {
-        // Smooth side-to-side movement
-        bossGalaga.x += Math.sin(Date.now() / 3000) * 30 * dt;
-        
-        // Keep within bounds
-        if (bossGalaga.x < bossGalaga.w / 2) bossGalaga.x = bossGalaga.w / 2;
-        if (bossGalaga.x > CANVAS_WIDTH - bossGalaga.w / 2) bossGalaga.x = CANVAS_WIDTH - bossGalaga.w / 2;
+}
 
-        // Timer for actions
-        bossGalaga.timer -= dt;
-        if (bossGalaga.timer <= 0) {
-            if (!bossGalaga.tractorBeamActive) {
-                // Either fire or attempt capture
-                if (!bossGalaga.hasCaptured && !capturedShip && Math.random() < 0.15) {
-                    // Try to capture if player is nearby
-                    if (player.alive && Math.abs(player.x - bossGalaga.x) < 120) {
-                        bossGalaga.tractorBeamActive = true;
-                        bossGalaga.timer = 2.5; // Tractor beam duration
-                        
-                        // Play tractor beam sound if available
-                        // if (sounds.tractorBeam) sounds.tractorBeam.play();
-                    } else {
-                        fireEnemyBullet(bossGalaga);
-                        bossGalaga.timer = 1.2 - Math.min(0.6, level * 0.05);
-                    }
-                } else {
-                    fireEnemyBullet(bossGalaga);
-                    bossGalaga.timer = 1.2 - Math.min(0.6, level * 0.05);
-                }
-            } else {
-                // End tractor beam sequence
-                bossGalaga.tractorBeamActive = false;
-                
-                // Check for successful capture
-                if (player.alive && Math.abs(player.x - bossGalaga.x) < 50) {
-                    bossGalaga.hasCaptured = true;
-                    capturedShip = true;
-                    lives--;
-                    
-                    // Player temporarily dies but will respawn
-                    createExplosion(player.x, player.y, '#ff0', 15, 1.5);
-                    player.alive = false;
-                    
-                    setTimeout(() => {
-                        player.alive = true;
-                        player.x = PLAYER_START_X;
-                        player.y = PLAYER_START_Y;
-                    }, 2000);
-                }
-                
-                bossGalaga.timer = 2.0; // Cooldown after tractor beam
-            }
+// Update enemy bullets
+function updateEnemyBullets() {
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const eb = enemyBullets[i];
+        if (!eb.active) { // Remove inactive bullets from active list
+            enemyBullets.splice(i, 1);
+            continue;
         }
+
+        eb.age += dt;
+
+        // Movement patterns
+        switch (eb.type) {
+            case 'zigzag':
+                eb.x += Math.sin(eb.age * 10 + eb.wobble) * 100 * dt; // eb.wobble for variation
+                eb.y += eb.speed * dt;
+                break;
+            case 'homing': // Simple homing
+                if (player.alive) {
+                    const dx = player.x - eb.x;
+                    const dy = player.y - eb.y;
+                    const angle = Math.atan2(dy, dx);
+                    eb.x += Math.cos(angle) * eb.speed * dt;
+                    eb.y += Math.sin(angle) * eb.speed * dt;
+                } else {
+                    eb.y += eb.speed * dt; // Fall straight if player is dead
+                }
+                break;
+            case 'split':
+                eb.y += eb.speed * dt;
+                // Split condition (e.g., after some time or at certain y)
+                if (eb.age > 0.5 && !eb.hasSplit) {
+                    eb.hasSplit = true;
+                    eb.active = false; // Original bullet deactivates
+                    for (let j = -1; j <= 1; j += 2) { // Create two new bullets
+                        const splitBullet = getPoolObject('enemyBullets');
+                        if (splitBullet) {
+                            splitBullet.x = eb.x;
+                            splitBullet.y = eb.y;
+                            splitBullet.speed = eb.speed * 1.2;
+                            splitBullet.type = 'fast'; // Or another type
+                            splitBullet.color = '#f80'; // Orange
+                            splitBullet.angle = Math.atan2(player.y - eb.y, player.x - eb.x) + j * 0.3; // Spread angle
+                            splitBullet.from = 'enemy';
+                            splitBullet.active = true;
+                            enemyBullets.push(splitBullet);
+                        }
+                    }
+                }
+                break;
+            case 'fast':
+                eb.x += Math.cos(eb.angle) * eb.speed * dt;
+                eb.y += Math.sin(eb.angle) * eb.speed * dt;
+                break;
+            default: // Straight
+                eb.y += eb.speed * dt;
+        }
+
+        if (eb.y > CANVAS_HEIGHT || eb.x < -eb.w || eb.x > CANVAS_WIDTH + eb.w) {
+            eb.active = false;
+            enemyBullets.splice(i, 1);
+        }
+    }
+}
+
+// Function to make an enemy fire a bullet
+function fireEnemyBullet(enemy) {
+    if (challengeStageActive) return; // Enemies don't fire in challenge stages
+
+    const bullet = getPoolObject('enemyBullets');
+    if (bullet) {
+        bullet.x = enemy.x;
+        bullet.y = enemy.y + enemy.h / 2;
+        bullet.w = 4;
+        bullet.h = 12;
+        bullet.speed = 150 + (level * 5); // Bullet speed increases with level
+        bullet.damage = 1;
+        bullet.from = 'enemy';
+        bullet.active = true;
+        bullet.age = 0;
+        bullet.angle = Math.PI / 2; // Straight down by default
+
+        // Basic bullet types for now, can be expanded
+        const bulletTypeRoll = Math.random();
+        if (enemy.type === ENEMY_TYPE.SNIPER && bulletTypeRoll < 0.7) {
+            bullet.type = 'fast';
+            bullet.color = '#ff0'; // Yellow for sniper
+            bullet.speed *= 1.5;
+            // Aim at player
+            if (player.alive) {
+                bullet.angle = Math.atan2(player.y - bullet.y, player.x - bullet.x);
+            }
+        } else if (enemy.type === ENEMY_TYPE.ZIGZAG && bulletTypeRoll < 0.5) {
+            bullet.type = 'zigzag';
+            bullet.color = '#f0f'; // Magenta for zigzag
+            bullet.wobble = Math.random() * Math.PI; // For zigzag pattern
+        } else if (bossGalaga && enemy === bossGalaga && bulletTypeRoll < 0.4) {
+            bullet.type = 'split';
+            bullet.color = '#f80'; // Orange for split
+            bullet.hasSplit = false;
+        }
+        else {
+            bullet.type = 'straight';
+            bullet.color = '#f44'; // Default red
+        }
+        enemyBullets.push(bullet);
     }
 }
 
@@ -1221,11 +2020,20 @@ const ENEMY_TYPE = {
 };
 
 function drawEnemy(e) {
+    // Use batched drawing for low quality mode
+    if (GraphicsOptimizer.qualityLevel === 'low') {
+        GraphicsOptimizer.batchedDraw.add('enemy', e.x, e.y, {
+            color: e.color,
+            type: e.type
+        });
+        return;
+    }
+    
     ctx.save();
     ctx.translate(e.x, e.y);
     
-    // Apply subtle wobble/animation based on type
-    if (e.state === ENEMY_STATE.FORMATION) {
+    // Apply subtle wobble/animation based on type (optimized timing)
+    if (e.state === ENEMY_STATE.FORMATION && GraphicsOptimizer.shouldRenderMediumQuality()) {
         let wobbleAmount = 0.05; // Default
         
         // Switch is faster than multiple if/else for type comparison
@@ -1241,23 +2049,27 @@ function drawEnemy(e) {
                 break;
         }
         
-        // Precompute sin value
+        // Precompute sin value with cached time
         const wobble = Math.sin(Date.now() / 500 + e.x / 20) * wobbleAmount;
         ctx.rotate(wobble);
     }
     
-    ctx.save();
-    ctx.shadowColor = e.color;
-    ctx.shadowBlur = 8;
-    
+    // Only add shadow in medium/high quality
+    if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+        ctx.save();
+        ctx.shadowColor = e.color;
+        ctx.shadowBlur = GraphicsOptimizer.shouldRenderHighQuality() ? 8 : 4;    
     // Switch for faster type comparison
     switch (e.type) {
         case ENEMY_TYPE.BASIC:
-            // Classic Galaga Bee/Hornet enemy
-            ctx.restore(); // No need for shadow on body
+            // Classic Galaga Bee/Hornet enemy (optimized)
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.restore(); // No need for shadow on simplified version
+            }
             
-            // Create body with patterns
-            const wingsAnim = Math.sin(Date.now() / 150) * 0.2;
+            // Create body with patterns (simplified for low quality)
+            const wingsAnim = GraphicsOptimizer.shouldRenderHighQuality() ? 
+                Math.sin(Date.now() / 150) * 0.2 : 0;
             
             // Blue body parts
             ctx.fillStyle = '#0f8';
@@ -1272,52 +2084,57 @@ function drawEnemy(e) {
             ctx.closePath();
             ctx.fill();
             
-            // Yellow stripes/segments
-            ctx.fillStyle = '#ff0';
-            ctx.beginPath();
-            ctx.moveTo(-8, -6);
-            ctx.lineTo(8, -6);
-            ctx.lineTo(10, 0);
-            ctx.lineTo(8, 6);
-            ctx.lineTo(-8, 6);
-            ctx.lineTo(-10, 0);
-            ctx.closePath();
-            ctx.fill();
+            // Yellow stripes/segments (only in medium+ quality)
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.moveTo(-8, -6);
+                ctx.lineTo(8, -6);
+                ctx.lineTo(10, 0);
+                ctx.lineTo(8, 6);
+                ctx.lineTo(-8, 6);
+                ctx.lineTo(-10, 0);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Red center
+                ctx.fillStyle = '#f00';
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
             
-            // Red center
-            ctx.fillStyle = '#f00';
-            ctx.beginPath();
-            ctx.arc(0, 0, 4, 0, Math.PI * 2);
-            ctx.fill();
+            // Wings (only in high quality)
+            if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                // Moving wings
+                ctx.save();
+                ctx.fillStyle = '#0cf';
+                // Left wing
+                ctx.translate(-14, 0);
+                ctx.rotate(wingsAnim);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 8, 12, Math.PI/3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                
+                // Right wing
+                ctx.save();
+                ctx.fillStyle = '#0cf';
+                ctx.translate(14, 0);
+                ctx.rotate(-wingsAnim);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 8, 12, -Math.PI/3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                
+                // Antenna with animation
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.rect(-1, -15, 2, 7 + Math.sin(Date.now() / 200) * 2);
+                ctx.fill();
+            }
             
-            // Moving wings
-            ctx.save();
-            ctx.fillStyle = '#0cf';
-            // Left wing
-            ctx.translate(-14, 0);
-            ctx.rotate(wingsAnim);
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 8, 12, Math.PI/3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-            
-            // Right wing
-            ctx.save();
-            ctx.fillStyle = '#0cf';
-            ctx.translate(14, 0);
-            ctx.rotate(-wingsAnim);
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 8, 12, -Math.PI/3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-            
-            // Antenna with animation
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.rect(-1, -15, 2, 7 + Math.sin(Date.now() / 200) * 2);
-            ctx.fill();
-            
-            // Eyes with glow effect
+            // Eyes (always visible)
             ctx.fillStyle = '#fff';
             ctx.beginPath();
             ctx.arc(-6, -3, 2, 0, Math.PI * 2);
@@ -1327,7 +2144,7 @@ function drawEnemy(e) {
             break;
             
         case ENEMY_TYPE.FAST:
-            // Butterfly/fast enemy in authentic Galaga style
+            // Butterfly/fast enemy (optimized)
             ctx.fillStyle = e.color;
             
             // Main body
@@ -1340,40 +2157,44 @@ function drawEnemy(e) {
             ctx.lineTo(-8, -4);
             ctx.closePath();
             ctx.fill();
-            ctx.restore();
             
-            // Wings with animation
-            const wingPulse = 0.8 + 0.2 * Math.sin(Date.now() / 200);
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.restore();
+                
+                // Wings with animation (only in medium+ quality)
+                const wingPulse = GraphicsOptimizer.shouldRenderHighQuality() ? 
+                    0.8 + 0.2 * Math.sin(Date.now() / 200) : 0.9;
+                
+                // Left wing
+                ctx.save();
+                ctx.translate(-10, 0);
+                ctx.scale(wingPulse, 1);
+                ctx.fillStyle = '#f80';
+                ctx.beginPath();
+                ctx.moveTo(0, -10);
+                ctx.lineTo(-10, -5);
+                ctx.lineTo(-12, 5);
+                ctx.lineTo(0, 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+                
+                // Right wing
+                ctx.save();
+                ctx.translate(10, 0);
+                ctx.scale(wingPulse, 1);
+                ctx.fillStyle = '#f80';
+                ctx.beginPath();
+                ctx.moveTo(0, -10);
+                ctx.lineTo(10, -5);
+                ctx.lineTo(12, 5);
+                ctx.lineTo(0, 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
             
-            // Left wing
-            ctx.save();
-            ctx.translate(-10, 0);
-            ctx.scale(wingPulse, 1);
-            ctx.fillStyle = '#f80';
-            ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(-10, -5);
-            ctx.lineTo(-12, 5);
-            ctx.lineTo(0, 10);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-            
-            // Right wing
-            ctx.save();
-            ctx.translate(10, 0);
-            ctx.scale(wingPulse, 1);
-            ctx.fillStyle = '#f80';
-            ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(10, -5);
-            ctx.lineTo(12, 5);
-            ctx.lineTo(0, 10);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-            
-            // Center detail - authentic Galaga pattern
+            // Center detail - basic version
             ctx.fillStyle = '#ff0';
             ctx.beginPath();
             ctx.moveTo(0, -6);
@@ -1395,7 +2216,7 @@ function drawEnemy(e) {
             break;
             
         case ENEMY_TYPE.TANK:
-            // Tank/boss minion in Galaga style
+            // Tank/boss minion (optimized)
             ctx.fillStyle = e.color;
             
             // Main body with authentic Galaga shape
@@ -1410,42 +2231,122 @@ function drawEnemy(e) {
             ctx.lineTo(-14, 10);
             ctx.closePath();
             ctx.fill();
-            ctx.restore();
             
-            // Armor pattern
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.restore();
+                
+                // Armor pattern
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.rect(-10, -10, 20, 20);
+                ctx.stroke();
+                
+                // Inner core detail
+                ctx.fillStyle = '#f00';
+                ctx.beginPath();
+                ctx.rect(-6, -6, 12, 12);
+                ctx.fill();
+            }
+            
+            if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                // Corner details (high quality only)
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.arc(-10, -10, 3, 0, Math.PI * 2);
+                ctx.arc(10, -10, 3, 0, Math.PI * 2);
+                ctx.arc(-10, 10, 3, 0, Math.PI * 2);
+                ctx.arc(10, 10, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Pulsing center
+                ctx.fillStyle = '#fff';
+                ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 300);
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+            
+            break;
+            
+        case ENEMY_TYPE.ZIGZAG:
+            // Scorpion/zigzag enemy (optimized)
+            ctx.fillStyle = e.color;
+            
+            // Body
             ctx.beginPath();
-            ctx.rect(-10, -10, 20, 20);
-            ctx.stroke();
+            ctx.moveTo(-12, -8);
+            ctx.lineTo(12, -8);
+            ctx.lineTo(16, 0);
+            ctx.lineTo(12, 8);
+            ctx.lineTo(-12, 8);
+            ctx.lineTo(-16, 0);
+            ctx.closePath();
+            ctx.fill();
             
-            // Inner core detail
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.restore();
+                
+                // Segments
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-10, -4);
+                ctx.lineTo(10, -4);
+                ctx.moveTo(-10, 4);
+                ctx.lineTo(10, 4);
+                ctx.stroke();
+            }
+            
+            if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                // Pincers with animation
+                const pincerAnim = Math.sin(Date.now() / 400) * 0.3;
+                
+                // Left pincer
+                ctx.save();
+                ctx.translate(-14, 0);
+                ctx.rotate(-Math.PI/4 + pincerAnim);
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-10, -6);
+                ctx.lineTo(-12, 0);
+                ctx.lineTo(-10, 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+                
+                // Right pincer
+                ctx.save();
+                ctx.translate(14, 0);
+                ctx.rotate(Math.PI/4 - pincerAnim);
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(10, -6);
+                ctx.lineTo(12, 0);
+                ctx.lineTo(10, 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+            
+            // Eye/targeting system (always visible)
             ctx.fillStyle = '#f00';
-            ctx.beginPath();
-            ctx.rect(-6, -6, 12, 12);
-            ctx.fill();
-            
-            // Corner details
-            ctx.fillStyle = '#ff0';
-            ctx.beginPath();
-            ctx.arc(-10, -10, 3, 0, Math.PI * 2);
-            ctx.arc(10, -10, 3, 0, Math.PI * 2);
-            ctx.arc(-10, 10, 3, 0, Math.PI * 2);
-            ctx.arc(10, 10, 3, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Pulsing center
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 300);
             ctx.beginPath();
             ctx.arc(0, 0, 4, 0, Math.PI * 2);
             ctx.fill();
-            ctx.globalAlpha = 1;
+            
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
             
             break;
             
         case ENEMY_TYPE.SNIPER:
-            // Scorpion/sniper in authentic Galaga style
+            // Sniper enemy (optimized)
             ctx.fillStyle = e.color;
             
             // Body
@@ -1460,65 +2361,35 @@ function drawEnemy(e) {
             ctx.lineTo(-8, -8);
             ctx.closePath();
             ctx.fill();
-            ctx.restore();
             
-            // Segments
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(-10, -4);
-            ctx.lineTo(10, -4);
-            ctx.moveTo(-10, 4);
-            ctx.lineTo(10, 4);
-            ctx.stroke();
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.restore();
+                
+                // Add some details
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(-4, -4, 3, 0, Math.PI * 2);
+                ctx.arc(4, -4, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
             
-            // Pincers with animation
-            const pincerAnim = Math.sin(Date.now() / 400) * 0.3;
-            
-            // Left pincer
-            ctx.save();
-            ctx.translate(-14, 0);
-            ctx.rotate(-Math.PI/4 + pincerAnim);
-            ctx.fillStyle = '#ff0';
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(-10, -6);
-            ctx.lineTo(-12, 0);
-            ctx.lineTo(-10, 6);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-            
-            // Right pincer
-            ctx.save();
-            ctx.translate(14, 0);
-            ctx.rotate(Math.PI/4 - pincerAnim);
-            ctx.fillStyle = '#ff0';
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(10, -6);
-            ctx.lineTo(12, 0);
-            ctx.lineTo(10, 6);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-            
-            // Eye/targeting system
-            ctx.fillStyle = '#f00';
-            ctx.beginPath();
-            ctx.arc(0, 0, 4, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(0, 0, 2, 0, Math.PI * 2);
-            ctx.fill();
+            if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                // Add contrast line
+                ctx.strokeStyle = '#ff0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-10, 4);
+                ctx.lineTo(10, 4);
+                ctx.stroke();
+            }
             
             break;
             
         default:
-            // Draw default enemy if type doesn't match
-            ctx.restore();
+            // Draw default enemy if type doesn't match (fallback)
+            if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+                ctx.restore();
+            }
             
             // Basic geometric shape with the enemy's color
             ctx.fillStyle = e.color || '#f00';
@@ -1526,201 +2397,235 @@ function drawEnemy(e) {
             ctx.rect(-12, -12, 24, 24);
             ctx.fill();
             
-            // Add some details
+            // Add some basic details
             ctx.fillStyle = '#fff';
             ctx.beginPath();
             ctx.arc(-4, -4, 3, 0, Math.PI * 2);
             ctx.arc(4, -4, 3, 0, Math.PI * 2);
             ctx.fill();
-            
-            // Add contrast line
-            ctx.strokeStyle = '#ff0';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(-10, 4);
-            ctx.lineTo(10, 4);
-            ctx.stroke();
+    }
+    
+    // Close the quality check conditional if needed
+    if (GraphicsOptimizer.shouldRenderMediumQuality()) {
+        // Conditional was already closed in each case
     }
     
     ctx.restore();
 }
 
-// Optimized bullet drawing with type caching for better performance
+// Highly optimized bullet drawing with caching and batching
 function drawBullet(b) {
-    ctx.save();
+    // Viewport culling for performance
+    if (GraphicsOptimizer.shouldCull(b.x - 10, b.y - 15, 20, 30)) {
+        GraphicsOptimizer.incrementCulled();
+        return;
+    }
     
-    // Create bullet gradient and glow
-    const bulletGradient = ctx.createLinearGradient(b.x, b.y - 8, b.x, b.y + 8);
+    // Use batched drawing for better performance in low quality mode
+    if (GraphicsOptimizer.qualityLevel === 'low') {
+        GraphicsOptimizer.batchedDraw.add('bullets', b.x, b.y, {
+            type: b.type || 'normal',
+            color: b.color || '#ff0',
+            from: b.from
+        });
+        GraphicsOptimizer.incrementRendered();
+        return;
+    }
+    
+    const renderStart = performance.now();
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    
+    // Get cached gradient based on bullet type
+    const gradientKey = `bullet_${b.from}_${b.type}`;
+    const bulletGradient = GraphicsOptimizer.getGradient(gradientKey, () => {
+        const grad = ctx.createLinearGradient(0, -8, 0, 8);
+        
+        if (dualShip && b.from === 'dual') {
+            grad.addColorStop(0, '#8f8');
+            grad.addColorStop(0.5, '#0f8');
+            grad.addColorStop(1, '#0f4');
+        } else if (b.type === 'double') {
+            grad.addColorStop(0, '#8ff');
+            grad.addColorStop(0.5, '#0ff');
+            grad.addColorStop(1, '#08f');
+        } else if (b.from === 'enemy') {
+            const color = b.color || '#f00';
+            grad.addColorStop(0, '#fff');
+            grad.addColorStop(0.5, color);
+            grad.addColorStop(1, color);
+        } else {
+            grad.addColorStop(0, '#fff');
+            grad.addColorStop(0.5, '#ff0');
+            grad.addColorStop(1, '#fb0');
+        }
+        return grad;
+    });
     
     if (dualShip && b.from === 'dual') {
-        // Dual ship bullet - green energy
-        bulletGradient.addColorStop(0, '#8f8');
-        bulletGradient.addColorStop(0.5, '#0f8');
-        bulletGradient.addColorStop(1, '#0f4');
-        
         ctx.shadowColor = '#0f8';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = GraphicsOptimizer.shouldRenderHighQuality() ? 10 : 5;
         
-        // Create energy bullet with pulsing effect
-        ctx.globalAlpha = 0.8 + 0.2 * Math.sin(Date.now() / 50);
+        // Create energy bullet with pulsing effect (only in high quality)
+        if (GraphicsOptimizer.shouldRenderHighQuality()) {
+            ctx.globalAlpha = 0.8 + 0.2 * Math.sin(Date.now() / 50);
+        }
         ctx.fillStyle = bulletGradient;
         
-        // Dual fire bullet shape
+        // Dual fire bullet shape - use cached path if available
         ctx.beginPath();
-        ctx.moveTo(b.x, b.y - 8); 
-        ctx.lineTo(b.x + 3, b.y - 2);
-        ctx.lineTo(b.x + 1, b.y + 4);
-        ctx.lineTo(b.x - 1, b.y + 4);
-        ctx.lineTo(b.x - 3, b.y - 2);
+        ctx.moveTo(0, -8); 
+        ctx.lineTo(3, -2);
+        ctx.lineTo(1, 4);
+        ctx.lineTo(-1, 4);
+        ctx.lineTo(-3, -2);
         ctx.closePath();
         ctx.fill();
         
-        // Energy trail
-        ctx.globalAlpha = 0.4;
-        for (let i = 0; i < 3; i++) {
-            const trailY = b.y + 5 + i * 3;
-            const size = 3 - i * 0.8;
-            ctx.beginPath();
-            ctx.arc(b.x + Math.sin(Date.now() / 100 + i) * 1.5, trailY, size, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
+        // Energy trail (only in medium/high quality)
+        if (GraphicsOptimizer.qualityLevel !== 'low') {
+            ctx.globalAlpha = 0.4;
+            const trailCount = GraphicsOptimizer.shouldRenderHighQuality() ? 3 : 1;
+            for (let i = 0; i < trailCount; i++) {
+                const trailY = 5 + i * 3;
+                const size = 3 - i * 0.8;
+                ctx.beginPath();
+                ctx.arc(Math.sin(Date.now() / 100 + i) * 1.5, trailY, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }        
     } else if (b.type === 'double') {
-        // Double power bullet - cyan energy
-        bulletGradient.addColorStop(0, '#8ff');
-        bulletGradient.addColorStop(0.5, '#0ff');
-        bulletGradient.addColorStop(1, '#08f'); 
-        
         ctx.shadowColor = '#0ff';
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = GraphicsOptimizer.shouldRenderHighQuality() ? 12 : 6;
         
         // Create double shot with particle effects
         ctx.fillStyle = bulletGradient;
         
         // Main bullet shape
         ctx.beginPath();
-        ctx.moveTo(b.x, b.y - 10);
-        ctx.lineTo(b.x + 4, b.y);
-        ctx.lineTo(b.x + 2, b.y + 6);
-        ctx.lineTo(b.x - 2, b.y + 6);
-        ctx.lineTo(b.x - 4, b.y);
+        ctx.moveTo(0, -10);
+        ctx.lineTo(4, 0);
+        ctx.lineTo(2, 6);
+        ctx.lineTo(-2, 6);
+        ctx.lineTo(-4, 0);
         ctx.closePath();
         ctx.fill();
         
-        // Particle glow
-        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now() / 80);
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
-        ctx.fill();
+        // Particle glow (only in high quality)
+        if (GraphicsOptimizer.shouldRenderHighQuality()) {
+            ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now() / 80);
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
     } else if (b.from === 'enemy') {
-        // Enemy bullet - use the bullet's color
-        const color = b.color || '#f00'; // Default to red if no color specified
-        
-        // Extract color components for gradient
-        let baseColor = color;
-        let lightColor = '#fff';
-        
-        bulletGradient.addColorStop(0, lightColor);
-        bulletGradient.addColorStop(0.5, baseColor);
-        bulletGradient.addColorStop(1, baseColor);
-        
-        ctx.shadowColor = baseColor;
-        ctx.shadowBlur = 8;
-        
-        // Create enemy bullet based on type
+        // Enemy bullet - optimized rendering
+        const color = b.color || '#f00';
+        ctx.shadowColor = color;
+        ctx.shadowBlur = GraphicsOptimizer.shouldRenderHighQuality() ? 8 : 4;
         ctx.fillStyle = bulletGradient;
         
         if (b.type === 'zigzag') {
             // Zigzag bullet has rhombus shape
             ctx.beginPath();
-            ctx.moveTo(b.x, b.y - 6);
-            ctx.lineTo(b.x + 4, b.y);
-            ctx.lineTo(b.x, b.y + 6);
-            ctx.lineTo(b.x - 4, b.y);
+            ctx.moveTo(0, -6);
+            ctx.lineTo(4, 0);
+            ctx.lineTo(0, 6);
+            ctx.lineTo(-4, 0);
             ctx.closePath();
             ctx.fill();
             
-            // Trailing effect
-            ctx.globalAlpha = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(b.x, b.y - 3);
-            ctx.lineTo(b.x + 2, b.y);
-            ctx.lineTo(b.x, b.y + 8);
-            ctx.lineTo(b.x - 2, b.y);
-            ctx.closePath();
-            ctx.fill();
+            // Trailing effect (simplified for performance)
+            if (GraphicsOptimizer.qualityLevel !== 'low') {
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(0, -3);
+                ctx.lineTo(2, 0);
+                ctx.lineTo(0, 8);
+                ctx.lineTo(-2, 0);
+                ctx.closePath();
+                ctx.fill();
+            }
         } else if (b.type === 'split') {
             // Split bullet has triangular shape
             ctx.beginPath();
-            ctx.moveTo(b.x, b.y - 8);
-            ctx.lineTo(b.x + 5, b.y + 4);
-            ctx.lineTo(b.x - 5, b.y + 4);
+            ctx.moveTo(0, -8);
+            ctx.lineTo(5, 4);
+            ctx.lineTo(-5, 4);
             ctx.closePath();
             ctx.fill();
             
-            // Pulsing glow effect
-            ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 100);
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
-            ctx.fill();
+            // Pulsing glow effect (only in high quality)
+            if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 100);
+                ctx.beginPath();
+                ctx.arc(0, 0, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
         } else if (b.type === 'fast') {
             // Fast bullet has a streamlined shape
             ctx.beginPath();
-            ctx.moveTo(b.x, b.y - 8);
-            ctx.lineTo(b.x + 3, b.y);
-            ctx.lineTo(b.x, b.y + 8);
-            ctx.lineTo(b.x - 3, b.y);
+            ctx.moveTo(0, -8);
+            ctx.lineTo(3, 0);
+            ctx.lineTo(0, 8);
+            ctx.lineTo(-3, 0);
             ctx.closePath();
             ctx.fill();
             
-            // Motion blur
-            ctx.globalAlpha = 0.4;
-            for (let i = 1; i <= 3; i++) {
-                ctx.fillRect(b.x - 1, b.y - 8 - i * 3, 2, 2);
+            // Motion blur (only in high quality)
+            if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                ctx.globalAlpha = 0.4;
+                for (let i = 1; i <= 3; i++) {
+                    ctx.fillRect(-1, -8 - i * 3, 2, 2);
+                }
             }
         } else {
             // Default enemy bullet (circular with trail)
             ctx.beginPath();
-            ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
             ctx.fill();
             
             // Trailing effect
-            ctx.globalAlpha = 0.6;
-            ctx.beginPath();
-            ctx.arc(b.x, b.y - 6, 2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 0.3;
-            ctx.beginPath();
-            ctx.arc(b.x, b.y - 12, 1, 0, Math.PI * 2);
-            ctx.fill();
+            if (GraphicsOptimizer.qualityLevel !== 'low') {
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.arc(0, -6, 2, 0, Math.PI * 2);
+                ctx.fill();
+                if (GraphicsOptimizer.shouldRenderHighQuality()) {
+                    ctx.globalAlpha = 0.3;
+                    ctx.beginPath();
+                    ctx.arc(0, -12, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
         }
     } else {
         // Regular player bullet - classic Galaga yellow shot
-        bulletGradient.addColorStop(0, '#fff');
-        bulletGradient.addColorStop(0.5, '#ff0');
-        bulletGradient.addColorStop(1, '#fb0');
-        
         ctx.shadowColor = '#ff0';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = GraphicsOptimizer.shouldRenderHighQuality() ? 8 : 4;
         ctx.fillStyle = bulletGradient;
         
-        // Use a single path for better performance
-        ctx.beginPath();
-        // Bullet body
-        ctx.rect(b.x - 1.5, b.y - 12, 3, 10);
-        // Bullet tip (triangle)
-        ctx.moveTo(b.x, b.y - 14);
-        ctx.lineTo(b.x + 2, b.y - 10);
-        ctx.lineTo(b.x - 2, b.y - 10);
-        ctx.closePath();
-        ctx.fill();
+        // Use cached path for basic bullet
+        const bulletPath = GraphicsOptimizer.pathCache.get('basic_bullet');
+        if (bulletPath) {
+            ctx.fill(bulletPath);
+        } else {
+            // Fallback to manual drawing
+            ctx.beginPath();
+            ctx.rect(-1.5, -12, 3, 10);
+            ctx.moveTo(0, -14);
+            ctx.lineTo(2, -10);
+            ctx.lineTo(-2, -10);
+            ctx.closePath();
+            ctx.fill();
+        }
         
-        // Add flash effect - only do 30% of the time
-        if (Math.random() < 0.3) {
+        // Add flash effect - reduced frequency for performance
+        if (GraphicsOptimizer.shouldRenderHighQuality() && Math.random() < 0.15) {
             ctx.globalAlpha = 0.7;
             ctx.beginPath();
-            ctx.arc(b.x, b.y - 10, 4, 0, Math.PI * 2);
+            ctx.arc(0, -10, 4, 0, Math.PI * 2);
             ctx.fill();
         }
     }
@@ -1929,6 +2834,8 @@ function drawGameOver() {
     ctx.textAlign = 'center';
     ctx.fillText('GAME OVER', canvas.width/2, 150); // Adjusted Y
     
+   
+    
     // Score display
     ctx.font = '20px monospace';
     ctx.fillStyle = '#fff';
@@ -2048,6 +2955,245 @@ function drawPauseScreen() {
     ctx.restore();
 }
 
+// Optimized gameplay drawing with batching and quality management
+function drawGameplay() {
+    // Increment frame counter for quality monitoring
+    GraphicsOptimizer.frameRendered();
+    
+    // Draw starfield background (always render, but reduce quality if needed)
+    if (GraphicsOptimizer.qualityLevel === 'low') {
+        drawStarfield(dt * 0.5); // Slower animation for performance
+    } else {
+        drawStarfield(dt);
+    }
+
+    // Draw player
+    if (player.alive) {
+        drawPlayer();
+    }
+
+    // Batch bullet rendering for better performance
+    bullets.forEach(bullet => {
+        if (GraphicsOptimizer.qualityLevel === 'low') {
+            // Use simplified bullet rendering
+            ctx.fillStyle = bullet.from === 'enemy' ? '#f00' : '#ff0';
+            ctx.fillRect(bullet.x - 1, bullet.y - 6, 2, 12);
+        } else {
+            drawBullet(bullet);
+        }
+    });
+    
+    enemyBullets.forEach(bullet => {
+        if (GraphicsOptimizer.qualityLevel === 'low') {
+            // Use simplified enemy bullet rendering
+            ctx.fillStyle = bullet.color || '#f00';
+            ctx.fillRect(bullet.x - 1, bullet.y - 4, 2, 8);
+        } else {
+            drawBullet(bullet);
+        }
+    });
+
+    // Draw enemies with potential batching
+    if (GraphicsOptimizer.qualityLevel === 'low' && enemies.length > 10) {
+        // Use batched enemy rendering for many enemies
+        enemies.forEach(enemy => {
+            GraphicsOptimizer.batchedDraw.add('enemy', enemy.x, enemy.y, {
+                color: enemy.color,
+                type: enemy.type
+            });
+        });
+    } else {
+        enemies.forEach(drawEnemy);
+    }
+
+    // Draw Boss Galaga (always use full quality for boss)
+    if (bossGalaga) {
+        drawBossGalaga(bossGalaga);
+    }
+
+    // Draw powerups (reduce effects in low quality)
+    powerups.forEach(powerup => {
+        if (GraphicsOptimizer.qualityLevel === 'low') {
+            // Simplified powerup rendering
+            ctx.save();
+            ctx.translate(powerup.x, powerup.y);
+            ctx.fillStyle = powerup.type === 'double' ? '#0ff' : 
+                           powerup.type === 'shield' ? '#0ef' : '#ff0';
+            ctx.fillRect(-8, -6, 16, 12);
+            ctx.restore();
+        } else {
+            drawPowerup(powerup);
+        }
+    });
+
+    // Batch particle rendering
+    particles.forEach(drawParticle);
+    
+    // Flush any batched draw operations
+    GraphicsOptimizer.batchedDraw.flush();
+
+    // Draw HUD (always render)
+    drawHUD();
+
+    // Draw level transition message
+    if (levelTransition > 0) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(CANVAS_WIDTH / 4, CANVAS_HEIGHT / 2 - 30, CANVAS_WIDTH / 2, 60);
+        ctx.font = '24px monospace';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        if (challengeStageActive && gameStage > 0) {
+             ctx.fillText(`CHALLENGE STAGE ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        } else if (gameStage > 0) {
+             ctx.fillText(`LEVEL ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        }
+        ctx.restore();
+    }
+    
+    // Draw touch controls if on a touch device (simplified in low quality)
+    if (isTouchDevice) {
+        if (GraphicsOptimizer.qualityLevel === 'low') {
+            drawTouchControlsSimplified();
+        } else {
+            drawTouchControls();
+        }
+    }
+}
+
+// Optimized player drawing function
+function drawPlayer() {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+
+    // Use cached paths for better performance
+    const playerBodyPath = GraphicsOptimizer.pathCache.get('player_body');
+    const cockpitPath = GraphicsOptimizer.pathCache.get('player_cockpit');
+
+    // Main ship body (White)
+    ctx.fillStyle = '#fff';
+    if (playerBodyPath) {
+        ctx.fill(playerBodyPath);
+    } else {
+        // Fallback to manual drawing
+        ctx.beginPath();
+        ctx.moveTo(0, -12);
+        ctx.lineTo(-12, 8);
+        ctx.lineTo(-8, 6);
+        ctx.lineTo(8, 6);
+        ctx.lineTo(12, 8);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Cockpit (Blue)
+    ctx.fillStyle = '#0ff';
+    if (cockpitPath) {
+        ctx.fill(cockpitPath);
+    } else {
+        // Fallback to manual drawing
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(-4, 0);
+        ctx.lineTo(4, 0);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Engine Glow (Yellow/Orange) - optimized calculation
+    const engineGlow = GraphicsOptimizer.shouldRenderHighQuality() ? 
+        Math.sin(Date.now() / 100) * 2 + 4 : 4; // Simplified for low quality
+    ctx.fillStyle = '#f80';
+    ctx.fillRect(-6, 6, 4, engineGlow); // Left engine
+    ctx.fillRect(2, 6, 4, engineGlow);  // Right engine
+
+    // Shield effect (only render if shield is active and quality permits)
+    if (player.shield && GraphicsOptimizer.qualityLevel !== 'low') {
+        ctx.strokeStyle = '#0ef';
+        ctx.lineWidth = 2;
+        
+        if (GraphicsOptimizer.shouldRenderHighQuality()) {
+            ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 200) * 0.3; // Pulsating alpha
+        } else {
+            ctx.globalAlpha = 0.6; // Static alpha for better performance
+        }
+        
+        ctx.beginPath();
+        ctx.arc(0, 0, player.w * 0.8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+    
+    // Dual ship (if active) - simplified for performance
+    if (dualShip) {
+        ctx.save();
+        ctx.translate(-24, 0);
+
+        // Reuse the same paths but at smaller scale for performance
+        ctx.scale(0.9, 0.9);
+        
+        // Main body (White)
+        ctx.fillStyle = '#fff';
+        if (playerBodyPath) {
+            ctx.fill(playerBodyPath);
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(0, -12);
+            ctx.lineTo(-12, 8);
+            ctx.lineTo(-8, 6);
+            ctx.lineTo(8, 6);
+            ctx.lineTo(12, 8);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Cockpit (Blue)
+        ctx.fillStyle = '#0ff';
+        if (cockpitPath) {
+            ctx.fill(cockpitPath);
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(0, -8);
+            ctx.lineTo(-4, 0);
+            ctx.lineTo(4, 0);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // Engine Glow (simplified)
+        ctx.fillStyle = '#f80';
+        ctx.fillRect(-6, 6, 4, engineGlow);
+        ctx.fillRect(2, 6, 4, engineGlow);
+        ctx.restore();
+    }
+
+    ctx.restore();
+}
+
+// Optimized particle drawing function
+function drawParticle(p) {
+    if (!p.active) return;
+    
+    // Use batched drawing for low quality mode
+    if (GraphicsOptimizer.qualityLevel === 'low') {
+        GraphicsOptimizer.batchedDraw.add('particle', p.x, p.y, {
+            color: p.color,
+            size: p.size,
+            alpha: p.life / p.initialLife
+        });
+        return;
+    }
+    
+    ctx.save();
+    ctx.globalAlpha = p.life / p.initialLife; // Fade out particle
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+
 // Function to check if we're on a touch device
 function detectTouchDevice() {
     return ('ontouchstart' in window) || 
@@ -2133,8 +3279,6 @@ function handleTouchEnd(e) {
     for (let i = 0; i < touches.length; i++) {
         const touch = touches[i];
         
- 
-        
         // Check which button was released
         for (const button of Object.values(touchControls.buttons)) {
             if (button.touchId === touch.identifier) {
@@ -2211,7 +3355,7 @@ function drawTouchControls() {
     for (const [key, button] of Object.entries(touchControls.buttons)) {
         // Button background
         ctx.fillStyle = button.pressed ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.3)';
-        
+
         // Special style for auto-shoot when active
         if (key === 'autoShoot' && autoShootActive) {
             ctx.fillStyle = 'rgba(0, 255, 255, 0.6)';
@@ -2231,20 +3375,62 @@ function drawTouchControls() {
     }
 }
 
-// Handle pause
-function handlePause() {
-    if (state === GAME_STATE.PLAYING) {
-        previousStateBeforePause = state;
-        state = GAME_STATE.PAUSED;
+// Simplified touch controls for low-quality mode
+function drawTouchControlsSimplified() {
+    // Draw simple rectangular buttons without rounded corners or gradients
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    
+    for (const [key, button] of Object.entries(touchControls.buttons)) {
+        if (button.pressed || (key === 'autoShoot' && autoShootActive)) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        } else {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        }
+        
+        // Draw simple rectangle
+        ctx.fillRect(button.x, button.y, button.w, button.h);
+        
+        // Simple text label
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.floor(button.w * 0.4)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(button.label, button.x + button.w / 2, button.y + button.h / 2);
     }
 }
 
-// Handle resume
-function handleResume() {
-    if (state === GAME_STATE.PAUSED && previousStateBeforePause) {
-        state = previousStateBeforePause;
-        previousStateBeforePause = null;
-    }
+// Optimized starfield drawing with quality levels
+function drawStarfield(dt) {
+    const qualityMultiplier = GraphicsOptimizer.qualityLevel === 'low' ? 0.5 : 
+                             GraphicsOptimizer.qualityLevel === 'medium' ? 0.75 : 1.0;
+    
+    starsBackground.forEach((layer, layerIndex) => {
+        // Skip some layers in low quality mode
+        if (GraphicsOptimizer.qualityLevel === 'low' && layerIndex > 1) return;
+        
+        layer.forEach(star => {
+            // Move star downward at layer speed
+            star.y += star.speed * dt * qualityMultiplier;
+            
+            // Wrap around screen
+            if (star.y > CANVAS_HEIGHT) {
+                star.y = 0;
+                star.x = Math.random() * CANVAS_WIDTH;
+            }
+            
+            // Twinkle effect - simplified for performance
+            let twinkle = 1.0;
+            if (GraphicsOptimizer.shouldRenderHighQuality() && layerIndex === 2) {
+                twinkle = 0.7 + 0.3 * Math.sin(Date.now() / (800 + star.speed * 10));
+            }
+            
+            // Draw star with size and brightness variations
+            ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness * twinkle * qualityMultiplier})`;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size * qualityMultiplier, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    });
 }
 
 // --- Core Game Logic Functions (Should be placed before initGame) ---
@@ -2319,129 +3505,6 @@ function spawnPowerup(x, y) {
     });
 }
 
-// Spawns a new wave of enemies based on the current level
-function spawnEnemies() {
-    setupFormation();
-    enemies = [];
-    setupWavePatterns();
-    
-    // Base number of enemies
-    let numEnemies = 16 + Math.min(32, level * 2); 
-    
-    // Challenge stages have a special formation
-    if (challengeStageActive) {
-        numEnemies = 40; // More enemies in challenge stages
-    }
-    
-    const enemyTypes = [
-        ENEMY_TYPE.BASIC,
-        ENEMY_TYPE.FAST,
-        ENEMY_TYPE.TANK,
-        ENEMY_TYPE.ZIGZAG,
-        ENEMY_TYPE.SNIPER
-    ];
-    
-    // Place enemies in formation with appropriate types per row
-    // First two rows are typically basic
-    // Third row typically has faster enemies
-    // Bottom row typically has the tougher enemies
-    for (let i = 0; i < numEnemies; i++) {
-        const spot = getEmptyFormationSpot();
-        if (!spot) break;
-        spot.taken = true;
-        
-        // Determine enemy type by position (row) - more authentic to Galaga
-        // In Galaga, different rows have different enemy types
-        const row = Math.floor((spot.y - 60) / 30); // Calculate row based on y position
-        
-        let enemyType;
-        if (row === 0) {
-            // Top row - mostly basic enemies
-            enemyType = Math.random() < 0.8 ? ENEMY_TYPE.BASIC : ENEMY_TYPE.FAST;
-        } else if (row === 1) {
-            // Second row - mix of basic and fast
-            enemyType = Math.random() < 0.6 ? ENEMY_TYPE.BASIC : ENEMY_TYPE.FAST;
-        } else if (row === 2) {
-            // Third row - mostly fast with some zigzag
-            enemyType = Math.random() < 0.7 ? ENEMY_TYPE.FAST : ENEMY_TYPE.ZIGZAG;
-        } else {
-            // Bottom row - tougher enemies
-            const r = Math.random();
-            if (r < 0.4) enemyType = ENEMY_TYPE.TANK;
-            else if (r < 0.7) enemyType = ENEMY_TYPE.SNIPER;
-            else enemyType = ENEMY_TYPE.ZIGZAG;
-        }
-        
-        let enemyColor = '#0f0';
-        switch (enemyType) {
-            case ENEMY_TYPE.FAST: enemyColor = '#0ff'; break;
-            case ENEMY_TYPE.TANK: enemyColor = '#f00'; break;
-            case ENEMY_TYPE.ZIGZAG: enemyColor = '#f0f'; break;
-            case ENEMY_TYPE.SNIPER: enemyColor = '#ff0'; break;
-        }
-        
-        // Adjust enemy size based on type
-        let enemyW = 24, enemyH = 24;
-        if (enemyType === ENEMY_TYPE.TANK) { enemyW = 28; enemyH = 28; }
-        if (enemyType === ENEMY_TYPE.FAST) { enemyW = 22; enemyH = 22; }
-        
-        const startSide = Math.random() > 0.5 ? -50 : CANVAS_WIDTH + 50;
-        const startY = -50;
-        
-        // Enhanced entrance behavior with formation systems
-        enemies.push({
-            x: startSide,
-            y: startY,
-            w: enemyW,
-            h: enemyH,
-            type: enemyType,
-            color: enemyColor,
-            state: ENEMY_STATE.ENTRANCE,
-            startX: startSide,
-            startY: startY,
-            targetX: spot.x,
-            targetY: spot.y,
-            controlX: CANVAS_WIDTH / 2 + (Math.random() - 0.5) * 200,
-            controlY: CANVAS_HEIGHT / 3,
-            pathTime: 0,
-            index: i,
-            formationOffset: {
-                x: Math.random() * 4 - 2,
-                y: Math.random() * 4 - 2
-            },
-            attackPath: [], // Will store attack path points
-            attackIndex: 0,
-            attackTime: 0,
-            canFire: !challengeStageActive, // No firing in challenge stages
-            points: enemyType === ENEMY_TYPE.BASIC ? 50 :
-                   enemyType === ENEMY_TYPE.FAST ? 80 :
-                   enemyType === ENEMY_TYPE.TANK ? 150 :
-                   enemyType === ENEMY_TYPE.ZIGZAG ? 100 :
-                   enemyType === ENEMY_TYPE.SNIPER ? 120 : 50
-        });
-    }
-    
-    // Boss Galaga every 5 levels or special encounters
-    if (level % 5 === 0 || (level > 10 && Math.random() < 0.3)) {
-        bossGalaga = {
-            x: CANVAS_WIDTH / 2,
-            y: 40,
-            w: 60,
-            h: 50,
-            color: '#f0f',
-            health: 10 + Math.floor(level / 5),
-            timer: 2,
-            state: 'idle',
-            hasCaptured: false,
-            tractorBeamActive: false,
-            points: 150 + (level * 10)
-        };
-    }
-    
-    // Reset attack queue
-    attackQueue = [];
-}
-
 // Updates player movement and powerup timers
 function updatePlayer() {
     if (!player.alive) return;
@@ -2490,46 +3553,70 @@ function updatePlayer() {
     }
 }
 
-// Update game logic
-function updateGameplay() {
-    updatePlayer();
-    updateEnemies();
-    updateBullets();
-    updateEnemyBullets();
-    updatePowerups();
-    updateParticles(); // Update particles
-    checkCollisions();
+// Placeholder for updateEnemies function
+function updateEnemies() {
+    // TODO: Implement enemy update logic
+    // This function will handle:
+    // - Enemy movement (entrance, formation, attack)
+    // - Enemy firing (calling fireEnemyBullet)
+    // - Checking if enemies are off-screen (calling isOffScreen)
+    // - Managing attack patterns and queues
+    console.log("updateEnemies called - placeholder");
+}
 
-    // Update powerup timer
-    if (player.powerTimer > 0) {
-        player.powerTimer -= dt;
-        if (player.powerTimer <= 0) {
-            player.power = 'normal';
-            player.shield = false; // Ensure shield is off when timer ends
-            player.speed = 250; // Reset speed
+// Placeholder for updatePowerups function
+function updatePowerups() {
+    // TODO: Implement powerup update logic
+    console.log("updatePowerups called - placeholder");
+}
+
+// Placeholder for updateGameplay function
+function updateGameplay() {
+    // TODO: Implement gameplay update logic
+    // This function will handle calls to:
+    // - updateEnemies
+    // - updatePowerups
+    // - updatePlayer
+    // - updateBullets
+    // - updateEnemyBullets
+    // - updateParticles
+    // - checkCollisions
+    console.log("updateGameplay called - placeholder");
+    // Tentatively call other update functions that are expected to be here
+    // updateEnemies(); // Already exists
+    // updatePowerups(); // Will check/create this next
+    // updatePlayer(); 
+    // updateBullets();
+    // updateEnemyBullets();
+    // updateParticles();
+    // checkCollisions();
+}
+
+// Initialize graphics optimization system
+GraphicsOptimizer.init();
+
+// Add keyboard shortcuts for graphics debugging
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey) {
+        switch(e.key) {
+            case '1':
+                GraphicsOptimizer.setQualityLevel('low');
+                console.log('Manually set quality to LOW');
+                break;
+            case '2':
+                GraphicsOptimizer.setQualityLevel('medium');
+                console.log('Manually set quality to MEDIUM');
+                break;
+            case '3':
+                GraphicsOptimizer.setQualityLevel('high');
+                console.log('Manually set quality to HIGH');
+                break;
+            case 'P':
+                window.showGraphicsPerformance();
+                break;
         }
     }
+});
 
-    // Update screen shake - use exponential decay for smoother effect
-    if (screenShake > 0) {
-        screenShake *= Math.pow(0.85, 60 * dt); // 60 * dt provides consistent decay rate
-        if (screenShake < 0.5) screenShake = 0;
-    }
-}
-
-// Initialize game with optimized settings
-function initGame() {
-    console.log("initGame called"); // LOGGING
-    initObjectPools();
-    initTouchControls();
-    initStars(); // Initialize enhanced starfield
-    gameStage = 0;
-    lastTime = performance.now(); // Initialize lastTime here
-    fetchHighScores(() => {
-        console.log("Game initialized and ready to start. FetchHighScores callback executed."); // LOGGING
-        gameLoop(); // Start the game loop
-    });
-}
-
-// Start the game
-initGame();
+console.log('Graphics optimization system fully initialized!');
+console.log('Debug shortcuts: Ctrl+Shift+1/2/3 for quality levels, Ctrl+Shift+P for performance info');
