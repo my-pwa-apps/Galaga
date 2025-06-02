@@ -1985,8 +1985,6 @@ function drawBossGalaga(boss) {
         ctx.lineTo(-5, -10); // Upper left corner
         ctx.lineTo(-8, 8);   // Lower left
         ctx.lineTo(8, 8);    // Lower right
-       
-
         ctx.lineTo(5, -10);  // Upper right corner
         ctx.closePath();
         ctx.fill();
@@ -2484,9 +2482,341 @@ function handleHighScoreInput(e) {
     }
 }
 
-// Start the game when the page loads
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initGame);
-} else {
-    initGame();
+// Drawing functions for different game states
+
+// Draw the main gameplay screen
+function drawGameplay() {
+    // Clear canvas with space background
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Draw animated starfield background
+    drawStarfield(dt);
+    
+    // Draw all game entities
+    drawPlayer();
+    drawBullets();
+    drawEnemyBullets();
+    drawEnemies();
+    drawPowerups();
+    drawParticles();
+    
+    // Draw boss if present
+    if (bossGalaga) {
+        drawBossGalaga(bossGalaga);
+    }
+    
+    // Draw UI elements
+    drawUI();
+    
+    // Draw level transition message if active
+    if (levelTransition > 0) {
+        drawLevelTransition();
+    }
 }
+
+// Draw player ship
+function drawPlayer() {
+    if (!player.alive) return;
+    
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    
+    // Shield effect
+    if (player.shield) {
+        ctx.strokeStyle = '#0ff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now() / 100);
+        ctx.beginPath();
+        ctx.arc(0, 0, 20, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+    
+    // Main ship body (classic Galaga fighter)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(0, -16);  // Top point
+    ctx.lineTo(-8, 8);   // Lower left
+    ctx.lineTo(8, 8);    // Lower right
+    ctx.closePath();
+    ctx.fill();
+    
+    // Blue cockpit
+    ctx.fillStyle = '#0ff';
+    ctx.beginPath();
+    ctx.moveTo(0, -12);
+    ctx.lineTo(-4, -4);
+    ctx.lineTo(4, -4);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Side wings
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(-12, 0, 4, 8);
+    ctx.fillRect(8, 0, 4, 8);
+    
+    ctx.restore();
+}
+
+// Draw bullets
+function drawBullets() {
+    bullets.forEach(bullet => {
+        ctx.fillStyle = '#ff0';
+        ctx.fillRect(bullet.x - 1, bullet.y - 6, 2, 12);
+    });
+}
+
+// Draw enemy bullets
+function drawEnemyBullets() {
+    enemyBullets.forEach(bullet => {
+        ctx.fillStyle = bullet.color || '#fff';
+        ctx.fillRect(bullet.x - 2, bullet.y - 6, 4, 12);
+    });
+}
+
+// Draw enemies
+function drawEnemies() {
+    enemies.forEach(enemy => {
+        ctx.save();
+        ctx.translate(enemy.x, enemy.y);
+        
+        // Different enemy types
+        switch(enemy.type) {
+            case 'fast':
+                ctx.fillStyle = '#0ff';
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            case 'tank':
+                ctx.fillStyle = '#f0f';
+                ctx.fillRect(-12, -12, 24, 24);
+                break;
+            case 'zigzag':
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.moveTo(-10, 0);
+                ctx.lineTo(0, -15);
+                ctx.lineTo(10, 0);
+                ctx.lineTo(0, 15);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            case 'sniper':
+                ctx.fillStyle = '#f00';
+                ctx.beginPath();
+                ctx.moveTo(-8, -8);
+                ctx.lineTo(8, -8);
+                ctx.lineTo(12, 0);
+                ctx.lineTo(8, 8);
+                ctx.lineTo(-8, 8);
+                ctx.lineTo(-12, 0);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            default: // basic
+                ctx.fillStyle = '#0f0';
+                ctx.beginPath();
+                ctx.moveTo(-10, 0);
+                ctx.lineTo(0, -15);
+                ctx.lineTo(10, 0);
+                ctx.lineTo(0, 15);
+                ctx.closePath();
+                ctx.fill();
+        }
+        
+        ctx.restore();
+    });
+}
+
+// Draw powerups
+function drawPowerups() {
+    powerups.forEach(powerup => {
+        ctx.save();
+        ctx.translate(powerup.x, powerup.y);
+        ctx.rotate(Date.now() / 1000);
+        
+        let color = '#fff';
+        switch(powerup.type) {
+            case 'double': color = '#ff0'; break;
+            case 'shield': color = '#0ff'; break;
+            case 'speed': color = '#f0f'; break;
+            case 'life': color = '#0f0'; break;
+        }
+        
+        ctx.fillStyle = color;
+        ctx.fillRect(-8, -8, 16, 16);
+        ctx.strokeStyle = '#fff';
+        ctx.strokeRect(-8, -8, 16, 16);
+        
+        ctx.restore();
+    });
+}
+
+// Draw particles
+function drawParticles() {
+    particles.forEach(particle => {
+        if (!particle.active) return;
+        
+        ctx.save();
+        ctx.globalAlpha = particle.life / particle.maxLife;
+        ctx.fillStyle = particle.color;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+}
+
+// Draw UI elements
+function drawUI() {
+    // Score
+    ctx.font = '20px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText(`SCORE: ${score}`, 20, 30);
+    
+    // Lives
+    ctx.fillText(`LIVES: ${lives}`, 20, 60);
+    
+    // Level
+    ctx.fillText(`LEVEL: ${level}`, 20, 90);
+    
+    // Power indicator
+    if (player.power !== 'normal') {
+        ctx.fillStyle = '#ff0';
+        ctx.fillText(`POWER: ${player.power.toUpperCase()}`, 20, 120);
+        
+        // Power timer bar
+        if (player.powerTimer > 0) {
+            const barWidth = 100;
+            const barHeight = 8;
+            const progress = player.powerTimer / 15; // Assuming max 15 seconds
+            
+            ctx.fillStyle = '#333';
+            ctx.fillRect(20, 130, barWidth, barHeight);
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(20, 130, barWidth * progress, barHeight);
+        }
+    }
+}
+
+// Draw level transition message
+function drawLevelTransition() {
+    ctx.save();
+    ctx.font = '36px monospace';
+    ctx.fillStyle = '#ff0';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 5;
+    ctx.fillText(`LEVEL ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    ctx.restore();
+}
+
+// Draw pause screen
+function drawPauseScreen() {
+    // Semi-transparent overlay
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Pause text
+    ctx.font = '48px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 5;
+    ctx.fillText('PAUSED', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
+    
+    ctx.font = '24px monospace';
+    ctx.fillText('Press P to resume', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
+    
+    ctx.restore();
+}
+
+// Draw game over screen
+function drawGameOver() {
+    // Clear canvas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Draw starfield background
+    drawStarfield(dt);
+    
+    // Game Over text
+    ctx.save();
+    ctx.font = '48px monospace';
+    ctx.fillStyle = '#f00';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 10;
+    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+    
+    // Final score
+    ctx.font = '32px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`FINAL SCORE: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    
+    // Instructions
+    ctx.font = '24px monospace';
+    const blinking = Math.floor(Date.now() / 500) % 2 === 0;
+    if (blinking) {
+        ctx.fillStyle = '#ff0';
+        ctx.fillText('PRESS SPACE TO CONTINUE', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+    }
+    
+    ctx.restore();
+}
+
+// Draw enter high score screen
+function drawEnterHighScoreScreen() {
+    // Clear canvas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Draw starfield background
+    drawStarfield(dt);
+    
+    ctx.save();
+    
+    // Title
+    ctx.font = '36px monospace';
+    ctx.fillStyle = '#ff0';
+    ctx.textAlign = 'center';
+    ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 100);
+    
+    // Score display
+    ctx.font = '28px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`SCORE: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+    
+    // Enter name prompt
+    ctx.font = '24px monospace';
+    ctx.fillText('ENTER YOUR NAME:', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20);
+    
+    // Name input display
+    ctx.font = '32px monospace';
+    ctx.fillStyle = '#0ff';
+    let nameDisplay = '';
+    for (let i = 0; i < 5; i++) {
+        if (i === currentInitialIndex) {
+            // Blinking cursor
+            const blinking = Math.floor(Date.now() / 400) % 2 === 0;
+            nameDisplay += blinking ? '_' : ' ';
+        } else {
+            nameDisplay += playerInitials[i];
+        }
+        nameDisplay += ' ';
+    }
+    ctx.fillText(nameDisplay, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
+    
+    // Instructions
+    ctx.font = '18px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('Use A-Z keys to enter name, ENTER to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+    
+    ctx.restore();
+}
+
+// ...existing code...
