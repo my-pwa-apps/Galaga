@@ -2168,6 +2168,18 @@ function updatePowerups() {
     }
 }
 
+// Placeholder for updateParticles function
+function updateParticles() {
+    // TODO: Implement actual particle update logic here
+    // For now, just remove inactive particles from the array
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        if (!p.active) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
 // Main gameplay update function
 function updateGameplay() {
     if (levelTransition > 0) {
