@@ -1958,6 +1958,7 @@ function drawBossGalaga(boss) {
         ctx.lineTo(-8, 8);   // Lower left
         ctx.lineTo(8, 8);    // Lower right
        
+
         ctx.lineTo(5, -10);  // Upper right corner
         ctx.closePath();
         ctx.fill();
@@ -2198,6 +2199,11 @@ document.addEventListener('keydown', (e) => {
 
 console.log('Graphics optimization system fully initialized!');
 console.log('Debug shortcuts: Ctrl+Shift+1/2/3 for quality levels, Ctrl+Shift+P for performance info');
+
+// Initialize placeholder for touch controls
+function initTouchControls() {
+    // TODO: Implement touch controls initialization
+}
 
 // Main game initialization
 function initGame() {
