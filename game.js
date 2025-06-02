@@ -685,26 +685,21 @@ const GraphicsOptimizer = {
             memoryEfficiency: Math.round((this.renderedObjects / Math.max(this.memoryUsage.total, 1)) * 100) / 100
         };
     },
-    
-    // Dynamic quality adjustment based on complex metrics
+
+    // Adaptive quality adjustment (moved back inside object)
     analyzePerformance() {
         if (!this.adaptiveQuality || this.performanceHistory.length < 30) return;
-        
         const targetFrameTime = 1000 / this.targetFPS; // 16.67ms for 60fps
         const currentFPS = 1000 / this.avgFrameTime;
         const now = performance.now();
-        
         // Don't adjust too frequently
         if (now - this.lastQualityAdjustment < 5000) return;
-        
         // Calculate performance metrics
         const fpsRatio = currentFPS / this.targetFPS;
         const renderLoad = this.renderTime / this.frameTime;
         const memoryPressure = this.memoryUsage.total / 200; // Normalize to 0-1 scale
-        
         // Multi-factor performance score
         const performanceScore = (fpsRatio * 0.6) + ((1 - renderLoad) * 0.3) + ((1 - memoryPressure) * 0.1);
-        
         if (performanceScore < 0.7) { // Performance is poor
             if (this.qualityLevel === 'high') {
                 this.setQualityLevel('medium');
@@ -815,6 +810,7 @@ const GraphicsOptimizer = {
         return 1.0;
     }
 };
+// End of GraphicsOptimizer object
 
 // Initialize object pools
 function initObjectPools() {
@@ -3400,39 +3396,6 @@ function drawTouchControlsSimplified() {
 }
 
 // Optimized starfield drawing with quality levels
-function drawStarfield(dt) {
-    const qualityMultiplier = GraphicsOptimizer.qualityLevel === 'low' ? 0.5 : 
-                             GraphicsOptimizer.qualityLevel === 'medium' ? 0.75 : 1.0;
-    
-    starsBackground.forEach((layer, layerIndex) => {
-        // Skip some layers in low quality mode
-        if (GraphicsOptimizer.qualityLevel === 'low' && layerIndex > 1) return;
-        
-        layer.forEach(star => {
-            // Move star downward at layer speed
-            star.y += star.speed * dt * qualityMultiplier;
-            
-            // Wrap around screen
-            if (star.y > CANVAS_HEIGHT) {
-                star.y = 0;
-                star.x = Math.random() * CANVAS_WIDTH;
-            }
-            
-            // Twinkle effect - simplified for performance
-            let twinkle = 1.0;
-            if (GraphicsOptimizer.shouldRenderHighQuality() && layerIndex === 2) {
-                twinkle = 0.7 + 0.3 * Math.sin(Date.now() / (800 + star.speed * 10));
-            }
-            
-            // Draw star with size and brightness variations
-            ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness * twinkle * qualityMultiplier})`;
-            ctx.beginPath();
-            ctx.arc(star.x, star.y, star.size * qualityMultiplier, 0, Math.PI * 2);
-            ctx.fill();
-        });
-    });
-}
-
 // --- Core Game Logic Functions (Should be placed before initGame) ---
 
 // Reset game state
@@ -3620,3 +3583,4 @@ document.addEventListener('keydown', (e) => {
 
 console.log('Graphics optimization system fully initialized!');
 console.log('Debug shortcuts: Ctrl+Shift+1/2/3 for quality levels, Ctrl+Shift+P for performance info');
+}
