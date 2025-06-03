@@ -812,6 +812,16 @@ const GraphicsOptimizer = {
 };
 // End of GraphicsOptimizer object
 
+// Wave configuration for enemy behavior
+let waveConfig = {
+    baseAttackChance: 0.0005,
+    maxAttackers: 2,
+    groupAttackChance: 0,
+    divingSpeed: 180,
+    returnToFormationChance: 0.7,
+    attackCurveIntensity: 1
+};
+
 // Initialize object pools
 function initObjectPools() {
     // Pre-allocate bullets
@@ -1562,32 +1572,87 @@ function spawnEnemies() {
     attackQueue = [];
 }
 
-// Placeholder for resetGame function
+// Reset game to initial state
 function resetGame() {
     console.log('Game reset triggered');
-    // TODO: Implement actual game reset logic here
+    
+    // Reset game variables
     score = 0;
     lives = 3;
     level = 1;
+    levelTransition = 0;
+    
+    // Reset player
+    player.x = PLAYER_START_X;
+    player.y = PLAYER_START_Y;
+    player.alive = true;
+    player.power = 'normal';
+    player.powerTimer = 0;
+    player.shield = false;
+    player.cooldown = 0;
+    player.speed = 250;
+    player.highScoreSubmitted = false;
+    
+    // Clear arrays
     enemies = [];
     bullets = [];
     enemyBullets = [];
     powerups = [];
     particles = [];
+    
+    // Reset boss and special features
     bossGalaga = null;
     capturedShip = false;
     dualShip = false;
+    challengeStageActive = false;
+    
+    // Reset player initials
+    playerInitials = ["_", "_", "_", "_", "_"];
+    currentInitialIndex = 0;
+    
+    // Reset screen effects
+    screenShake = 0;
+    
+    // Clear attack queue
+    attackQueue = [];
+    
+    // Spawn initial enemies
     spawnEnemies();
 }
 
-// Placeholder for updatePlayer function
+// Update player
 function updatePlayer() {
-    // TODO: Implement actual player update logic here
-    if (keys['ArrowLeft']) player.x -= player.speed * dt;
-    if (keys['ArrowRight']) player.x += player.speed * dt;
+    if (!player.alive) return;
+    
+    // Movement
+    if (keys['ArrowLeft'] || keys['KeyA']) {
+        player.x -= player.speed * dt;
+    }
+    if (keys['ArrowRight'] || keys['KeyD']) {
+        player.x += player.speed * dt;
+    }
 
     // Clamp player position within canvas bounds
     player.x = Math.max(player.w / 2, Math.min(CANVAS_WIDTH - player.w / 2, player.x));
+    
+    // Shooting
+    if (keys['Space'] || autoShootActive) {
+        shoot();
+    }
+    
+    // Update cooldowns
+    if (player.cooldown > 0) {
+        player.cooldown -= dt;
+    }
+    
+    // Update power timer
+    if (player.powerTimer > 0) {
+        player.powerTimer -= dt;
+        if (player.powerTimer <= 0) {
+            player.power = 'normal';
+            player.speed = 250; // Reset speed
+        }
+    }
 }
 
 // Update bullets
@@ -1931,6 +1996,7 @@ function drawBossGalaga(boss) {
     ctx.beginPath();
     ctx.arc(-8, -6, 2, 0, Math.PI * 2);
     ctx.arc(8, -6, 2, 0, Math.PI * 2);
+   
     ctx.fill();
     
     // Captured ship (if present)
@@ -1985,6 +2051,8 @@ function drawBossGalaga(boss) {
         ctx.lineTo(-5, -10); // Upper left corner
         ctx.lineTo(-8, 8);   // Lower left
         ctx.lineTo(8, 8);    // Lower right
+       
+
         ctx.lineTo(5, -10);  // Upper right corner
         ctx.closePath();
         ctx.fill();
@@ -2166,196 +2234,554 @@ function updatePowerups() {
     }
 }
 
-// Placeholder for updateParticles function
+// Update particles
 function updateParticles() {
-    // TODO: Implement actual particle update logic here
-    // For now, just remove inactive particles from the array
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         if (!p.active) {
+            particles.splice(i, 1);
+            continue;
+        }
+        
+        // Update particle physics
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        
+        // Apply gravity/friction
+        p.vy += 100 * dt; // Gravity
+        p.vx *= 0.98; // Air resistance
+        
+        // Deactivate when life expires
+        if (p.life <= 0) {
+            p.active = false;
             particles.splice(i, 1);
         }
     }
 }
 
-// Main gameplay update function
-function updateGameplay() {
+// Draw main gameplay screen
+function drawGameplay() {
+    // Draw starfield background
+    drawStarfield(dt);
+    
+    // Draw UI elements
+    drawUI();
+    
+    // Draw game entities
+    drawPlayer();
+    drawBullets();
+    drawEnemies();
+    drawEnemyBullets();
+    drawPowerups();
+    drawParticles();
+    
+    // Draw boss if present
+    if (bossGalaga) {
+        drawBossGalaga(bossGalaga);
+    }
+    
+    // Draw level transition text if active
     if (levelTransition > 0) {
-        levelTransition -= dt;
-        return; // Don't update gameplay during level transitions
-    }
-    
-    // Update screen shake
-    if (screenShake > 0) {
-        screenShake = Math.max(0, screenShake - dt * 20);
-    }
-    
-    // Update all game entities
-    updatePlayer();
-    updateBullets();
-    updateEnemyBullets();
-    updateEnemies();
-    updatePowerups();
-    updateParticles();
-    
-    // Check collisions
-    checkCollisions();
-    
-    // Check level completion
-    if (enemies.length === 0 && !bossGalaga && levelTransition <= 0) {
-        level++;
-        levelTransition = 2; // 2 seconds for level transition
-        spawnEnemies();
+        drawLevelTransition();
     }
 }
 
-// Collision detection function
-function checkCollisions() {
-    if (!player.alive) return;
-
-    // Helper function to check if two rectangles overlap
-    function isColliding(a, b) {
-        return a.x < b.x + b.w &&
-               a.x + a.w > b.x &&
-               a.y < b.y + b.h &&
-               a.y + a.h > b.y;
+// Draw UI elements (score, lives, etc.)
+function drawUI() {
+    ctx.font = '18px "Press Start 2P", monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    
+    // Score
+    ctx.fillText(`SCORE: ${score.toString().padStart(8, '0')}`, 20, 30);
+    
+    // High Score
+    ctx.fillText(`HIGH: ${highScore.toString().padStart(8, '0')}`, 20, 60);
+    
+    // Level
+    ctx.textAlign = 'center';
+    ctx.fillText(`LEVEL ${level}`, CANVAS_WIDTH / 2, 30);
+    
+    // Lives
+    ctx.textAlign = 'right';
+    ctx.fillText(`LIVES: ${lives}`, CANVAS_WIDTH - 20, 30);
+    
+    // Challenge stage indicator
+    if (challengeStageActive) {
+        ctx.fillStyle = '#ff0';
+        ctx.textAlign = 'center';
+        ctx.fillText('CHALLENGE STAGE', CANVAS_WIDTH / 2, 60);
     }
+}
 
-    // Player bullets hitting enemies
+// Draw player ship
+function drawPlayer() {
+    if (!player.alive) return;
+    
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    
+    // Shield effect
+    if (player.shield) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = '#0ff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.w * 0.7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+    
+    // Main ship body using authentic Galaga fighter design
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(0, -12);     // Top point
+    ctx.lineTo(-12, 8);     // Lower left
+    ctx.lineTo(-8, 6);      // Inner left
+    ctx.lineTo(8, 6);       // Inner right
+    ctx.lineTo(12, 8);      // Lower right
+    ctx.closePath();
+    ctx.fill();
+    
+    // Red wing details
+    ctx.fillStyle = '#f00';
+    // Left wing
+    ctx.beginPath();
+    ctx.moveTo(-12, 8);
+    ctx.lineTo(-16, 0);
+    ctx.lineTo(-16, 12);
+    ctx.lineTo(-8, 8);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Right wing
+    ctx.beginPath();
+    ctx.moveTo(12, 8);
+    ctx.lineTo(16, 0);
+    ctx.lineTo(16, 12);
+    ctx.lineTo(8, 8);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Blue cockpit
+    ctx.fillStyle = '#0ff';
+    ctx.beginPath();
+    ctx.moveTo(0, -8);
+    ctx.lineTo(-4, 0);
+    ctx.lineTo(4, 0);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Engine glow effect
+    if (keys['ArrowLeft'] || keys['ArrowRight']) {
+        ctx.fillStyle = '#ff0';
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.arc(-10, 10, 3, 0, Math.PI * 2);
+        ctx.arc(10, 10, 3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    ctx.restore();
+}
+
+// Draw bullets
+function drawBullets() {
+    bullets.forEach(bullet => {
+        if (!bullet.active) return;
+        
+        ctx.fillStyle = '#ff0';
+        ctx.fillRect(bullet.x - bullet.w/2, bullet.y - bullet.h/2, bullet.w, bullet.h);
+        
+        // Bullet trail effect
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+        ctx.fillRect(bullet.x - bullet.w/2, bullet.y, bullet.w, bullet.h);
+    });
+}
+
+// Draw enemies
+function drawEnemies() {
+    enemies.forEach(enemy => {
+        ctx.save();
+        ctx.translate(enemy.x, enemy.y);
+        
+        // Different shapes based on enemy type
+        ctx.fillStyle = enemy.color;
+        
+        switch (enemy.type) {
+            case ENEMY_TYPE.BASIC:
+                // Diamond shape
+                ctx.beginPath();
+                ctx.moveTo(0, -12);
+                ctx.lineTo(-8, 0);
+                ctx.lineTo(0, 12);
+                ctx.lineTo(8, 0);
+                ctx.closePath();
+                ctx.fill();
+                break;
+                
+            case ENEMY_TYPE.FAST:
+                // Circular shape
+                ctx.beginPath();
+                ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+                
+            case ENEMY_TYPE.TANK:
+                // Square shape
+                ctx.fillRect(-12, -12, 24, 24);
+                break;
+                
+            case ENEMY_TYPE.ZIGZAG:
+                // Triangle shape
+                ctx.beginPath();
+                ctx.moveTo(0, -12);
+                ctx.lineTo(-10, 10);
+                ctx.lineTo(10, 10);
+                ctx.closePath();
+                ctx.fill();
+                break;
+                
+            case ENEMY_TYPE.SNIPER:
+                // Hexagon shape
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * Math.PI * 2) / 6;
+                    const x = Math.cos(angle) * 10;
+                    const y = Math.sin(angle) * 10;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                break;
+        }
+        
+        ctx.restore();
+    });
+}
+
+// Draw enemy bullets
+function drawEnemyBullets() {
+    enemyBullets.forEach(bullet => {
+        if (!bullet.active) return;
+        
+        ctx.fillStyle = bullet.color || '#f44';
+        ctx.fillRect(bullet.x - bullet.w/2, bullet.y - bullet.h/2, bullet.w, bullet.h);
+    });
+}
+
+// Draw powerups
+function drawPowerups() {
+    powerups.forEach(powerup => {
+        ctx.save();
+        ctx.translate(powerup.x, powerup.y);
+        ctx.rotate(Date.now() / 1000);
+        
+        ctx.fillStyle = powerup.color || '#0f0';
+        ctx.fillRect(-8, -8, 16, 16);
+        
+        ctx.restore();
+    });
+}
+
+// Draw particles
+function drawParticles() {
+    particles.forEach(particle => {
+        if (!particle.active) return;
+        
+        ctx.fillStyle = particle.color || '#fff';
+        ctx.globalAlpha = particle.life / particle.initialLife;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+}
+
+// Draw level transition text
+function drawLevelTransition() {
+    const alpha = levelTransition > 1 ? 1 - (levelTransition - 1) : levelTransition;
+    
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ff0';
+    ctx.font = '24px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`LEVEL ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    
+    if (challengeStageActive) {
+        ctx.fillStyle = '#0ff';
+        ctx.font = '18px "Press Start 2P", monospace';
+        ctx.fillText('CHALLENGE STAGE', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+    }
+    
+    ctx.restore();
+}
+
+// Draw pause screen
+function drawPauseScreen() {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Pause text
+    ctx.fillStyle = '#fff';
+    ctx.font = '24px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    
+    ctx.font = '16px "Press Start 2P", monospace';
+    ctx.fillText('Press P to Resume', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+}
+
+// Draw game over screen
+function drawGameOver() {
+    // Draw starfield background
+    drawStarfield(dt);
+    
+    ctx.fillStyle = '#f00';
+    ctx.font = '32px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = '18px "Press Start 2P", monospace';
+    ctx.fillText(`Final Score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    ctx.fillText(`Level Reached: ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
+    
+    // Check for high score
+    if (score > highScore || firebaseHighScores.length < MAX_HIGH_SCORES || 
+        (firebaseHighScores.length > 0 && score > firebaseHighScores[firebaseHighScores.length - 1].score)) {
+        
+        if (!player.highScoreSubmitted) {
+            state = GAME_STATE.ENTER_HIGH_SCORE;
+            return;
+        }
+    }
+    
+    ctx.fillStyle = '#ff0';
+    ctx.font = '16px "Press Start 2P", monospace';
+    ctx.fillText('Press SPACE to Continue', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+}
+
+// Draw high score entry screen
+function drawEnterHighScoreScreen() {
+    // Draw starfield background
+    drawStarfield(dt);
+    
+    ctx.fillStyle = '#ff0';
+    ctx.font = '24px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 80);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = '18px "Press Start 2P", monospace';
+    ctx.fillText(`Score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+    
+    ctx.fillText('Enter Your Name:', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    
+    // Draw input boxes
+    const boxWidth = 30;
+    const boxHeight = 40;
+    const spacing = 10;
+    const totalWidth = (boxWidth + spacing) * 5 - spacing;
+    const startX = (CANVAS_WIDTH - totalWidth) / 2;
+    
+    for (let i = 0; i < 5; i++) {
+        const x = startX + i * (boxWidth + spacing);
+        const y = CANVAS_HEIGHT / 2 + 20;
+        
+        // Box background
+        ctx.fillStyle = i === currentInitialIndex ? '#444' : '#222';
+        ctx.fillRect(x, y, boxWidth, boxHeight);
+        
+        // Box border
+        ctx.strokeStyle = i === currentInitialIndex ? '#ff0' : '#666';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, boxWidth, boxHeight);
+        
+        // Letter
+        ctx.fillStyle = '#fff';
+        ctx.font = '18px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(playerInitials[i], x + boxWidth/2, y + boxHeight/2 + 6);
+    }
+    
+    ctx.fillStyle = '#aaa';
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Use letters to type, ENTER to submit', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 100);
+}
+
+// Collision detection
+function checkCollisions() {
+    // Player bullets vs enemies
     for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
+        if (!bullet.active) continue;
         
+        // Check collision with enemies
         for (let j = enemies.length - 1; j >= 0; j--) {
             const enemy = enemies[j];
-            
             if (isColliding(bullet, enemy)) {
                 // Create explosion particles
-                createExplosionParticles(enemy.x + enemy.w/2, enemy.y + enemy.h/2);
+                createExplosion(enemy.x, enemy.y, enemy.color);
                 
-                // Add score based on enemy type
-                let points = 50;
-                if (enemy.type === 'fast') points = 100;
-                else if (enemy.type === 'tank') points = 150;
-                else if (enemy.type === 'zigzag') points = 200;
-                else if (enemy.type === 'sniper') points = 250;
-                
-                score += points;
+                // Add score
+                score += enemy.points || 50;
                 
                 // Remove bullet and enemy
+                bullet.active = false;
                 bullets.splice(i, 1);
                 enemies.splice(j, 1);
+                
+                // Screen shake
+                screenShake = 5;
                 break;
             }
         }
         
-        // Check bullet hitting boss Galaga
+        // Check collision with boss
         if (bossGalaga && isColliding(bullet, bossGalaga)) {
             bossGalaga.health--;
+            bullet.active = false;
             bullets.splice(i, 1);
             
+            createExplosion(bossGalaga.x, bossGalaga.y, '#f0f');
+            score += 10;
+            screenShake = 3;
+            
             if (bossGalaga.health <= 0) {
-                createExplosionParticles(bossGalaga.x + bossGalaga.w/2, bossGalaga.y + bossGalaga.h/2);
-                score += 800;
+                score += bossGalaga.points;
+                createExplosion(bossGalaga.x, bossGalaga.y, '#ff0');
+                screenShake = 15;
                 bossGalaga = null;
             }
         }
     }
-
-    // Enemy bullets hitting player
-    if (!player.shield) {
+    
+    // Enemy bullets vs player
+    if (player.alive && !player.shield) {
         for (let i = enemyBullets.length - 1; i >= 0; i--) {
             const bullet = enemyBullets[i];
+            if (!bullet.active) continue;
             
             if (isColliding(bullet, player)) {
                 // Player hit
-                createExplosionParticles(player.x + player.w/2, player.y + player.h/2);
+                lives--;
+                bullet.active = false;
                 enemyBullets.splice(i, 1);
                 
-                lives--;
+                createExplosion(player.x, player.y, '#fff');
+                screenShake = 10;
+                
                 if (lives <= 0) {
                     player.alive = false;
                     state = GAME_STATE.GAME_OVER;
                 } else {
                     // Brief invincibility
                     player.shield = true;
-                    player.powerTimer = 2; // 2 seconds of shield
+                    setTimeout(() => { player.shield = false; }, 2000);
                 }
                 break;
             }
         }
     }
-
-    // Player collecting powerups
+    
+    // Player vs powerups
     for (let i = powerups.length - 1; i >= 0; i--) {
         const powerup = powerups[i];
-        
         if (isColliding(player, powerup)) {
             // Apply powerup effect
-            switch(powerup.type) {
-                case 'double':
-                    player.power = 'double';
-                    player.powerTimer = 10;
-                    break;
-                case 'shield':
-                    player.shield = true;
-                    player.powerTimer = 15;
-                    break;
-                case 'speed':
-                    player.power = 'speed';
-                    player.powerTimer = 12;
-                    break;
-                case 'life':
-                    lives++;
-                    break;
-            }
-            
+            applyPowerup(powerup.type);
             powerups.splice(i, 1);
-            score += 25;
-        }
-    }
-
-    // Player colliding with enemies (direct contact)
-    if (!player.shield) {
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            const enemy = enemies[i];
-            
-            if (isColliding(player, enemy)) {
-                // Both player and enemy are destroyed
-                createExplosionParticles(player.x + player.w/2, player.y + player.h/2);
-                createExplosionParticles(enemy.x + enemy.w/2, enemy.y + enemy.h/2);
-                
-                enemies.splice(i, 1);
-                lives--;
-                
-                if (lives <= 0) {
-                    player.alive = false;
-                    state = GAME_STATE.GAME_OVER;
-                } else {
-                    // Brief invincibility
-                    player.shield = true;
-                    player.powerTimer = 2;
-                }
-                break;
-            }
+            score += 100;
         }
     }
 }
 
-// Helper function to create explosion particles
-function createExplosionParticles(x, y) {
-    const particleCount = 8;
+// Simple collision detection
+function isColliding(obj1, obj2) {
+    return obj1.x < obj2.x + obj2.w &&
+           obj1.x + obj1.w > obj2.x &&
+           obj1.y < obj2.y + obj2.h &&
+           obj1.y + obj1.h > obj2.y;
+}
+
+// Create explosion particles
+function createExplosion(x, y, color) {
+    const particleCount = GraphicsOptimizer.qualityLevel === 'low' ? 5 : 
+                         GraphicsOptimizer.qualityLevel === 'medium' ? 8 : 12;
+    
     for (let i = 0; i < particleCount; i++) {
         const particle = getPoolObject('particles');
         if (particle) {
-            particle.x = x;
-            particle.y = y;
+            particle.x = x + (Math.random() - 0.5) * 20;
+            particle.y = y + (Math.random() - 0.5) * 20;
             particle.vx = (Math.random() - 0.5) * 200;
             particle.vy = (Math.random() - 0.5) * 200;
-            particle.life = 1;
-            particle.maxLife = 1;
-            particle.color = arcadeColors[Math.floor(Math.random() * arcadeColors.length)];
+            particle.size = Math.random() * 4 + 2;
+            particle.color = color;
+            particle.life = Math.random() * 0.5 + 0.5;
+            particle.initialLife = particle.life;
             particle.active = true;
+            
             particles.push(particle);
+        }
+    }
+}
+
+// Apply powerup effects
+function applyPowerup(type) {
+    switch (type) {
+        case 'double':
+            player.power = 'double';
+            player.powerTimer = 10;
+            break;
+        case 'shield':
+            player.shield = true;
+            setTimeout(() => { player.shield = false; }, 5000);
+            break;
+        case 'speed':
+            player.speed = 400;
+            player.powerTimer = 8;
+            break;
+    }
+}
+
+// Player shooting
+function shoot() {
+    if (player.cooldown <= 0 && player.alive) {
+        const bullet = getPoolObject('bullets');
+        if (bullet) {
+            bullet.x = player.x;
+            bullet.y = player.y - player.h/2;
+            bullet.active = true;
+            bullets.push(bullet);
+            
+            player.cooldown = 0.2; // 200ms cooldown
+            
+            // Double shot power
+            if (player.power === 'double') {
+                const bullet2 = getPoolObject('bullets');
+                if (bullet2) {
+                    bullet2.x = player.x - 10;
+                    bullet2.y = player.y - player.h/2;
+                    bullet2.active = true;
+                    bullets.push(bullet2);
+                }
+                
+                const bullet3 = getPoolObject('bullets');
+                if (bullet3) {
+                    bullet3.x = player.x + 10;
+                    bullet3.y = player.y - player.h/2;
+                    bullet3.active = true;
+                    bullets.push(bullet3);
+                }
+            }
         }
     }
 }
@@ -2482,341 +2908,9 @@ function handleHighScoreInput(e) {
     }
 }
 
-// Drawing functions for different game states
-
-// Draw the main gameplay screen
-function drawGameplay() {
-    // Clear canvas with space background
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Draw animated starfield background
-    drawStarfield(dt);
-    
-    // Draw all game entities
-    drawPlayer();
-    drawBullets();
-    drawEnemyBullets();
-    drawEnemies();
-    drawPowerups();
-    drawParticles();
-    
-    // Draw boss if present
-    if (bossGalaga) {
-        drawBossGalaga(bossGalaga);
-    }
-    
-    // Draw UI elements
-    drawUI();
-    
-    // Draw level transition message if active
-    if (levelTransition > 0) {
-        drawLevelTransition();
-    }
+// Start the game when the page loads
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGame);
+} else {
+    initGame();
 }
-
-// Draw player ship
-function drawPlayer() {
-    if (!player.alive) return;
-    
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    
-    // Shield effect
-    if (player.shield) {
-        ctx.strokeStyle = '#0ff';
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now() / 100);
-        ctx.beginPath();
-        ctx.arc(0, 0, 20, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-    }
-    
-    // Main ship body (classic Galaga fighter)
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.moveTo(0, -16);  // Top point
-    ctx.lineTo(-8, 8);   // Lower left
-    ctx.lineTo(8, 8);    // Lower right
-    ctx.closePath();
-    ctx.fill();
-    
-    // Blue cockpit
-    ctx.fillStyle = '#0ff';
-    ctx.beginPath();
-    ctx.moveTo(0, -12);
-    ctx.lineTo(-4, -4);
-    ctx.lineTo(4, -4);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Side wings
-    ctx.fillStyle = '#f00';
-    ctx.fillRect(-12, 0, 4, 8);
-    ctx.fillRect(8, 0, 4, 8);
-    
-    ctx.restore();
-}
-
-// Draw bullets
-function drawBullets() {
-    bullets.forEach(bullet => {
-        ctx.fillStyle = '#ff0';
-        ctx.fillRect(bullet.x - 1, bullet.y - 6, 2, 12);
-    });
-}
-
-// Draw enemy bullets
-function drawEnemyBullets() {
-    enemyBullets.forEach(bullet => {
-        ctx.fillStyle = bullet.color || '#fff';
-        ctx.fillRect(bullet.x - 2, bullet.y - 6, 4, 12);
-    });
-}
-
-// Draw enemies
-function drawEnemies() {
-    enemies.forEach(enemy => {
-        ctx.save();
-        ctx.translate(enemy.x, enemy.y);
-        
-        // Different enemy types
-        switch(enemy.type) {
-            case 'fast':
-                ctx.fillStyle = '#0ff';
-                ctx.beginPath();
-                ctx.arc(0, 0, 12, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-            case 'tank':
-                ctx.fillStyle = '#f0f';
-                ctx.fillRect(-12, -12, 24, 24);
-                break;
-            case 'zigzag':
-                ctx.fillStyle = '#ff0';
-                ctx.beginPath();
-                ctx.moveTo(-10, 0);
-                ctx.lineTo(0, -15);
-                ctx.lineTo(10, 0);
-                ctx.lineTo(0, 15);
-                ctx.closePath();
-                ctx.fill();
-                break;
-            case 'sniper':
-                ctx.fillStyle = '#f00';
-                ctx.beginPath();
-                ctx.moveTo(-8, -8);
-                ctx.lineTo(8, -8);
-                ctx.lineTo(12, 0);
-                ctx.lineTo(8, 8);
-                ctx.lineTo(-8, 8);
-                ctx.lineTo(-12, 0);
-                ctx.closePath();
-                ctx.fill();
-                break;
-            default: // basic
-                ctx.fillStyle = '#0f0';
-                ctx.beginPath();
-                ctx.moveTo(-10, 0);
-                ctx.lineTo(0, -15);
-                ctx.lineTo(10, 0);
-                ctx.lineTo(0, 15);
-                ctx.closePath();
-                ctx.fill();
-        }
-        
-        ctx.restore();
-    });
-}
-
-// Draw powerups
-function drawPowerups() {
-    powerups.forEach(powerup => {
-        ctx.save();
-        ctx.translate(powerup.x, powerup.y);
-        ctx.rotate(Date.now() / 1000);
-        
-        let color = '#fff';
-        switch(powerup.type) {
-            case 'double': color = '#ff0'; break;
-            case 'shield': color = '#0ff'; break;
-            case 'speed': color = '#f0f'; break;
-            case 'life': color = '#0f0'; break;
-        }
-        
-        ctx.fillStyle = color;
-        ctx.fillRect(-8, -8, 16, 16);
-        ctx.strokeStyle = '#fff';
-        ctx.strokeRect(-8, -8, 16, 16);
-        
-        ctx.restore();
-    });
-}
-
-// Draw particles
-function drawParticles() {
-    particles.forEach(particle => {
-        if (!particle.active) return;
-        
-        ctx.save();
-        ctx.globalAlpha = particle.life / particle.maxLife;
-        ctx.fillStyle = particle.color;
-        ctx.beginPath();
-        ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-    });
-}
-
-// Draw UI elements
-function drawUI() {
-    // Score
-    ctx.font = '20px monospace';
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
-    ctx.fillText(`SCORE: ${score}`, 20, 30);
-    
-    // Lives
-    ctx.fillText(`LIVES: ${lives}`, 20, 60);
-    
-    // Level
-    ctx.fillText(`LEVEL: ${level}`, 20, 90);
-    
-    // Power indicator
-    if (player.power !== 'normal') {
-        ctx.fillStyle = '#ff0';
-        ctx.fillText(`POWER: ${player.power.toUpperCase()}`, 20, 120);
-        
-        // Power timer bar
-        if (player.powerTimer > 0) {
-            const barWidth = 100;
-            const barHeight = 8;
-            const progress = player.powerTimer / 15; // Assuming max 15 seconds
-            
-            ctx.fillStyle = '#333';
-            ctx.fillRect(20, 130, barWidth, barHeight);
-            ctx.fillStyle = '#ff0';
-            ctx.fillRect(20, 130, barWidth * progress, barHeight);
-        }
-    }
-}
-
-// Draw level transition message
-function drawLevelTransition() {
-    ctx.save();
-    ctx.font = '36px monospace';
-    ctx.fillStyle = '#ff0';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 5;
-    ctx.fillText(`LEVEL ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    ctx.restore();
-}
-
-// Draw pause screen
-function drawPauseScreen() {
-    // Semi-transparent overlay
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Pause text
-    ctx.font = '48px monospace';
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 5;
-    ctx.fillText('PAUSED', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
-    
-    ctx.font = '24px monospace';
-    ctx.fillText('Press P to resume', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
-    
-    ctx.restore();
-}
-
-// Draw game over screen
-function drawGameOver() {
-    // Clear canvas
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Draw starfield background
-    drawStarfield(dt);
-    
-    // Game Over text
-    ctx.save();
-    ctx.font = '48px monospace';
-    ctx.fillStyle = '#f00';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 10;
-    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
-    
-    // Final score
-    ctx.font = '32px monospace';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`FINAL SCORE: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    
-    // Instructions
-    ctx.font = '24px monospace';
-    const blinking = Math.floor(Date.now() / 500) % 2 === 0;
-    if (blinking) {
-        ctx.fillStyle = '#ff0';
-        ctx.fillText('PRESS SPACE TO CONTINUE', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
-    }
-    
-    ctx.restore();
-}
-
-// Draw enter high score screen
-function drawEnterHighScoreScreen() {
-    // Clear canvas
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Draw starfield background
-    drawStarfield(dt);
-    
-    ctx.save();
-    
-    // Title
-    ctx.font = '36px monospace';
-    ctx.fillStyle = '#ff0';
-    ctx.textAlign = 'center';
-    ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 100);
-    
-    // Score display
-    ctx.font = '28px monospace';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`SCORE: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
-    
-    // Enter name prompt
-    ctx.font = '24px monospace';
-    ctx.fillText('ENTER YOUR NAME:', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20);
-    
-    // Name input display
-    ctx.font = '32px monospace';
-    ctx.fillStyle = '#0ff';
-    let nameDisplay = '';
-    for (let i = 0; i < 5; i++) {
-        if (i === currentInitialIndex) {
-            // Blinking cursor
-            const blinking = Math.floor(Date.now() / 400) % 2 === 0;
-            nameDisplay += blinking ? '_' : ' ';
-        } else {
-            nameDisplay += playerInitials[i];
-        }
-        nameDisplay += ' ';
-    }
-    ctx.fillText(nameDisplay, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
-    
-    // Instructions
-    ctx.font = '18px monospace';
-    ctx.fillStyle = '#fff';
-    ctx.fillText('Use A-Z keys to enter name, ENTER to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
-    
-    ctx.restore();
-}
-
-// ...existing code...
