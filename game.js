@@ -1115,17 +1115,53 @@ const GraphicsOptimizer = {
 };
 // End of GraphicsOptimizer object
 
-// Wave configuration for enemy behavior
+// Wave configuration for enemy behavior (will scale with level)
 let waveConfig = {
-    baseAttackChance: 0.002, // Increased from 0.0005 for more frequent attacks
-    maxAttackers: 4, // Increased from 2 to allow more simultaneous attackers
-    groupAttackChance: 0.15, // Added group attack probability
-    divingSpeed: 180,
+    baseAttackChance: 0.0008, // Start easier - fewer attacks in early levels
+    maxAttackers: 2, // Start with max 2 simultaneous attackers
+    groupAttackChance: 0.05, // Start with low group attack probability
+    divingSpeed: 150, // Start with slower diving speed
+    bulletSpeed: 120, // Start with slower bullets for more reaction time
     returnToFormationChance: 0.7,
     attackCurveIntensity: 1,
-    formationShootChance: 0.01, // New: chance to shoot while in formation each frame
-    attackingShootChance: 0.03 // New: increased chance to shoot while attacking
+    formationShootChance: 0.005, // Start with less formation shooting
+    attackingShootChance: 0.015 // Start with less aggressive shooting while attacking
 };
+
+// Function to scale difficulty based on level
+function updateDifficultyForLevel(currentLevel) {
+    // Gradually increase difficulty every 2 levels
+    const difficultyTier = Math.floor((currentLevel - 1) / 2);
+    
+    // Base attack chance: 0.0008 → 0.003 (caps at level 11)
+    waveConfig.baseAttackChance = Math.min(0.0008 + difficultyTier * 0.0004, 0.003);
+    
+    // Max attackers: 2 → 5 (caps at level 13)
+    waveConfig.maxAttackers = Math.min(2 + Math.floor(difficultyTier / 2), 5);
+    
+    // Group attack chance: 0.05 → 0.20 (caps at level 13)
+    waveConfig.groupAttackChance = Math.min(0.05 + difficultyTier * 0.025, 0.20);
+    
+    // Diving speed: 150 → 200 (caps at level 11)
+    waveConfig.divingSpeed = Math.min(150 + difficultyTier * 10, 200);
+    
+    // Bullet speed: 120 → 220 (caps at level 11)
+    waveConfig.bulletSpeed = Math.min(120 + difficultyTier * 20, 220);
+    
+    // Formation shoot chance: 0.005 → 0.015 (caps at level 11)
+    waveConfig.formationShootChance = Math.min(0.005 + difficultyTier * 0.002, 0.015);
+    
+    // Attacking shoot chance: 0.015 → 0.035 (caps at level 11)
+    waveConfig.attackingShootChance = Math.min(0.015 + difficultyTier * 0.004, 0.035);
+    
+    console.log(`Level ${currentLevel} difficulty:`, {
+        attackChance: waveConfig.baseAttackChance,
+        maxAttackers: waveConfig.maxAttackers,
+        groupAttackChance: waveConfig.groupAttackChance,
+        divingSpeed: waveConfig.divingSpeed,
+        bulletSpeed: waveConfig.bulletSpeed
+    });
+}
 
 // Initialize object pools
 function initObjectPools() {
@@ -1946,20 +1982,21 @@ const EnemyManager = {
     // Get enemy properties based on type and level
     getEnemyProperties(type, level) {
         const baseProps = {
-            bee: { hp: 1, speed: 100, score: 100, shootChance: 0.015, w: 20, h: 20, color: '#ffff00' },
-            butterfly: { hp: 2, speed: 80, score: 200, shootChance: 0.02, w: 24, h: 24, color: '#ff00ff' },
-            scorpion: { hp: 2, speed: 120, score: 250, shootChance: 0.025, w: 22, h: 22, color: '#ff6600' },
-            moth: { hp: 1, speed: 150, score: 150, shootChance: 0.018, w: 22, h: 22, color: '#808080' },
-            boss: { hp: 5, speed: 60, score: 500, shootChance: 0.035, w: 32, h: 32, color: '#00ffff' }
+            bee: { hp: 1, speed: 100, score: 100, shootChance: 0.01, w: 20, h: 20, color: '#ffff00' },
+            butterfly: { hp: 1, speed: 80, score: 200, shootChance: 0.012, w: 24, h: 24, color: '#ff00ff' }, // Start with 1 HP
+            scorpion: { hp: 2, speed: 120, score: 250, shootChance: 0.015, w: 22, h: 22, color: '#ff6600' },
+            moth: { hp: 1, speed: 150, score: 150, shootChance: 0.01, w: 22, h: 22, color: '#808080' },
+            boss: { hp: 3, speed: 60, score: 500, shootChance: 0.02, w: 32, h: 32, color: '#00ffff' } // Start with 3 HP instead of 5
         };
         
         const props = { ...baseProps[type] };
         
-        // Scale with level (slower progression)
-        const levelMultiplier = 1 + (level - 1) * 0.1;
+        // Scale with level (much slower progression for early levels)
+        // Level 1-3: minimal scaling, Level 4+: more noticeable
+        const levelMultiplier = 1 + Math.max(0, (level - 1) * 0.08);
         props.hp = Math.floor(props.hp * levelMultiplier);
-        props.speed = Math.floor(props.speed * Math.min(levelMultiplier, 1.5));
-        props.shootChance = Math.min(props.shootChance * (1 + (level - 1) * 0.05), 0.08); // Increased max to 0.08
+        props.speed = Math.floor(props.speed * Math.min(levelMultiplier, 1.4));
+        props.shootChance = Math.min(props.shootChance * (1 + Math.max(0, (level - 1) * 0.03)), 0.06); // Lower max
         props.score = Math.floor(props.score * levelMultiplier);
         
         return props;
@@ -1971,7 +2008,8 @@ const EnemyManager = {
         console.log(`Spawning wave ${this.waveNumber} for level ${level}`);
         
         const availableTypes = this.getAvailableTypes(level);
-        const enemyCount = Math.min(8 + level * 2, 24);
+        // Start with 6 enemies, gradually increase (6→8→10→12... caps at 20)
+        const enemyCount = Math.min(6 + level * 2, 20);
         
         for (let i = 0; i < enemyCount; i++) {
             setTimeout(() => {
@@ -2244,7 +2282,7 @@ const EnemyManager = {
         if (bullet) {
             bullet.x = enemy.x;
             bullet.y = enemy.y + enemy.h / 2;
-            bullet.speed = 200;
+            bullet.speed = waveConfig.bulletSpeed; // Use scaled bullet speed
             bullet.from = 'enemy';
             bullet.color = enemy.color;
             
@@ -2414,6 +2452,9 @@ function resetGame() {
     levelTransition = 0;
     screenShake = 0;
     
+    // Reset difficulty to level 1
+    updateDifficultyForLevel(1);
+    
     // Clear all active objects
     bullets.length = 0;
     enemies.length = 0;
@@ -2497,6 +2538,7 @@ function updateGameplay() {
         // Spawn next wave after transition completes
         if (levelTransition <= 0) {
             level++; // NOW increment level
+            updateDifficultyForLevel(level); // Scale difficulty for new level
             // Wave will spawn automatically by EnemyManager.update
         }
     }
