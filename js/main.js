@@ -156,7 +156,11 @@ const GalagaGame = {
         }
         
         // Check for level complete (all enemies destroyed)
-        if (GameState.enemies.length === 0 && GameState.levelTransition === 0) {
+        // Only check if we've spawned enemies (waveNumber > 0)
+        if (GameState.enemies.length === 0 && 
+            GameState.levelTransition === 0 && 
+            EnemyManager.waveNumber > 0) {
+            console.log('🎉 Level complete! Enemy count:', GameState.enemies.length, 'Wave:', EnemyManager.waveNumber);
             this.completeLevel();
         }
         
@@ -164,6 +168,7 @@ const GalagaGame = {
         if (GameState.levelTransition > 0) {
             GameState.levelTransition -= dt;
             if (GameState.levelTransition <= 0) {
+                console.log('⬆️ Advancing to level', GameState.level + 1);
                 GameState.level++;
                 this.updateDifficulty();
                 EnemyManager.spawnWave(GameState.level, GameState);
@@ -396,6 +401,7 @@ const GalagaGame = {
     
     // Complete level
     completeLevel() {
+        console.log('🏁 Starting level transition. Current level:', GameState.level);
         GameState.levelTransition = 2;
     },
     
