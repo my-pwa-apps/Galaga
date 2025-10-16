@@ -169,6 +169,7 @@ const GalagaGame = {
             if (GameState.levelTransition <= 0) {
                 GameState.level++;
                 this.updateDifficulty();
+                EnemyManager.spawnWave(GameState.level, GameState);
                 AudioEngine.levelComplete();
             }
         }
@@ -467,6 +468,35 @@ const GalagaGame = {
                 if (keyCode === 'KeyP') {
                     GameState.setState(GameConfig.STATE.PLAYING);
                     this.lastTime = performance.now();
+                }
+                break;
+                
+            case GameConfig.STATE.ENTER_HIGH_SCORE:
+                // Navigate between initials
+                if (keyCode === 'ArrowLeft') {
+                    GameState.initialIndex = Math.max(0, GameState.initialIndex - 1);
+                } else if (keyCode === 'ArrowRight') {
+                    GameState.initialIndex = Math.min(2, GameState.initialIndex + 1);
+                }
+                // Change letter up/down
+                else if (keyCode === 'ArrowUp') {
+                    const currentChar = GameState.playerInitials[GameState.initialIndex];
+                    const charCode = currentChar.charCodeAt(0);
+                    const newChar = charCode === 90 ? 'A' : String.fromCharCode(charCode + 1);
+                    GameState.playerInitials[GameState.initialIndex] = newChar;
+                } else if (keyCode === 'ArrowDown') {
+                    const currentChar = GameState.playerInitials[GameState.initialIndex];
+                    const charCode = currentChar.charCodeAt(0);
+                    const newChar = charCode === 65 ? 'Z' : String.fromCharCode(charCode - 1);
+                    GameState.playerInitials[GameState.initialIndex] = newChar;
+                }
+                // Submit high score
+                else if (keyCode === 'Enter' || keyCode === 'Space') {
+                    const name = GameState.playerInitials.join('');
+                    FirebaseService.saveHighScore(name, GameState.score, GameState.stats);
+                    AudioEngine.menuSelect();
+                    GameState.setState(GameConfig.STATE.SPLASH);
+                    this.fetchHighScores();
                 }
                 break;
         }
