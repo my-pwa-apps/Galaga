@@ -214,7 +214,7 @@ const GalagaGame = {
                 y: player.y - 10,
                 w: 3,
                 h: 8,
-                speed: GameConfig.PLAYER.BULLET_SPEED,
+                speed: 400,
                 from: 'player'
             });
             GameState.bullets.push({
@@ -222,7 +222,7 @@ const GalagaGame = {
                 y: player.y - 10,
                 w: 3,
                 h: 8,
-                speed: GameConfig.PLAYER.BULLET_SPEED,
+                speed: 400,
                 from: 'player'
             });
         } else {
@@ -232,7 +232,7 @@ const GalagaGame = {
                 y: player.y - 10,
                 w: 3,
                 h: 8,
-                speed: GameConfig.PLAYER.BULLET_SPEED,
+                speed: 400,
                 from: 'player'
             });
         }
@@ -611,25 +611,71 @@ const GalagaGame = {
             ctx.restore();
         }
         
-        // Player ship
+        // Player ship - detailed Galaga-style fighter
         ctx.save();
         ctx.translate(player.x, player.y);
         
-        ctx.fillStyle = GameConfig.COLORS.PLAYER;
+        // Main body (blue/cyan)
+        ctx.fillStyle = '#00d4ff';
         ctx.beginPath();
-        ctx.moveTo(0, -15);
-        ctx.lineTo(-10, 15);
-        ctx.lineTo(10, 15);
+        ctx.moveTo(0, -14);      // Nose
+        ctx.lineTo(-8, 0);       // Left wing base
+        ctx.lineTo(-6, 8);       // Left wing tip
+        ctx.lineTo(-3, 10);      // Left body
+        ctx.lineTo(-3, 14);      // Left thruster
+        ctx.lineTo(3, 14);       // Right thruster
+        ctx.lineTo(3, 10);       // Right body
+        ctx.lineTo(6, 8);        // Right wing tip
+        ctx.lineTo(8, 0);        // Right wing base
         ctx.closePath();
         ctx.fill();
         
-        ctx.fillStyle = GameConfig.COLORS.PLAYER_ACCENT;
+        // Cockpit (darker blue)
+        ctx.fillStyle = '#0088cc';
         ctx.beginPath();
         ctx.moveTo(0, -10);
-        ctx.lineTo(-5, 10);
-        ctx.lineTo(5, 10);
+        ctx.lineTo(-4, 2);
+        ctx.lineTo(4, 2);
         ctx.closePath();
         ctx.fill();
+        
+        // Canopy highlight (bright cyan)
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(-2, -2);
+        ctx.lineTo(2, -2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Wing details (yellow accents)
+        ctx.fillStyle = '#ffff00';
+        ctx.fillRect(-7, 1, 2, 2);
+        ctx.fillRect(5, 1, 2, 2);
+        
+        // Thruster glow (animated)
+        if (player.alive) {
+            const glowIntensity = 0.5 + Math.sin(this.currentTime * 0.02) * 0.5;
+            ctx.fillStyle = `rgba(255, 100, 0, ${glowIntensity})`;
+            ctx.fillRect(-2, 14, 1, 2);
+            ctx.fillRect(1, 14, 1, 2);
+        }
+        
+        // Outline for definition
+        ctx.strokeStyle = '#004466';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, -14);
+        ctx.lineTo(-8, 0);
+        ctx.lineTo(-6, 8);
+        ctx.lineTo(-3, 10);
+        ctx.lineTo(-3, 14);
+        ctx.lineTo(3, 14);
+        ctx.lineTo(3, 10);
+        ctx.lineTo(6, 8);
+        ctx.lineTo(8, 0);
+        ctx.lineTo(0, -14);
+        ctx.stroke();
         
         ctx.restore();
     },
