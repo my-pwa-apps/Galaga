@@ -100,6 +100,7 @@ const GameState = {
     
     // Methods
     reset() {
+        console.log('GameConfig.PLAYER:', GameConfig.PLAYER);
         this.score = 0;
         this.lives = 3;
         this.level = 1;
