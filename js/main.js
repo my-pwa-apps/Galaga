@@ -187,8 +187,8 @@ const GalagaGame = {
         }
         
         // Clamp to screen
-        player.x = Math.max(GameConfig.PLAYER.SIZE / 2, 
-                           Math.min(GameConfig.CANVAS_WIDTH - GameConfig.PLAYER.SIZE / 2, player.x));
+        player.x = Math.max(GameConfig.PLAYER.WIDTH / 2, 
+                           Math.min(GameConfig.CANVAS_WIDTH - GameConfig.PLAYER.WIDTH / 2, player.x));
         
         // Shooting
         player.cooldown -= dt;
@@ -596,12 +596,8 @@ const GalagaGame = {
     // Draw player
     drawPlayer(ctx) {
         const player = GameState.player;
-        console.log('Drawing player:', player);
         
-        if (!player.alive) {
-            console.log('Player not alive, skipping draw');
-            return;
-        }
+        if (!player.alive) return;
         
         // Shield effect
         if (player.shield) {
@@ -610,7 +606,7 @@ const GalagaGame = {
             ctx.lineWidth = 2;
             ctx.globalAlpha = 0.5 + Math.sin(this.currentTime / 100) * 0.3;
             ctx.beginPath();
-            ctx.arc(player.x, player.y, GameConfig.PLAYER.SIZE, 0, Math.PI * 2);
+            ctx.arc(player.x, player.y, GameConfig.PLAYER.WIDTH / 2, 0, Math.PI * 2);
             ctx.stroke();
             ctx.restore();
         }
