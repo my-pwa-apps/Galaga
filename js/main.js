@@ -596,8 +596,12 @@ const GalagaGame = {
     // Draw player
     drawPlayer(ctx) {
         const player = GameState.player;
+        console.log('Drawing player:', player);
         
-        if (!player.alive) return;
+        if (!player.alive) {
+            console.log('Player not alive, skipping draw');
+            return;
+        }
         
         // Shield effect
         if (player.shield) {
