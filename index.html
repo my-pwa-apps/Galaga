@@ -14,6 +14,30 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
-    <script src="game.js"></script>
+    <!-- Galaga Game Modules (load order is important!) -->
+    <!-- 1. Foundation: Config and State -->
+    <script src="js/config.js"></script>
+    <script src="js/gameState.js"></script>
+    
+    <!-- 2. Core Systems -->
+    <script src="js/audio.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/input.js"></script>
+    
+    <!-- 3. Utilities -->
+    <script src="js/collision.js"></script>
+    <script src="js/objectPool.js"></script>
+    <script src="js/graphics.js"></script>
+    
+    <!-- 4. Game Content -->
+    <script src="js/sprites.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/powerups.js"></script>
+    
+    <!-- 5. Cloud Services -->
+    <script src="js/firebase.js"></script>
+    
+    <!-- 6. Main Game Loop (coordinates everything) -->
+    <script src="js/main.js"></script>
 </body>
 </html>

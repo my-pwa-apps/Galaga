@@ -1240,6 +1240,17 @@ let lives = 3;
 let level = 1;
 let levelTransition = 0; // Seconds for transition message
 
+// Game statistics tracking
+window.gameStats = {
+    enemiesDestroyed: 0,
+    shotsFired: 0,
+    shotsHit: 0,
+    powerupsCollected: 0,
+    survivalTime: 0,
+    accuracy: 0,
+    gameStartTime: 0
+};
+
 // Galaga-style enemy states
 const ENEMY_STATE = {
     ENTRANCE: 'entrance',
@@ -1276,40 +1287,386 @@ const touchControls = {
     }
 };
 
-// --- Firebase Setup ---
-const firebaseConfig = {
-    apiKey: "AIzaSyB6VUKC89covzLlhUO7UMeILVCJVy1SPdc", // Replace with your actual API key if this is a placeholder
-    authDomain: "galaga-e7527.firebaseapp.com",
-    databaseURL: "https://galaga-e7527-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "galaga-e7527",
-    storageBucket: "galaga-e7527.appspot.com", 
-    messagingSenderId: "983420615265",
-    appId: "1:983420615265:web:77861c68c1b93f92dd4820",
-    measurementId: "G-R9Z2YFQ30C"
+// ============================================
+// FIREBASE SERVICE - Centralized Data Management
+// ============================================
+
+const FirebaseService = {
+    // Configuration
+    config: {
+        apiKey: "AIzaSyB6VUKC89covzLlhUO7UMeILVCJVy1SPdc",
+        authDomain: "galaga-e7527.firebaseapp.com",
+        databaseURL: "https://galaga-e7527-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "galaga-e7527",
+        storageBucket: "galaga-e7527.appspot.com",
+        messagingSenderId: "983420615265",
+        appId: "1:983420615265:web:77861c68c1b93f92dd4820",
+        measurementId: "G-R9Z2YFQ30C"
+    },
+    
+    // Database reference
+    db: null,
+    
+    // Connection state
+    isConnected: false,
+    
+    // Cache for data
+    cache: {
+        highScores: [],
+        playerStats: null,
+        gameSettings: null,
+        achievements: []
+    },
+    
+    // Constants
+    MAX_HIGH_SCORES: 10,
+    MAX_PLAYER_STATS: 100,
+    CACHE_DURATION: 300000, // 5 minutes
+    
+    // Initialize Firebase
+    init() {
+        console.log('🔥 Initializing Firebase Service...');
+        
+        try {
+            if (typeof firebase === 'undefined') {
+                throw new Error('Firebase SDK not loaded');
+            }
+            
+            if (!firebase.apps || firebase.apps.length === 0) {
+                firebase.initializeApp(this.config);
+            }
+            
+            this.db = firebase.database();
+            this.isConnected = true;
+            
+            // Set up connection monitoring
+            this.setupConnectionMonitoring();
+            
+            console.log('✅ Firebase Service initialized successfully');
+            return true;
+            
+        } catch (error) {
+            console.error('❌ Firebase initialization failed:', error);
+            this.isConnected = false;
+            this.db = null;
+            return false;
+        }
+    },
+    
+    // Monitor connection status
+    setupConnectionMonitoring() {
+        if (!this.db) return;
+        
+        const connectedRef = this.db.ref('.info/connected');
+        connectedRef.on('value', (snapshot) => {
+            this.isConnected = snapshot.val() === true;
+            console.log(`Firebase: ${this.isConnected ? '🟢 ONLINE' : '🔴 OFFLINE'}`);
+        });
+    },
+    
+    // ============================================
+    // HIGH SCORES MANAGEMENT
+    // ============================================
+    
+    // Fetch high scores
+    async fetchHighScores() {
+        if (!this.db) {
+            console.warn('Database not available, using cached high scores');
+            return this.cache.highScores;
+        }
+        
+        try {
+            const snapshot = await this.db.ref('highScores')
+                .orderByChild('score')
+                .limitToLast(this.MAX_HIGH_SCORES)
+                .once('value');
+            
+            const scores = [];
+            snapshot.forEach((childSnapshot) => {
+                scores.push({
+                    id: childSnapshot.key,
+                    ...childSnapshot.val()
+                });
+            });
+            
+            scores.reverse(); // Highest scores first
+            this.cache.highScores = scores;
+            console.log(`✅ Fetched ${scores.length} high scores`);
+            
+            return scores;
+            
+        } catch (error) {
+            console.error('Error fetching high scores:', error);
+            return this.cache.highScores;
+        }
+    },
+    
+    // Submit high score
+    async submitHighScore(name, score, level, stats = {}) {
+        if (!this.db) {
+            console.warn('Database not available, high score not saved');
+            return false;
+        }
+        
+        try {
+            const scoreData = {
+                name: name.toUpperCase().trim() || 'AAA',
+                score: score,
+                level: level,
+                timestamp: Date.now(),
+                stats: {
+                    enemiesDestroyed: stats.enemiesDestroyed || 0,
+                    accuracy: stats.accuracy || 0,
+                    powerupsCollected: stats.powerupsCollected || 0,
+                    survivalTime: stats.survivalTime || 0
+                }
+            };
+            
+            const newScoreRef = this.db.ref('highScores').push();
+            await newScoreRef.set(scoreData);
+            
+            console.log('✅ High score saved:', scoreData);
+            
+            // Cleanup old scores
+            await this.cleanupHighScores();
+            
+            // Refresh cache
+            await this.fetchHighScores();
+            
+            return true;
+            
+        } catch (error) {
+            console.error('Error submitting high score:', error);
+            return false;
+        }
+    },
+    
+    // Cleanup old scores
+    async cleanupHighScores() {
+        if (!this.db) return;
+        
+        try {
+            const snapshot = await this.db.ref('highScores')
+                .orderByChild('score')
+                .once('value');
+            
+            const scores = [];
+            snapshot.forEach((childSnapshot) => {
+                scores.push({
+                    id: childSnapshot.key,
+                    score: childSnapshot.val().score
+                });
+            });
+            
+            scores.sort((a, b) => b.score - a.score);
+            
+            if (scores.length > this.MAX_HIGH_SCORES) {
+                const toRemove = scores.slice(this.MAX_HIGH_SCORES);
+                const removePromises = toRemove.map(item => 
+                    this.db.ref(`highScores/${item.id}`).remove()
+                );
+                await Promise.all(removePromises);
+                console.log(`🧹 Cleaned up ${toRemove.length} old high scores`);
+            }
+            
+        } catch (error) {
+            console.error('Error cleaning up high scores:', error);
+        }
+    },
+    
+    // ============================================
+    // PLAYER STATISTICS
+    // ============================================
+    
+    // Save player statistics
+    async savePlayerStats(sessionId, stats) {
+        if (!this.db) return false;
+        
+        try {
+            const statsData = {
+                sessionId: sessionId,
+                timestamp: Date.now(),
+                score: stats.score || 0,
+                level: stats.level || 1,
+                lives: stats.lives || 0,
+                enemiesDestroyed: stats.enemiesDestroyed || 0,
+                shotsFired: stats.shotsFired || 0,
+                shotsHit: stats.shotsHit || 0,
+                accuracy: stats.shotsFired > 0 ? 
+                    ((stats.shotsHit / stats.shotsFired) * 100).toFixed(1) : 0,
+                powerupsCollected: stats.powerupsCollected || 0,
+                survivalTime: stats.survivalTime || 0,
+                difficulty: stats.difficulty || 'normal'
+            };
+            
+            await this.db.ref(`playerStats/${sessionId}`).set(statsData);
+            console.log('✅ Player stats saved');
+            
+            return true;
+            
+        } catch (error) {
+            console.error('Error saving player stats:', error);
+            return false;
+        }
+    },
+    
+    // Get player statistics
+    async getPlayerStats(limit = 10) {
+        if (!this.db) return [];
+        
+        try {
+            const snapshot = await this.db.ref('playerStats')
+                .orderByChild('timestamp')
+                .limitToLast(limit)
+                .once('value');
+            
+            const stats = [];
+            snapshot.forEach((childSnapshot) => {
+                stats.push(childSnapshot.val());
+            });
+            
+            stats.reverse();
+            this.cache.playerStats = stats;
+            
+            return stats;
+            
+        } catch (error) {
+            console.error('Error fetching player stats:', error);
+            return this.cache.playerStats || [];
+        }
+    },
+    
+    // ============================================
+    // GAME SETTINGS
+    // ============================================
+    
+    // Save game settings
+    async saveSettings(userId, settings) {
+        if (!this.db) {
+            localStorage.setItem('galaga_settings', JSON.stringify(settings));
+            return false;
+        }
+        
+        try {
+            await this.db.ref(`settings/${userId}`).set({
+                ...settings,
+                lastUpdated: Date.now()
+            });
+            
+            console.log('✅ Settings saved');
+            return true;
+            
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            localStorage.setItem('galaga_settings', JSON.stringify(settings));
+            return false;
+        }
+    },
+    
+    // Load game settings
+    async loadSettings(userId) {
+        if (!this.db) {
+            const stored = localStorage.getItem('galaga_settings');
+            return stored ? JSON.parse(stored) : null;
+        }
+        
+        try {
+            const snapshot = await this.db.ref(`settings/${userId}`).once('value');
+            const settings = snapshot.val();
+            
+            if (settings) {
+                this.cache.gameSettings = settings;
+            }
+            
+            return settings;
+            
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            const stored = localStorage.getItem('galaga_settings');
+            return stored ? JSON.parse(stored) : null;
+        }
+    },
+    
+    // ============================================
+    // ACHIEVEMENTS SYSTEM
+    // ============================================
+    
+    // Unlock achievement
+    async unlockAchievement(userId, achievementId, achievementData) {
+        if (!this.db) return false;
+        
+        try {
+            await this.db.ref(`achievements/${userId}/${achievementId}`).set({
+                ...achievementData,
+                unlockedAt: Date.now()
+            });
+            
+            console.log(`🏆 Achievement unlocked: ${achievementId}`);
+            return true;
+            
+        } catch (error) {
+            console.error('Error unlocking achievement:', error);
+            return false;
+        }
+    },
+    
+    // Get user achievements
+    async getUserAchievements(userId) {
+        if (!this.db) return [];
+        
+        try {
+            const snapshot = await this.db.ref(`achievements/${userId}`).once('value');
+            const achievements = [];
+            
+            snapshot.forEach((childSnapshot) => {
+                achievements.push({
+                    id: childSnapshot.key,
+                    ...childSnapshot.val()
+                });
+            });
+            
+            this.cache.achievements = achievements;
+            return achievements;
+            
+        } catch (error) {
+            console.error('Error fetching achievements:', error);
+            return this.cache.achievements;
+        }
+    },
+    
+    // ============================================
+    // UTILITY METHODS
+    // ============================================
+    
+    // Generate unique session ID
+    generateSessionId() {
+        return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    },
+    
+    // Get connection status
+    getConnectionStatus() {
+        return {
+            isConnected: this.isConnected,
+            hasDatabase: this.db !== null
+        };
+    },
+    
+    // Clear cache
+    clearCache() {
+        this.cache = {
+            highScores: [],
+            playerStats: null,
+            gameSettings: null,
+            achievements: []
+        };
+        console.log('🧹 Firebase cache cleared');
+    }
 };
 
-// Initialize Firebase
-let database; // Declare globally
-try {
-    if (typeof firebase !== 'undefined' && typeof firebase.initializeApp === 'function') {
-        firebase.initializeApp(firebaseConfig);
-        if (typeof firebase.database === 'function') {
-            database = firebase.database();
-        } else {
-            console.error("Firebase database service is not available.");
-            database = null;
-        }
-    } else {
-        console.error("Firebase core SDK is not loaded.");
-        database = null;
-    }
-} catch (e) {
-    console.error("Firebase initialization failed:", e);
-    database = null; // Ensure database is null on error
-}
-
+// Legacy variables for backward compatibility
+let database = null;
 let firebaseHighScores = [];
-const MAX_HIGH_SCORES = 10; // Max number of scores to store/display
+const MAX_HIGH_SCORES = 10;
 
 // Graphics performance monitoring functions
 window.showGraphicsPerformance = function() {
@@ -1470,6 +1827,12 @@ function gameLoop() {
 function initGame() {
     console.log('Initializing Galaga game...');
     
+    // Initialize Firebase Service
+    FirebaseService.init();
+    
+    // Set legacy database reference for backward compatibility
+    database = FirebaseService.db;
+    
     // Initialize audio engine
     AudioEngine.init();
     
@@ -1484,6 +1847,9 @@ function initGame() {
     
     // Initialize touch controls if on touch device
     initTouchControls();
+    
+    // Generate session ID for this gameplay
+    window.currentSessionId = FirebaseService.generateSessionId();
     
     // Fetch high scores from Firebase
     fetchHighScores();
@@ -1958,24 +2324,204 @@ const AlienSprites = {
         ctx.stroke();
         
         ctx.restore();
+    },
+    
+    // Draw dragonfly enemy (fast, zigzag movement)
+    drawDragonfly(ctx, x, y, time, scale = 1, attacking = false) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        
+        const wingBeat = Math.sin(time * 15) * 0.2;
+        
+        // Elongated body
+        ctx.fillStyle = '#00ff88';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Segments
+        ctx.strokeStyle = '#00aa66';
+        ctx.lineWidth = 1;
+        for (let i = -10; i < 10; i += 4) {
+            ctx.beginPath();
+            ctx.moveTo(-4, i);
+            ctx.lineTo(4, i);
+            ctx.stroke();
+        }
+        
+        // Four wings (dragonfly has 4 wings)
+        ctx.fillStyle = 'rgba(100, 255, 255, 0.4)';
+        // Upper wings
+        ctx.beginPath();
+        ctx.ellipse(-6, -4, 12, 4, -0.2 + wingBeat, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(6, -4, 12, 4, 0.2 - wingBeat, 0, Math.PI * 2);
+        ctx.fill();
+        // Lower wings
+        ctx.beginPath();
+        ctx.ellipse(-6, 2, 10, 3, -0.1 - wingBeat, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(6, 2, 10, 3, 0.1 + wingBeat, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Head
+        ctx.fillStyle = '#00ffaa';
+        ctx.beginPath();
+        ctx.arc(0, -12, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Compound eyes
+        ctx.fillStyle = '#ff0000';
+        ctx.beginPath();
+        ctx.arc(-2, -12, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(2, -12, 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+    },
+    
+    // Draw wasp enemy (aggressive, shoots often)
+    drawWasp(ctx, x, y, time, scale = 1, attacking = false) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        
+        const wingFlap = Math.sin(time * 14) * 0.35;
+        const abdomenPulse = attacking ? Math.sin(time * 20) * 0.15 : 0;
+        
+        // Head
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(0, -8, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Thorax
+        ctx.fillStyle = '#ffaa00';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Abdomen (striped)
+        ctx.fillStyle = '#ffaa00';
+        ctx.beginPath();
+        ctx.ellipse(0, 9 + abdomenPulse, 4, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Black stripes on abdomen
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(-4, 5, 8, 2);
+        ctx.fillRect(-4, 10, 8, 2);
+        ctx.fillRect(-4, 15, 8, 2);
+        
+        // Wings
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(-7, -2, 8, 10, -0.3 + wingFlap, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(7, -2, 8, 10, 0.3 - wingFlap, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Stinger (glows when attacking)
+        ctx.fillStyle = attacking ? '#ff0000' : '#333333';
+        ctx.beginPath();
+        ctx.moveTo(0, 19);
+        ctx.lineTo(-2, 23);
+        ctx.lineTo(2, 23);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Eyes
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(-2, -9, 1, 2);
+        ctx.fillRect(1, -9, 1, 2);
+        
+        ctx.restore();
+    },
+    
+    // Draw beetle enemy (armored, high HP)
+    drawBeetle(ctx, x, y, time, scale = 1, attacking = false) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        
+        const legMove = Math.sin(time * 8) * 0.3;
+        const shieldPulse = 0.9 + Math.sin(time * 3) * 0.1;
+        
+        // Shell/carapace with metallic look
+        const gradient = ctx.createRadialGradient(0, -2, 0, 0, 0, 12);
+        gradient.addColorStop(0, '#6633cc');
+        gradient.addColorStop(0.5, '#4411aa');
+        gradient.addColorStop(1, '#220077');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 10 * shieldPulse, 12 * shieldPulse, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Shell detail line
+        ctx.strokeStyle = '#8855ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -12);
+        ctx.lineTo(0, 12);
+        ctx.stroke();
+        
+        // Legs (6 legs like real beetles)
+        ctx.strokeStyle = '#220077';
+        ctx.lineWidth = 2;
+        for (let side = -1; side <= 1; side += 2) {
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(side * 8, -4 + i * 4);
+                ctx.lineTo(side * (12 + legMove), -2 + i * 4);
+                ctx.stroke();
+            }
+        }
+        
+        // Mandibles
+        ctx.strokeStyle = '#aa66ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-3, -12);
+        ctx.lineTo(-6, -16);
+        ctx.moveTo(3, -12);
+        ctx.lineTo(6, -16);
+        ctx.stroke();
+        
+        // Eyes
+        ctx.fillStyle = '#ffff00';
+        ctx.beginPath();
+        ctx.arc(-4, -8, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(4, -8, 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
     }
 };
 
 // --- ENEMY MANAGEMENT SYSTEM ---
 const EnemyManager = {
-    types: ['bee', 'butterfly', 'boss', 'scorpion', 'moth'],
+    types: ['bee', 'butterfly', 'boss', 'scorpion', 'moth', 'dragonfly', 'wasp', 'beetle'],
     spawnTimer: 0,
     spawnInterval: 2,
     maxEnemies: 32,
     waveNumber: 0,
     
-    // Progressive difficulty - enemy type unlocks
+    // Progressive difficulty - enemy type unlocks (8 total alien types!)
     getAvailableTypes(level) {
         const types = ['bee'];
-        if (level >= 2) types.push('butterfly');
+        if (level >= 2) types.push('butterfly', 'dragonfly');
         if (level >= 3) types.push('scorpion');
-        if (level >= 5) types.push('moth');
-        if (level >= 7) types.push('boss');
+        if (level >= 4) types.push('moth', 'wasp');
+        if (level >= 6) types.push('beetle');
+        if (level >= 8) types.push('boss');
         return types;
     },
     
@@ -1983,10 +2529,13 @@ const EnemyManager = {
     getEnemyProperties(type, level) {
         const baseProps = {
             bee: { hp: 1, speed: 100, score: 100, shootChance: 0.01, w: 20, h: 20, color: '#ffff00' },
-            butterfly: { hp: 1, speed: 80, score: 200, shootChance: 0.012, w: 24, h: 24, color: '#ff00ff' }, // Start with 1 HP
+            butterfly: { hp: 1, speed: 80, score: 200, shootChance: 0.012, w: 24, h: 24, color: '#ff00ff' },
             scorpion: { hp: 2, speed: 120, score: 250, shootChance: 0.015, w: 22, h: 22, color: '#ff6600' },
             moth: { hp: 1, speed: 150, score: 150, shootChance: 0.01, w: 22, h: 22, color: '#808080' },
-            boss: { hp: 3, speed: 60, score: 500, shootChance: 0.02, w: 32, h: 32, color: '#00ffff' } // Start with 3 HP instead of 5
+            dragonfly: { hp: 1, speed: 140, score: 180, shootChance: 0.011, w: 24, h: 28, color: '#00ff88' },
+            wasp: { hp: 2, speed: 110, score: 280, shootChance: 0.018, w: 20, h: 24, color: '#ffaa00' },
+            beetle: { hp: 3, speed: 70, score: 350, shootChance: 0.013, w: 26, h: 26, color: '#6633cc' },
+            boss: { hp: 3, speed: 60, score: 500, shootChance: 0.02, w: 32, h: 32, color: '#00ffff' }
         };
         
         const props = { ...baseProps[type] };
@@ -2311,6 +2860,15 @@ const EnemyManager = {
                 case 'moth':
                     AlienSprites.drawMoth(ctx, enemy.x, enemy.y, time, 1, attacking);
                     break;
+                case 'dragonfly':
+                    AlienSprites.drawDragonfly(ctx, enemy.x, enemy.y, time, 1, attacking);
+                    break;
+                case 'wasp':
+                    AlienSprites.drawWasp(ctx, enemy.x, enemy.y, time, 1, attacking);
+                    break;
+                case 'beetle':
+                    AlienSprites.drawBeetle(ctx, enemy.x, enemy.y, time, 1, attacking);
+                    break;
             }
             
             // Draw health bar for tougher enemies
@@ -2407,27 +2965,13 @@ if (document.readyState === 'loading') {
 // Missing game functions implementation
 
 // Fetch high scores from Firebase
-function fetchHighScores() {
-    if (!database) {
-        console.log('Database not available, using local high scores');
-        return;
-    }
-    
+async function fetchHighScores() {
     try {
-        database.ref('highScores').orderByChild('score').limitToLast(MAX_HIGH_SCORES).once('value')
-            .then((snapshot) => {
-                firebaseHighScores = [];
-                snapshot.forEach((childSnapshot) => {
-                    firebaseHighScores.push(childSnapshot.val());
-                });
-                firebaseHighScores.reverse(); // Show highest scores first
-                console.log('High scores fetched:', firebaseHighScores);
-            })
-            .catch((error) => {
-                console.error('Error fetching high scores:', error);
-            });
+        const scores = await FirebaseService.fetchHighScores();
+        firebaseHighScores = scores;
+        console.log(`📊 High scores loaded: ${scores.length} entries`);
     } catch (error) {
-        console.error('Firebase fetch error:', error);
+        console.error('Error in fetchHighScores:', error);
     }
 }
 
@@ -2451,6 +2995,17 @@ function resetGame() {
     level = 1;
     levelTransition = 0;
     screenShake = 0;
+    
+    // Reset game statistics
+    window.gameStats = {
+        enemiesDestroyed: 0,
+        shotsFired: 0,
+        shotsHit: 0,
+        powerupsCollected: 0,
+        survivalTime: 0,
+        accuracy: 0,
+        gameStartTime: Date.now()
+    };
     
     // Reset difficulty to level 1
     updateDifficultyForLevel(1);
@@ -2491,6 +3046,14 @@ function updateSplash() {
 // Update gameplay
 function updateGameplay() {
     if (!player.alive) return;
+    
+    // Update survival time
+    window.gameStats.survivalTime = (Date.now() - window.gameStats.gameStartTime) / 1000;
+    
+    // Calculate accuracy
+    if (window.gameStats.shotsFired > 0) {
+        window.gameStats.accuracy = ((window.gameStats.shotsHit / window.gameStats.shotsFired) * 100).toFixed(1);
+    }
     
     // Update player movement
     updatePlayer();
@@ -2782,27 +3345,38 @@ function handleHighScoreInput(e) {
 }
 
 // Submit high score to Firebase
-function submitHighScore() {
+async function submitHighScore() {
     const name = playerInitials.join('').trim().replace(/_/g, '') || 'AAA';
     
-    if (!database) {
-        console.log('Database not available, high score not saved');
-        return;
-    }
-    
     try {
-        const newScoreRef = database.ref('highScores').push();
-        newScoreRef.set({
-            name: name,
-            score: score,
-            level: level,
-            timestamp: Date.now()
-        }).then(() => {
-            console.log('High score saved successfully!');
-            fetchHighScores();
-        }).catch((error) => {
-            console.error('Error saving high score:', error);
-        });
+        // Collect game statistics
+        const gameStats = {
+            enemiesDestroyed: window.gameStats?.enemiesDestroyed || 0,
+            accuracy: window.gameStats?.accuracy || 0,
+            powerupsCollected: window.gameStats?.powerupsCollected || 0,
+            survivalTime: window.gameStats?.survivalTime || 0
+        };
+        
+        // Submit high score with stats
+        const success = await FirebaseService.submitHighScore(name, score, level, gameStats);
+        
+        if (success) {
+            // Also save detailed session stats
+            await FirebaseService.savePlayerStats(window.currentSessionId, {
+                score: score,
+                level: level,
+                lives: lives,
+                enemiesDestroyed: gameStats.enemiesDestroyed,
+                shotsFired: window.gameStats?.shotsFired || 0,
+                shotsHit: window.gameStats?.shotsHit || 0,
+                powerupsCollected: gameStats.powerupsCollected,
+                survivalTime: gameStats.survivalTime,
+                difficulty: 'normal'
+            });
+            
+            console.log('💾 High score and stats saved successfully!');
+            await fetchHighScores();
+        }
     } catch (error) {
         console.error('Firebase submission error:', error);
     }
@@ -2893,6 +3467,9 @@ function shoot() {
     // Play shooting sound
     AudioEngine.playerShoot();
     
+    // Track shots fired
+    window.gameStats.shotsFired++;
+    
     // Create bullet
     bullets.push({
         x: player.x,
@@ -2979,6 +3556,9 @@ function checkCollisions() {
                 bullets.splice(bulletIndex, 1);
                 enemy.hp--;
                 
+                // Track shot hit
+                window.gameStats.shotsHit++;
+                
                 // Play hit sound
                 AudioEngine.hit();
                 
@@ -2988,6 +3568,9 @@ function checkCollisions() {
                 if (enemy.hp <= 0) {
                     // Enemy destroyed
                     score += enemy.score;
+                    
+                    // Track enemy destruction
+                    window.gameStats.enemiesDestroyed++;
                     
                     // Play explosion sound
                     AudioEngine.explosion();
@@ -3093,6 +3676,9 @@ function checkCollisions() {
             applyPowerup(powerup.type);
             powerups.splice(i, 1);
             score += 50;
+            
+            // Track powerup collection
+            window.gameStats.powerupsCollected++;
             
             // Play powerup sound
             AudioEngine.powerup();
@@ -3288,17 +3874,34 @@ function drawPowerups() {
 }
 
 function drawParticles() {
-    POOL.particles.forEach(particle => {
-        if (!particle.active) return;
+    // Optimized: batch particles by color to reduce state changes
+    const particlesByColor = {};
+    
+    for (let i = 0; i < POOL.particles.length; i++) {
+        const particle = POOL.particles[i];
+        if (!particle.active) continue;
         
-        ctx.save();
-        ctx.globalAlpha = particle.life / particle.initialLife;
-        ctx.fillStyle = particle.color;
-        ctx.beginPath();
-        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-    });
+        if (!particlesByColor[particle.color]) {
+            particlesByColor[particle.color] = [];
+        }
+        particlesByColor[particle.color].push(particle);
+    }
+    
+    // Draw batched particles
+    for (const color in particlesByColor) {
+        const particles = particlesByColor[color];
+        ctx.fillStyle = color;
+        
+        for (let i = 0; i < particles.length; i++) {
+            const particle = particles[i];
+            ctx.globalAlpha = particle.life / particle.initialLife;
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    
+    ctx.globalAlpha = 1; // Reset alpha
 }
 
 function drawUI() {
