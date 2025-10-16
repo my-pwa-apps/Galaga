@@ -132,9 +132,6 @@ const GalagaGame = {
         this.updatePlayer(dt);
         
         // Update enemies
-        if (GameState.enemies.length === 0 && GameState.levelTransition === 0) {
-            EnemyManager.spawnWave(GameState.level, GameState);
-        }
         EnemyManager.update(dt, GameState);
         
         // Update powerups
@@ -158,7 +155,7 @@ const GalagaGame = {
             this.screenShake -= dt * 60;
         }
         
-        // Check for level complete
+        // Check for level complete (all enemies destroyed)
         if (GameState.enemies.length === 0 && GameState.levelTransition === 0) {
             this.completeLevel();
         }
@@ -447,6 +444,7 @@ const GalagaGame = {
                     AudioEngine.menuSelect();
                     GameState.setState(GameConfig.STATE.PLAYING);
                     GameState.reset();
+                    EnemyManager.spawnWave(GameState.level, GameState);
                 }
                 break;
                 
@@ -493,7 +491,7 @@ const GalagaGame = {
                 // Submit high score
                 else if (keyCode === 'Enter' || keyCode === 'Space') {
                     const name = GameState.playerInitials.join('');
-                    FirebaseService.saveHighScore(name, GameState.score, GameState.stats);
+                    FirebaseService.submitHighScore(name, GameState.score, GameState.level, GameState.stats);
                     AudioEngine.menuSelect();
                     GameState.setState(GameConfig.STATE.SPLASH);
                     this.fetchHighScores();
