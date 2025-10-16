@@ -132,7 +132,7 @@ const GalagaGame = {
         this.updatePlayer(dt);
         
         // Update enemies
-        if (GameState.enemies.length === 0) {
+        if (GameState.enemies.length === 0 && GameState.levelTransition === 0) {
             EnemyManager.spawnWave(GameState.level, GameState);
         }
         EnemyManager.update(dt, GameState);
