@@ -59,6 +59,7 @@ const GameState = {
     // High score entry
     playerInitials: ['A', 'A', 'A'],
     initialIndex: 0,
+    highScores: [],
     
     // Session tracking
     sessionId: null,
