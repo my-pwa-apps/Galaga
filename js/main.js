@@ -439,13 +439,10 @@ const GalagaGame = {
     // Handle key press
     handleKeyPress(keyCode) {
         const state = GameState.current;
-        console.log('handleKeyPress called:', { keyCode, state, splashState: GameConfig.STATE.SPLASH });
         
         switch (state) {
             case GameConfig.STATE.SPLASH:
-                console.log('In SPLASH case, checking key:', keyCode);
                 if (keyCode === 'Space' || keyCode === 'Enter') {
-                    console.log('Starting game!');
                     AudioEngine.menuSelect();
                     GameState.setState(GameConfig.STATE.PLAYING);
                     GameState.reset();
