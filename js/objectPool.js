@@ -7,14 +7,17 @@ const ObjectPool = {
     // Bullet pool
     bulletPool: [],
     bulletPoolSize: 50,
+    nextBulletIndex: 0,
     
     // Enemy bullet pool
     enemyBulletPool: [],
     enemyBulletPoolSize: 100,
+    nextEnemyBulletIndex: 0,
     
     // Particle pool
     particlePool: [],
     particlePoolSize: 250,
+    nextParticleIndex: 0,
     
     // Initialize all pools
     init() {
@@ -78,52 +81,65 @@ const ObjectPool = {
         }
     },
     
-    // Get bullet from pool
+    // Get bullet from pool - optimized with round-robin allocation
     getBullet(x, y, speed = 400, from = 'player') {
-        const bullet = this.bulletPool.find(b => !b.active);
-        if (bullet) {
-            bullet.x = x;
-            bullet.y = y;
-            bullet.speed = speed;
-            bullet.from = from;
-            bullet.active = true;
-            return bullet;
+        // Try round-robin first for better distribution
+        for (let i = 0; i < this.bulletPoolSize; i++) {
+            const index = (this.nextBulletIndex + i) % this.bulletPoolSize;
+            const bullet = this.bulletPool[index];
+            if (!bullet.active) {
+                bullet.x = x;
+                bullet.y = y;
+                bullet.speed = speed;
+                bullet.from = from;
+                bullet.active = true;
+                this.nextBulletIndex = (index + 1) % this.bulletPoolSize;
+                return bullet;
+            }
         }
-        return null;
+        return null; // Pool exhausted
     },
     
-    // Get enemy bullet from pool
+    // Get enemy bullet from pool - optimized with round-robin allocation
     getEnemyBullet(x, y, vx, vy, speed = 200) {
-        const bullet = this.enemyBulletPool.find(b => !b.active);
-        if (bullet) {
-            bullet.x = x;
-            bullet.y = y;
-            bullet.vx = vx;
-            bullet.vy = vy;
-            bullet.speed = speed;
-            bullet.from = 'enemy';
-            bullet.active = true;
-            return bullet;
+        for (let i = 0; i < this.enemyBulletPoolSize; i++) {
+            const index = (this.nextEnemyBulletIndex + i) % this.enemyBulletPoolSize;
+            const bullet = this.enemyBulletPool[index];
+            if (!bullet.active) {
+                bullet.x = x;
+                bullet.y = y;
+                bullet.vx = vx;
+                bullet.vy = vy;
+                bullet.speed = speed;
+                bullet.from = 'enemy';
+                bullet.active = true;
+                this.nextEnemyBulletIndex = (index + 1) % this.enemyBulletPoolSize;
+                return bullet;
+            }
         }
-        return null;
+        return null; // Pool exhausted
     },
     
-    // Get particle from pool
+    // Get particle from pool - optimized with round-robin allocation
     getParticle(x, y, vx, vy, color, size = 2, life = 1) {
-        const particle = this.particlePool.find(p => !p.active);
-        if (particle) {
-            particle.x = x;
-            particle.y = y;
-            particle.vx = vx;
-            particle.vy = vy;
-            particle.color = color;
-            particle.size = size;
-            particle.life = life;
-            particle.maxLife = life;
-            particle.active = true;
-            return particle;
+        for (let i = 0; i < this.particlePoolSize; i++) {
+            const index = (this.nextParticleIndex + i) % this.particlePoolSize;
+            const particle = this.particlePool[index];
+            if (!particle.active) {
+                particle.x = x;
+                particle.y = y;
+                particle.vx = vx;
+                particle.vy = vy;
+                particle.color = color;
+                particle.size = size;
+                particle.life = life;
+                particle.maxLife = life;
+                particle.active = true;
+                this.nextParticleIndex = (index + 1) % this.particlePoolSize;
+                return particle;
+            }
         }
-        return null;
+        return null; // Pool exhausted
     },
     
     // Return bullet to pool
@@ -161,6 +177,10 @@ const ObjectPool = {
         this.bulletPool.forEach(b => b.active = false);
         this.enemyBulletPool.forEach(b => b.active = false);
         this.particlePool.forEach(p => p.active = false);
+        // Reset indices
+        this.nextBulletIndex = 0;
+        this.nextEnemyBulletIndex = 0;
+        this.nextParticleIndex = 0;
     },
     
     // Get pool statistics

@@ -29,7 +29,9 @@ const GameState = {
         alive: true,
         power: 'normal',
         powerTimer: 0,
-        shield: false
+        shield: false,
+        invulnerable: false,
+        invulnerabilityTimer: 0
     },
     
     // Input state
@@ -117,7 +119,9 @@ const GameState = {
             alive: true,
             power: 'normal',
             powerTimer: 0,
-            shield: false
+            shield: false,
+            invulnerable: false,
+            invulnerabilityTimer: 0
         };
         
         this.bullets = [];

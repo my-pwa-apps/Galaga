@@ -63,6 +63,35 @@ const InputManager = {
     initKeyboard() {
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
         document.addEventListener('keyup', (e) => this.handleKeyUp(e));
+        
+        // Handle window blur/focus to prevent stuck keys
+        window.addEventListener('blur', () => this.handleWindowBlur());
+        window.addEventListener('focus', () => this.handleWindowFocus());
+        
+        // Make canvas focusable and handle clicks
+        if (this.canvas) {
+            this.canvas.tabIndex = 1000; // Make canvas focusable
+            this.canvas.addEventListener('click', () => {
+                this.canvas.focus();
+            });
+            
+            // Focus canvas immediately
+            this.canvas.focus();
+        }
+    },
+    
+    // Handle window losing focus
+    handleWindowBlur() {
+        console.log('Window lost focus - resetting input state');
+        this.reset();
+    },
+    
+    // Handle window regaining focus
+    handleWindowFocus() {
+        console.log('Window regained focus - ready for input');
+        if (this.canvas) {
+            this.canvas.focus();
+        }
     },
     
     // Handle key down
@@ -166,7 +195,18 @@ const InputManager = {
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
             
-            // Check which button was touched
+            // For splash/game over screens - treat any tap as Enter/Space
+            // This allows tap-anywhere to start/continue
+            // Trigger the state change callback which handles screen transitions
+            if (this.onStateChange) {
+                this.onStateChange('Space');
+            }
+            
+            // Also simulate Space key for consistent handling
+            this.keys['Space'] = true;
+            setTimeout(() => { this.keys['Space'] = false; }, 100);
+            
+            // Check which button was touched (for gameplay)
             for (const [buttonName, button] of Object.entries(this.touchControls.buttons)) {
                 if (x >= button.x && x <= button.x + button.w &&
                     y >= button.y && y <= button.y + button.h) {

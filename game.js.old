@@ -2033,7 +2033,23 @@ function handleTouchStart(e) {
         const x = touch.clientX - rect.left;
         const y = touch.clientY - rect.top;
         
-        // Check which button was touched
+        // Handle splash screen - tap anywhere to start
+        if (state === GAME_STATE.SPLASH) {
+            AudioEngine.menuSelect();
+            state = GAME_STATE.PLAYING;
+            resetGame();
+            return;
+        }
+        
+        // Handle game over screen - tap anywhere to return to splash
+        if (state === GAME_STATE.GAME_OVER) {
+            AudioEngine.menuSelect();
+            state = GAME_STATE.SPLASH;
+            fetchHighScores();
+            return;
+        }
+        
+        // Check which button was touched during gameplay
         for (const [buttonName, button] of Object.entries(touchControls.buttons)) {
             if (x >= button.x && x <= button.x + button.w &&
                 y >= button.y && y <= button.y + button.h) {
@@ -2618,8 +2634,8 @@ const EnemyManager = {
     
     // Update enemy AI
     update(dt) {
-        // Spawn new wave if all enemies defeated
-        if (enemies.length === 0 && state === GAME_STATE.PLAYING) {
+        // Spawn new wave if all enemies defeated (but not during level transition)
+        if (enemies.length === 0 && state === GAME_STATE.PLAYING && levelTransition <= 0) {
             this.spawnWave(level);
         }
         
@@ -3141,13 +3157,24 @@ function drawArcadeSplash() {
     ctx.globalAlpha = blinkSpeed;
     ctx.font = 'bold 16px monospace';
     ctx.fillStyle = '#ffff00';
-    ctx.fillText('PRESS SPACE TO START', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 80);
+    
+    // Show appropriate message based on device
+    if (isTouchDevice && !hasKeyboard) {
+        ctx.fillText('TAP TO START', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 80);
+    } else {
+        ctx.fillText('PRESS SPACE TO START', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 80);
+    }
     
     // Controls info
     ctx.globalAlpha = 0.8;
     ctx.font = '12px monospace';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('← → MOVE    SPACE FIRE    P PAUSE', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+    
+    if (isTouchDevice && !hasKeyboard) {
+        ctx.fillText('USE ON-SCREEN CONTROLS', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+    } else {
+        ctx.fillText('← → MOVE    SPACE FIRE    P PAUSE', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+    }
     
     // High score display
     if (firebaseHighScores.length > 0) {

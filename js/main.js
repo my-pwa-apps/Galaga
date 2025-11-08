@@ -3,12 +3,24 @@
 // Coordinates all modules and game logic
 // ============================================
 
+// Debug logging utility
+const debugLog = (...args) => {
+    if (GameConfig.DEBUG_MODE) {
+        console.log(...args);
+    }
+};
+
 // Game instance
 const GalagaGame = {
     // Timing
     lastTime: 0,
     dt: 0,
     currentTime: 0,
+    monitorLogTimer: 0,
+    lastMonitorLevel: null,
+    lastMonitorEnemyCount: null,
+    lastMonitorWaveNumber: null,
+    lastMonitorSpawningFlag: null,
     
     // Session
     sessionId: null,
@@ -51,12 +63,21 @@ const GalagaGame = {
         
         // Reset game state
         GameState.reset();
+    this.resetMonitorDebug();
         
         console.log('✅ Game initialized successfully!');
         
         // Start game loop
         this.lastTime = performance.now();
         requestAnimationFrame(() => this.gameLoop());
+    },
+
+    resetMonitorDebug() {
+        this.monitorLogTimer = 0;
+        this.lastMonitorLevel = null;
+        this.lastMonitorEnemyCount = null;
+        this.lastMonitorWaveNumber = null;
+        this.lastMonitorSpawningFlag = null;
     },
     
     // Main game loop
@@ -156,20 +177,59 @@ const GalagaGame = {
         }
         
         // Check for level complete (all enemies destroyed)
-        // Only check if we've spawned enemies (waveNumber > 0)
-        if (GameState.enemies.length === 0 && 
-            GameState.levelTransition === 0 && 
-            EnemyManager.waveNumber > 0) {
-            console.log('🎉 Level complete! Enemy count:', GameState.enemies.length, 'Wave:', EnemyManager.waveNumber);
+        // Conditions:
+        //  - No enemies left
+        //  - Not already transitioning
+        //  - At least one wave spawned (waveNumber > 0)
+        //  - Not in the middle of timed spawning phase (spawningWave === false)
+        
+        // Continuous monitoring when enemies are low OR in level 2+
+    const shouldMonitor = (GameState.enemies.length <= 3 || GameState.level >= 2) && GameState.levelTransition <= 0;
+        if (shouldMonitor) {
+            this.monitorLogTimer += dt;
+            const stateChanged = GameState.level !== this.lastMonitorLevel ||
+                GameState.enemies.length !== this.lastMonitorEnemyCount ||
+                EnemyManager.waveNumber !== this.lastMonitorWaveNumber ||
+                EnemyManager.spawningWave !== this.lastMonitorSpawningFlag;
+            if (stateChanged || this.monitorLogTimer >= 1) {
+                debugLog('[MONITOR] Level:', GameState.level, 'Enemies:', GameState.enemies.length, 'Wave#:', EnemyManager.waveNumber, 'Spawning:', EnemyManager.spawningWave);
+                if (GameConfig.DEBUG_MODE) {
+                    GameState.enemies.forEach((e, i) => {
+                        debugLog(`  Enemy ${i}: state=${e.state}, x=${Math.round(e.x)}, y=${Math.round(e.y)}, type=${e.type}`);
+                    });
+                }
+                this.monitorLogTimer = 0;
+                this.lastMonitorLevel = GameState.level;
+                this.lastMonitorEnemyCount = GameState.enemies.length;
+                this.lastMonitorWaveNumber = EnemyManager.waveNumber;
+                this.lastMonitorSpawningFlag = EnemyManager.spawningWave;
+            }
+        } else {
+            this.monitorLogTimer = 0;
+            this.lastMonitorLevel = null;
+            this.lastMonitorEnemyCount = null;
+            this.lastMonitorWaveNumber = null;
+            this.lastMonitorSpawningFlag = null;
+        }
+        
+        if (GameState.enemies.length === 0 &&
+            GameState.levelTransition === 0 &&
+            EnemyManager.waveNumber > 0 &&
+            !EnemyManager.spawningWave) {
+            console.log('🎉 Level complete! Level:', GameState.level, 'Enemy count:', GameState.enemies.length, 'Wave:', EnemyManager.waveNumber, 'spawningWave:', EnemyManager.spawningWave);
             this.completeLevel();
+        } else if (GameState.enemies.length === 0 && GameState.levelTransition === 0) {
+            // Debug why level isn't completing
+            console.log('[DEBUG] Level not completing - waveNumber:', EnemyManager.waveNumber, 'spawningWave:', EnemyManager.spawningWave, 'enemies:', GameState.enemies.length);
         }
         
         // Handle level transition
         if (GameState.levelTransition > 0) {
             GameState.levelTransition -= dt;
             if (GameState.levelTransition <= 0) {
-                console.log('⬆️ Advancing to level', GameState.level + 1);
+                GameState.levelTransition = 0;
                 GameState.level++;
+                console.log('⬆️ Level transition complete! Now starting level', GameState.level);
                 this.updateDifficulty();
                 EnemyManager.spawnWave(GameState.level, GameState);
                 AudioEngine.levelComplete();
@@ -180,6 +240,16 @@ const GalagaGame = {
     // Update player
     updatePlayer(dt) {
         const player = GameState.player;
+        
+        // Update invulnerability timer
+        if (player.invulnerable) {
+            player.invulnerabilityTimer -= dt;
+            if (player.invulnerabilityTimer <= 0) {
+                player.invulnerable = false;
+                player.invulnerabilityTimer = 0;
+                console.log('✅ Invulnerability ended');
+            }
+        }
         
         // Movement
         if (InputManager.isLeft()) {
@@ -217,7 +287,7 @@ const GalagaGame = {
                 y: player.y - 10,
                 w: 3,
                 h: 8,
-                speed: 400,
+                speed: GameConfig.PLAYER.BULLET_SPEED,
                 from: 'player'
             });
             GameState.bullets.push({
@@ -225,7 +295,7 @@ const GalagaGame = {
                 y: player.y - 10,
                 w: 3,
                 h: 8,
-                speed: 400,
+                speed: GameConfig.PLAYER.BULLET_SPEED,
                 from: 'player'
             });
         } else {
@@ -235,7 +305,7 @@ const GalagaGame = {
                 y: player.y - 10,
                 w: 3,
                 h: 8,
-                speed: 400,
+                speed: GameConfig.PLAYER.BULLET_SPEED,
                 from: 'player'
             });
         }
@@ -332,6 +402,7 @@ const GalagaGame = {
                     if (GameState.lives <= 0) {
                         GameState.player.alive = false;
                         GameState.setState(GameConfig.STATE.GAME_OVER);
+                        EnemyManager.reset(); // cancel pending spawns on player death
                         AudioEngine.playerDeath();
                         
                         // Check for high score
@@ -343,14 +414,31 @@ const GalagaGame = {
                 }
             },
             
-            onEnemyPlayerHit: (enemy) => {
+            onEnemyPlayerHit: (enemyIdx, enemy) => {
+                // Only process hit if player isn't already invulnerable
+                if (GameState.player.invulnerable) return;
+                
+                // Remove the enemy that hit the player
+                if (enemy.formationSpot) {
+                    enemy.formationSpot.taken = false;
+                }
+                GameState.enemies.splice(enemyIdx, 1);
+                
+                // Player takes damage
                 GameState.lives--;
+                AudioEngine.hit();
                 
                 if (GameState.lives <= 0) {
                     GameState.player.alive = false;
                     GameState.setState(GameConfig.STATE.GAME_OVER);
+                    EnemyManager.reset(); // cancel pending spawns on player death
                     AudioEngine.playerDeath();
                     this.checkHighScore();
+                } else {
+                    // Grant temporary invulnerability
+                    GameState.player.invulnerable = true;
+                    GameState.player.invulnerabilityTimer = 2.0; // 2 seconds immunity
+                    console.log(`💔 Hit! Lives remaining: ${GameState.lives}`);
                 }
                 
                 this.createExplosion(GameState.player.x, GameState.player.y);
@@ -450,6 +538,8 @@ const GalagaGame = {
                     AudioEngine.menuSelect();
                     GameState.setState(GameConfig.STATE.PLAYING);
                     GameState.reset();
+                    this.resetMonitorDebug();
+                    EnemyManager.reset(); // clear wave timers & waveNumber before starting
                     EnemyManager.spawnWave(GameState.level, GameState);
                 }
                 break;
@@ -554,35 +644,91 @@ const GalagaGame = {
     // Draw splash screen
     drawSplash() {
         const ctx = Renderer.ctx;
+        const time = this.currentTime / 1000;
         
-        Renderer.drawText('GALAGA', GameConfig.CANVAS_WIDTH / 2, 150, {
-            font: '48px monospace',
-            color: GameConfig.COLORS.TEXT,
-            align: 'center',
-            shadow: true
-        });
+        // Title with glowing effect
+        ctx.save();
         
-        Renderer.drawText('PRESS SPACE TO START', GameConfig.CANVAS_WIDTH / 2, 350, {
-            font: '16px monospace',
-            color: GameConfig.COLORS.TEXT_DIM,
+        // Outer glow
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 30;
+        ctx.fillStyle = '#00ffff';
+        ctx.font = 'bold 56px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('GALAGA', GameConfig.CANVAS_WIDTH / 2, 120);
+        
+        // Inner title
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('GALAGA', GameConfig.CANVAS_WIDTH / 2, 120);
+        ctx.restore();
+        
+        // Animated subtitle with rainbow effect
+        const hue = (time * 50) % 360;
+        ctx.save();
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+        ctx.fillText('◄ RETRO SPACE SHOOTER ►', GameConfig.CANVAS_WIDTH / 2, 170);
+        ctx.restore();
+        
+        // Draw some sample aliens flying by
+        const alienY = 250;
+        AlienSprites.draw(ctx, 'skulker', 90, alienY + Math.sin(time * 2) * 5, time, 1.2, false);
+        AlienSprites.draw(ctx, 'hunter', 180, alienY + Math.sin(time * 2 + 1) * 5, time, 1.2, false);
+        AlienSprites.draw(ctx, 'octopus', 270, alienY + Math.sin(time * 2 + 2) * 5, time, 1.2, false);
+        AlienSprites.draw(ctx, 'parasite', 360, alienY + Math.sin(time * 2 + 3) * 5, time, 1.2, false);
+        
+        // Pulsing start message
+        const pulse = 0.7 + Math.sin(time * 4) * 0.3;
+        const startText = InputManager.isTouchDevice ? '▶ TAP TO START ◀' : '▶ PRESS SPACE ◀';
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 15;
+        Renderer.drawText(startText, GameConfig.CANVAS_WIDTH / 2, 360, {
+            font: 'bold 18px monospace',
+            color: '#ffff00',
             align: 'center'
         });
+        ctx.restore();
         
-        // Draw high scores
-        Renderer.drawText('HIGH SCORES', GameConfig.CANVAS_WIDTH / 2, 450, {
-            font: '14px monospace',
-            color: GameConfig.COLORS.TEXT,
+        // Decorative line
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(80, 410);
+        ctx.lineTo(400, 410);
+        ctx.stroke();
+        
+        // Draw high scores with better styling
+        Renderer.drawText('═══ HIGH SCORES ═══', GameConfig.CANVAS_WIDTH / 2, 430, {
+            font: 'bold 14px monospace',
+            color: '#00ffff',
             align: 'center'
         });
         
         GameState.highScores.slice(0, 5).forEach((entry, i) => {
-            const y = 480 + i * 20;
-            Renderer.drawText(`${i + 1}. ${entry.name} ${entry.score}`, 
-                GameConfig.CANVAS_WIDTH / 2, y, {
-                font: '12px monospace',
-                color: GameConfig.COLORS.TEXT_DIM,
-                align: 'center'
-            });
+            const y = 460 + i * 22;
+            const isTopScore = i === 0;
+            
+            // Rank medal
+            const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
+            ctx.font = '13px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = isTopScore ? '#ffff00' : GameConfig.COLORS.TEXT_DIM;
+            ctx.fillText(medals[i], 100, y);
+            
+            // Name
+            ctx.textAlign = 'center';
+            ctx.fillStyle = isTopScore ? '#ffaa00' : GameConfig.COLORS.TEXT;
+            ctx.fillText(entry.name, GameConfig.CANVAS_WIDTH / 2 - 40, y);
+            
+            // Score with formatting
+            ctx.textAlign = 'right';
+            ctx.fillStyle = isTopScore ? '#00ff00' : GameConfig.COLORS.TEXT_DIM;
+            ctx.fillText(entry.score.toLocaleString(), 380, y);
         });
     },
     
@@ -594,16 +740,36 @@ const GalagaGame = {
         // Draw enemies
         EnemyManager.draw(ctx, GameState, time);
         
-        // Draw player bullets
-        ctx.fillStyle = GameConfig.COLORS.BULLET_PLAYER;
+        // Draw player bullets with glow
         GameState.bullets.forEach(bullet => {
-            ctx.fillRect(bullet.x - 1, bullet.y - 4, 2, 8);
+            ctx.save();
+            // Glow effect
+            ctx.shadowColor = '#ffff00';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(bullet.x - 1.5, bullet.y - 5, 3, 10);
+            
+            // Bright core
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bullet.x - 0.5, bullet.y - 4, 1, 8);
+            ctx.restore();
         });
         
-        // Draw enemy bullets
-        ctx.fillStyle = GameConfig.COLORS.BULLET_ENEMY;
+        // Draw enemy bullets with glow
         GameState.enemyBullets.forEach(bullet => {
+            ctx.save();
+            // Glow effect
+            ctx.shadowColor = '#ff0066';
+            ctx.shadowBlur = 6;
+            ctx.fillStyle = '#ff0066';
             ctx.fillRect(bullet.x - 2, bullet.y - 3, 4, 6);
+            
+            // Bright core
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffaacc';
+            ctx.fillRect(bullet.x - 1, bullet.y - 2, 2, 4);
+            ctx.restore();
         });
         
         // Draw powerups
@@ -633,6 +799,12 @@ const GalagaGame = {
         
         if (!player.alive) return;
         
+        // Invulnerability flashing effect
+        if (player.invulnerable) {
+            const flash = Math.sin(this.currentTime * 0.02) > 0;
+            if (!flash) return; // Skip rendering to create flashing effect
+        }
+        
         // Shield effect
         if (player.shield) {
             ctx.save();
@@ -645,12 +817,43 @@ const GalagaGame = {
             ctx.restore();
         }
         
-        // Player ship - detailed Galaga-style fighter
+        // Player ship - enhanced Galaga-style fighter
         ctx.save();
         ctx.translate(player.x, player.y);
         
-        // Main body (blue/cyan)
-        ctx.fillStyle = '#00d4ff';
+        // Engine glow (behind ship)
+        if (player.alive) {
+            const thrustPulse = 0.6 + Math.sin(this.currentTime * 0.03) * 0.4;
+            const gradient = ctx.createRadialGradient(0, 16, 0, 0, 16, 10);
+            gradient.addColorStop(0, `rgba(255, 150, 0, ${thrustPulse})`);
+            gradient.addColorStop(0.5, `rgba(255, 100, 0, ${thrustPulse * 0.5})`);
+            gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(-8, 14, 16, 8);
+        }
+        
+        // Wing shadow
+        ctx.fillStyle = 'rgba(0, 50, 80, 0.5)';
+        ctx.beginPath();
+        ctx.moveTo(-1, -13);
+        ctx.lineTo(-9, 1);
+        ctx.lineTo(-7, 9);
+        ctx.lineTo(-4, 11);
+        ctx.lineTo(-4, 15);
+        ctx.lineTo(2, 15);
+        ctx.lineTo(2, 11);
+        ctx.lineTo(5, 9);
+        ctx.lineTo(7, 1);
+        ctx.lineTo(-1, -13);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Main body with gradient (blue/cyan)
+        const bodyGradient = ctx.createLinearGradient(0, -14, 0, 14);
+        bodyGradient.addColorStop(0, '#00eeff');
+        bodyGradient.addColorStop(0.5, '#00d4ff');
+        bodyGradient.addColorStop(1, '#0088cc');
+        ctx.fillStyle = bodyGradient;
         ctx.beginPath();
         ctx.moveTo(0, -14);      // Nose
         ctx.lineTo(-8, 0);       // Left wing base
@@ -664,8 +867,11 @@ const GalagaGame = {
         ctx.closePath();
         ctx.fill();
         
-        // Cockpit (darker blue)
-        ctx.fillStyle = '#0088cc';
+        // Cockpit (darker blue with gradient)
+        const cockpitGradient = ctx.createLinearGradient(0, -10, 0, 2);
+        cockpitGradient.addColorStop(0, '#0099dd');
+        cockpitGradient.addColorStop(1, '#0055aa');
+        ctx.fillStyle = cockpitGradient;
         ctx.beginPath();
         ctx.moveTo(0, -10);
         ctx.lineTo(-4, 2);
@@ -673,31 +879,36 @@ const GalagaGame = {
         ctx.closePath();
         ctx.fill();
         
-        // Canopy highlight (bright cyan)
-        ctx.fillStyle = '#00ffff';
+        // Canopy highlight (bright cyan with glow)
+        ctx.save();
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = '#66ffff';
         ctx.beginPath();
         ctx.moveTo(0, -8);
         ctx.lineTo(-2, -2);
         ctx.lineTo(2, -2);
         ctx.closePath();
         ctx.fill();
+        ctx.restore();
         
-        // Wing details (yellow accents)
-        ctx.fillStyle = '#ffff00';
-        ctx.fillRect(-7, 1, 2, 2);
-        ctx.fillRect(5, 1, 2, 2);
+        // Wing lights (animated yellow/red accents)
+        const wingPulse = Math.sin(this.currentTime * 0.015);
+        ctx.fillStyle = wingPulse > 0 ? '#ffff00' : '#ff6600';
+        ctx.shadowColor = wingPulse > 0 ? '#ffff00' : '#ff6600';
+        ctx.shadowBlur = 4;
+        ctx.fillRect(-7, 0, 2, 3);
+        ctx.fillRect(5, 0, 2, 3);
+        ctx.shadowBlur = 0;
         
-        // Thruster glow (animated)
-        if (player.alive) {
-            const glowIntensity = 0.5 + Math.sin(this.currentTime * 0.02) * 0.5;
-            ctx.fillStyle = `rgba(255, 100, 0, ${glowIntensity})`;
-            ctx.fillRect(-2, 14, 1, 2);
-            ctx.fillRect(1, 14, 1, 2);
-        }
+        // Thruster ports (metallic detail)
+        ctx.fillStyle = '#003355';
+        ctx.fillRect(-2, 13, 2, 2);
+        ctx.fillRect(0, 13, 2, 2);
         
         // Outline for definition
-        ctx.strokeStyle = '#004466';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#001122';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(0, -14);
         ctx.lineTo(-8, 0);
@@ -716,23 +927,60 @@ const GalagaGame = {
     
     // Draw HUD
     drawHUD(ctx) {
-        // Score
-        Renderer.drawText(`SCORE: ${GameState.score}`, 10, 10, {
-            font: '14px monospace',
-            color: GameConfig.COLORS.TEXT
-        });
+        // HUD background panel
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(5, 5, 150, 70);
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(5, 5, 150, 70);
+        ctx.restore();
         
-        // Level
-        Renderer.drawText(`LEVEL: ${GameState.level}`, 10, 30, {
-            font: '14px monospace',
-            color: GameConfig.COLORS.TEXT
+        // Score with glow
+        ctx.save();
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 8;
+        Renderer.drawText(`SCORE`, 15, 12, {
+            font: 'bold 12px monospace',
+            color: '#00ffff'
         });
+        Renderer.drawText(`${GameState.score.toLocaleString()}`, 15, 28, {
+            font: 'bold 16px monospace',
+            color: '#ffff00'
+        });
+        ctx.restore();
         
-        // Lives
-        Renderer.drawText(`LIVES: ${GameState.lives}`, 10, 50, {
-            font: '14px monospace',
-            color: GameConfig.COLORS.TEXT
+        // Level indicator with icon
+        ctx.save();
+        ctx.shadowColor = '#00ff00';
+        ctx.shadowBlur = 6;
+        Renderer.drawText(`⬆ LV ${GameState.level}`, 15, 48, {
+            font: 'bold 14px monospace',
+            color: '#00ff88'
         });
+        ctx.restore();
+        
+        // Lives display with ship icons
+        ctx.save();
+        Renderer.drawText(`♥`, 15, 62, {
+            font: '14px monospace',
+            color: '#ff0066'
+        });
+        for (let i = 0; i < GameState.lives; i++) {
+            const shipX = 35 + i * 20;
+            const shipY = 68;
+            
+            // Mini ship icon
+            ctx.fillStyle = '#00d4ff';
+            ctx.beginPath();
+            ctx.moveTo(shipX, shipY - 5);
+            ctx.lineTo(shipX - 3, shipY + 2);
+            ctx.lineTo(shipX, shipY + 1);
+            ctx.lineTo(shipX + 3, shipY + 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
     },
     
     // Draw touch controls
@@ -750,57 +998,212 @@ const GalagaGame = {
     
     // Draw pause screen
     drawPauseScreen() {
-        Renderer.drawText('PAUSED', GameConfig.CANVAS_WIDTH / 2, GameConfig.CANVAS_HEIGHT / 2, {
-            font: '32px monospace',
-            color: GameConfig.COLORS.TEXT,
-            align: 'center',
-            shadow: true
-        });
+        const ctx = Renderer.ctx;
+        const time = this.currentTime / 1000;
         
-        Renderer.drawText('PRESS P TO RESUME', GameConfig.CANVAS_WIDTH / 2, 
-            GameConfig.CANVAS_HEIGHT / 2 + 40, {
-            font: '14px monospace',
-            color: GameConfig.COLORS.TEXT_DIM,
+        // Semi-transparent overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
+        
+        // Animated border
+        const borderPulse = 0.5 + Math.sin(time * 3) * 0.5;
+        ctx.strokeStyle = `rgba(0, 255, 255, ${borderPulse})`;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(100, 250, 280, 120);
+        
+        // Title with glow
+        ctx.save();
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 20;
+        Renderer.drawText('║║ PAUSED ║║', GameConfig.CANVAS_WIDTH / 2, GameConfig.CANVAS_HEIGHT / 2 - 20, {
+            font: 'bold 36px monospace',
+            color: '#00ffff',
             align: 'center'
         });
+        ctx.restore();
+        
+        // Instructions
+        const instructionPulse = 0.6 + Math.sin(time * 4) * 0.4;
+        ctx.save();
+        ctx.globalAlpha = instructionPulse;
+        Renderer.drawText('PRESS P TO RESUME', GameConfig.CANVAS_WIDTH / 2, 
+            GameConfig.CANVAS_HEIGHT / 2 + 30, {
+            font: '16px monospace',
+            color: '#ffff00',
+            align: 'center'
+        });
+        ctx.restore();
     },
     
     // Draw game over
     drawGameOver() {
-        Renderer.drawText('GAME OVER', GameConfig.CANVAS_WIDTH / 2, 250, {
-            font: '32px monospace',
-            color: GameConfig.COLORS.TEXT,
-            align: 'center',
-            shadow: true
-        });
+        const ctx = Renderer.ctx;
+        const time = this.currentTime / 1000;
         
-        Renderer.drawText(`FINAL SCORE: ${GameState.score}`, GameConfig.CANVAS_WIDTH / 2, 320, {
-            font: '18px monospace',
-            color: GameConfig.COLORS.TEXT,
+        // Dramatic fade effect
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
+        
+        // Red warning lines
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 200);
+        ctx.lineTo(GameConfig.CANVAS_WIDTH, 200);
+        ctx.moveTo(0, 420);
+        ctx.lineTo(GameConfig.CANVAS_WIDTH, 420);
+        ctx.stroke();
+        
+        // Game Over title with dramatic effect
+        ctx.save();
+        const textPulse = 0.8 + Math.sin(time * 5) * 0.2;
+        ctx.globalAlpha = textPulse;
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 30;
+        Renderer.drawText('GAME OVER', GameConfig.CANVAS_WIDTH / 2, 230, {
+            font: 'bold 48px monospace',
+            color: '#ff0000',
+            align: 'center'
+        });
+        ctx.restore();
+        
+        // Stats panel
+        ctx.fillStyle = 'rgba(0, 20, 40, 0.8)';
+        ctx.fillRect(90, 290, 300, 80);
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(90, 290, 300, 80);
+        
+        // Final score with formatting
+        ctx.save();
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 10;
+        Renderer.drawText('FINAL SCORE', GameConfig.CANVAS_WIDTH / 2, 305, {
+            font: 'bold 14px monospace',
+            color: '#00ffff',
+            align: 'center'
+        });
+        Renderer.drawText(`${GameState.score.toLocaleString()}`, GameConfig.CANVAS_WIDTH / 2, 330, {
+            font: 'bold 28px monospace',
+            color: '#ffff00',
+            align: 'center'
+        });
+        ctx.restore();
+        
+        // Level reached
+        Renderer.drawText(`Level Reached: ${GameState.level}`, GameConfig.CANVAS_WIDTH / 2, 360, {
+            font: '12px monospace',
+            color: '#00ff88',
             align: 'center'
         });
         
-        Renderer.drawText('PRESS SPACE TO CONTINUE', GameConfig.CANVAS_WIDTH / 2, 380, {
-            font: '14px monospace',
-            color: GameConfig.COLORS.TEXT_DIM,
+        // Continue prompt with pulse
+        const continuePulse = 0.5 + Math.sin(time * 4) * 0.5;
+        const continueText = InputManager.isTouchDevice ? '▶ TAP TO CONTINUE ◀' : '▶ PRESS SPACE ◀';
+        ctx.save();
+        ctx.globalAlpha = continuePulse;
+        Renderer.drawText(continueText, GameConfig.CANVAS_WIDTH / 2, 440, {
+            font: 'bold 16px monospace',
+            color: '#ffffff',
             align: 'center'
         });
+        ctx.restore();
     },
     
     // Draw enter high score
     drawEnterHighScore() {
-        Renderer.drawText('NEW HIGH SCORE!', GameConfig.CANVAS_WIDTH / 2, 250, {
-            font: '24px monospace',
-            color: GameConfig.COLORS.TEXT,
-            align: 'center',
-            shadow: true
-        });
+        const ctx = Renderer.ctx;
+        const time = this.currentTime / 1000;
         
-        Renderer.drawText('Enter your name:', GameConfig.CANVAS_WIDTH / 2, 300, {
-            font: '16px monospace',
-            color: GameConfig.COLORS.TEXT,
+        // Background overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
+        
+        // Celebration effect
+        const hue = (time * 100) % 360;
+        ctx.save();
+        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+        ctx.shadowBlur = 30;
+        Renderer.drawText('★ NEW HIGH SCORE! ★', GameConfig.CANVAS_WIDTH / 2, 200, {
+            font: 'bold 28px monospace',
+            color: `hsl(${hue}, 100%, 60%)`,
             align: 'center'
         });
+        ctx.restore();
+        
+        // Score display
+        ctx.save();
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 15;
+        Renderer.drawText(`${GameState.score.toLocaleString()} POINTS`, GameConfig.CANVAS_WIDTH / 2, 240, {
+            font: 'bold 20px monospace',
+            color: '#ffff00',
+            align: 'center'
+        });
+        ctx.restore();
+        
+        // Input panel
+        ctx.fillStyle = 'rgba(0, 40, 80, 0.9)';
+        ctx.fillRect(80, 280, 320, 100);
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(80, 280, 320, 100);
+        
+        // Instruction
+        Renderer.drawText('Enter your initials:', GameConfig.CANVAS_WIDTH / 2, 300, {
+            font: '16px monospace',
+            color: '#00ffff',
+            align: 'center'
+        });
+        
+        // Letter boxes with cursor
+        const letters = GameState.playerInitials;
+        const boxWidth = 40;
+        const boxHeight = 50;
+        const spacing = 10;
+        const startX = GameConfig.CANVAS_WIDTH / 2 - (3 * boxWidth + 2 * spacing) / 2;
+        
+        for (let i = 0; i < 3; i++) {
+            const x = startX + i * (boxWidth + spacing);
+            const y = 320;
+            
+            // Highlight active box
+            if (i === GameState.initialIndex) {
+                const pulse = 0.6 + Math.sin(time * 6) * 0.4;
+                ctx.fillStyle = `rgba(0, 255, 255, ${pulse * 0.3})`;
+                ctx.fillRect(x, y, boxWidth, boxHeight);
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 3;
+            } else {
+                ctx.strokeStyle = '#004466';
+                ctx.lineWidth = 2;
+            }
+            
+            ctx.strokeRect(x, y, boxWidth, boxHeight);
+            
+            // Letter
+            ctx.save();
+            if (i === GameState.initialIndex) {
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 10;
+            }
+            ctx.font = 'bold 32px monospace';
+            ctx.fillStyle = i === GameState.initialIndex ? '#ffffff' : '#00aacc';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(letters[i], x + boxWidth / 2, y + boxHeight / 2);
+            ctx.restore();
+        }
+        
+        // Controls hint
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        Renderer.drawText('↑↓ Change  ←→ Move  ENTER to Submit', GameConfig.CANVAS_WIDTH / 2, 400, {
+            font: '12px monospace',
+            color: '#aaaaaa',
+            align: 'center'
+        });
+        ctx.restore();
     }
 };
 

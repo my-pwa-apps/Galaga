@@ -140,12 +140,13 @@ const CollisionSystem = {
         
         // Enemies vs player
         if (onEnemyPlayerHit && gameState.player.alive) {
-            for (let i = 0; i < gameState.enemies.length; i++) {
+            for (let i = gameState.enemies.length - 1; i >= 0; i--) {
                 const enemy = gameState.enemies[i];
                 
                 if (this.checkEnemyPlayerCollision(enemy, gameState.player)) {
-                    if (!gameState.player.shield) {
-                        onEnemyPlayerHit(enemy);
+                    if (!gameState.player.shield && !gameState.player.invulnerable) {
+                        onEnemyPlayerHit(i, enemy);
+                        break; // Only process one collision per frame
                     }
                 }
             }

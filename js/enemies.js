@@ -4,11 +4,14 @@
 // ============================================
 
 const EnemyManager = {
-    types: ['bee', 'butterfly', 'boss', 'scorpion', 'moth', 'dragonfly', 'wasp', 'beetle'],
+    types: null, // Will be populated from GameConfig.ENEMIES
     spawnTimer: 0,
     spawnInterval: 2,
     maxEnemies: 32,
     waveNumber: 0,
+    spawningWave: false, // true while a wave is in the timed entrance spawning phase
+    spawnTimeouts: [], // active setTimeout IDs for wave spawning
+    enemiesSpawnedThisWave: 0, // track how many enemies actually spawned
     
     // Formation grid
     formationSpots: [],
@@ -16,8 +19,12 @@ const EnemyManager = {
     
     // Initialize enemy manager
     init() {
+        // Populate types from config dynamically
+        this.types = Object.keys(GameConfig.ENEMIES);
         this.setupFormation();
-        console.log('✅ Enemy Manager initialized');
+        this.spawningWave = false;
+        this.spawnTimeouts = [];
+        console.log('✅ Enemy Manager initialized with types:', this.types);
         return this;
     },
     
@@ -57,15 +64,19 @@ const EnemyManager = {
         return null;
     },
     
-    // Progressive difficulty - enemy type unlocks
+    // Progressive difficulty - enemy type unlocks (classic Galaga style)
     getAvailableTypes(level) {
-        const types = ['bee'];
-        if (level >= 2) types.push('butterfly', 'dragonfly');
-        if (level >= 3) types.push('scorpion');
-        if (level >= 4) types.push('moth', 'wasp');
-        if (level >= 6) types.push('beetle');
-        if (level >= 8) types.push('boss');
-        return types;
+        const unlocks = GameConfig.ENEMY_UNLOCKS;
+        
+        // Find the highest unlock level that's <= current level
+        let availableTypes = unlocks[1]; // Default to level 1
+        for (let unlockLevel in unlocks) {
+            if (parseInt(unlockLevel) <= level) {
+                availableTypes = unlocks[unlockLevel];
+            }
+        }
+        
+        return availableTypes || ['skulker'];
     },
     
     // Get enemy properties based on type and level
@@ -73,50 +84,121 @@ const EnemyManager = {
         const config = GameConfig.ENEMIES[type];
         if (!config) {
             console.warn(`Unknown enemy type: ${type}`);
-            return GameConfig.ENEMIES.bee;
+            return GameConfig.ENEMIES.skulker || Object.values(GameConfig.ENEMIES)[0];
         }
         
         const props = { ...config };
+        const difficulty = GameConfig.DIFFICULTY;
         
-        // Scale with level (slower progression for early levels)
-        const levelMultiplier = 1 + Math.max(0, (level - 1) * 0.08);
+        // Scale with level using config values for better balance
+        const levelMultiplier = 1 + Math.max(0, (level - 1) * difficulty.HP_SCALE_PER_LEVEL);
         props.hp = Math.floor(props.hp * levelMultiplier);
-        props.speed = Math.floor(props.speed * Math.min(levelMultiplier, 1.4));
-        props.shootChance = Math.min(props.shootChance * (1 + Math.max(0, (level - 1) * 0.03)), 0.06);
+        props.speed = Math.floor(props.speed * Math.min(levelMultiplier, difficulty.SPEED_SCALE_MAX));
+        props.shootChance = Math.min(
+            props.shootChance * (1 + Math.max(0, (level - 1) * difficulty.SHOOT_SCALE_PER_LEVEL)), 
+            difficulty.SHOOT_CHANCE_MAX
+        );
         props.score = Math.floor(props.score * levelMultiplier);
         
         return props;
     },
     
-    // Spawn new wave of enemies
+    // Spawn new wave of enemies (Galaga-style formation grouping)
     spawnWave(level, gameState) {
+        // Cancel any leftover timeouts from previous wave/session
+        if (this.spawnTimeouts.length) {
+            this.spawnTimeouts.forEach(id => clearTimeout(id));
+            this.spawnTimeouts = [];
+        }
         this.waveNumber++;
-        console.log(`Spawning wave ${this.waveNumber} for level ${level}`);
-        
+        this.enemiesSpawnedThisWave = 0;
+        if (GameConfig.DEBUG_MODE) {
+            console.log(`Spawning wave ${this.waveNumber} for level ${level}`);
+        }
+
         const availableTypes = this.getAvailableTypes(level);
-        const enemyCount = Math.min(6 + level * 2, 20);
-        
+        const enemyCount = Math.min(8 + level * 2, 24);
+
+        // Classic Galaga grouping: assign types to rows
+        // Top rows: Elite enemies, Bottom rows: Common enemies
+        const typesByRow = this.assignTypesToFormationRows(availableTypes, level);
+
+        // Mark that we are in spawning phase so level completion logic waits
+        this.spawningWave = true;
+        let spawned = 0;
+        const totalToSpawn = enemyCount;
+
         for (let i = 0; i < enemyCount; i++) {
-            setTimeout(() => {
-                this.spawnEnemy(level, gameState, availableTypes);
+            const timeoutId = setTimeout(() => {
+                const success = this.spawnEnemyWithType(level, gameState, typesByRow);
+                if (success) {
+                    this.enemiesSpawnedThisWave++;
+                }
+                spawned++;
+                if (GameConfig.DEBUG_MODE) {
+                    console.log(`[SPAWN] Spawned ${spawned}/${totalToSpawn} enemies (${this.enemiesSpawnedThisWave} successful)`);
+                }
+                if (spawned >= totalToSpawn) {
+                    // All spawn attempts completed
+                    this.spawningWave = false;
+                    console.log(`Wave ${this.waveNumber} fully spawned - ${this.enemiesSpawnedThisWave} enemies active`);
+                }
             }, i * 300);
+            this.spawnTimeouts.push(timeoutId);
         }
     },
     
-    // Spawn a single enemy
-    spawnEnemy(level, gameState, availableTypes = null) {
-        if (gameState.enemies.length >= this.maxEnemies) return;
+    // Assign enemy types to formation rows (Galaga-style)
+    assignTypesToFormationRows(availableTypes, level) {
+        const typesByRow = {};
         
-        if (!availableTypes) {
-            availableTypes = this.getAvailableTypes(level);
+        // Classic Galaga formation: 
+        // Row 0 (top): Boss/elite enemies
+        // Row 1: Medium enemies
+        // Row 2-3: Common/weak enemies
+        
+        if (availableTypes.includes('boss')) {
+            typesByRow[0] = ['boss', 'beetle', 'octopus'];
+        } else if (availableTypes.includes('beetle')) {
+            typesByRow[0] = ['beetle', 'octopus', 'wasp'];
+        } else if (availableTypes.includes('octopus')) {
+            typesByRow[0] = ['octopus', 'wasp', 'hunter'];
+        } else {
+            typesByRow[0] = ['butterfly', 'hunter'];
         }
         
-        const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-        const props = this.getEnemyProperties(type, level);
+        typesByRow[1] = availableTypes.includes('hunter') ? ['hunter', 'wasp', 'wraith'] : ['butterfly', 'wraith'];
+        typesByRow[2] = availableTypes.includes('parasite') ? ['parasite', 'wraith', 'skulker'] : ['wraith', 'skulker'];
+        typesByRow[3] = ['skulker'];
         
-        // Get formation spot
+        // Filter to only include available types
+        for (let row in typesByRow) {
+            typesByRow[row] = typesByRow[row].filter(t => availableTypes.includes(t));
+            if (typesByRow[row].length === 0) {
+                typesByRow[row] = [availableTypes[0]]; // Fallback
+            }
+        }
+        
+        return typesByRow;
+    },
+    
+    // Spawn a single enemy with row-based type (Galaga-style)
+    spawnEnemyWithType(level, gameState, typesByRow) {
+        if (gameState.enemies.length >= this.maxEnemies) return false;
+        
+        // Get formation spot first
         const formationSpot = this.getEmptyFormationSpot();
-        if (!formationSpot) return;
+        if (!formationSpot) {
+            if (GameConfig.DEBUG_MODE) {
+                console.log('[DEBUG] spawnEnemy aborted - no formation spot available. Current enemies:', gameState.enemies.length);
+            }
+            return false;
+        }
+        
+        // Select enemy type based on formation row (Galaga-style grouping)
+        const rowTypes = typesByRow[formationSpot.row] || typesByRow[0];
+        const type = rowTypes[Math.floor(Math.random() * rowTypes.length)];
+        const props = this.getEnemyProperties(type, level);
         
         // Random entrance position
         const entranceX = Math.random() * GameConfig.CANVAS_WIDTH;
@@ -140,6 +222,58 @@ const EnemyManager = {
         };
         
         gameState.enemies.push(enemy);
+        if (GameConfig.DEBUG_MODE && gameState.enemies.length % 5 === 0) {
+            console.log(`[DEBUG] Spawned enemy #${gameState.enemies.length} in wave ${this.waveNumber}`);
+        }
+        return true;
+    },
+    
+    // Legacy spawn function for compatibility
+    spawnEnemy(level, gameState, availableTypes = null) {
+        if (gameState.enemies.length >= this.maxEnemies) return false;
+        
+        if (!availableTypes) {
+            availableTypes = this.getAvailableTypes(level);
+        }
+        
+        const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+        const props = this.getEnemyProperties(type, level);
+        
+        // Get formation spot
+        const formationSpot = this.getEmptyFormationSpot();
+        if (!formationSpot) {
+            if (GameConfig.DEBUG_MODE) {
+                console.log('[DEBUG] spawnEnemy aborted - no formation spot available. Current enemies:', gameState.enemies.length);
+            }
+            return false;
+        }
+        
+        // Random entrance position
+        const entranceX = Math.random() * GameConfig.CANVAS_WIDTH;
+        const entranceY = -30;
+        
+        const enemy = {
+            type,
+            x: entranceX,
+            y: entranceY,
+            targetX: formationSpot.x,
+            targetY: formationSpot.y,
+            formationSpot,
+            state: GameConfig.ENEMY_STATE.ENTRANCE,
+            entranceProgress: 0,
+            formationTime: 0,
+            attackTime: 0,
+            shootTimer: 0,
+            ...props,
+            maxHP: props.hp,
+            entrancePath: this.createEntrancePath(entranceX, entranceY, formationSpot.x, formationSpot.y)
+        };
+        
+        gameState.enemies.push(enemy);
+        if (gameState.enemies.length % 5 === 0) {
+            console.log(`[DEBUG] Spawned enemy #${gameState.enemies.length} in wave ${this.waveNumber}`);
+        }
+        return true;
     },
     
     // Create smooth entrance path (bezier curve)
@@ -215,6 +349,29 @@ const EnemyManager = {
                   3 * t1 * t1 * t * path.controlY1 +
                   3 * t1 * t * t * path.controlY2 +
                   t * t * t * path.endY;
+        
+        // Remove enemies that flew way off-screen (beyond play area + buffer)
+        if (enemy.y > GameConfig.CANVAS_HEIGHT + 100 || 
+            enemy.x < -100 || 
+            enemy.x > GameConfig.CANVAS_WIDTH + 100) {
+            console.log('🚀 Enemy flew off-screen during entrance, removing. Position: x=' + Math.round(enemy.x) + ', y=' + Math.round(enemy.y));
+            const index = GameState.enemies.indexOf(enemy);
+            if (index > -1) {
+                if (enemy.formationSpot) {
+                    enemy.formationSpot.taken = false;
+                }
+                GameState.enemies.splice(index, 1);
+                console.log('   Remaining enemies:', GameState.enemies.length);
+            }
+            return;
+        }
+        
+        // Safety check: if entrance takes too long, snap to formation
+        if (enemy.entranceProgress > 3) {
+            enemy.state = GameConfig.ENEMY_STATE.FORMATION;
+            enemy.x = enemy.targetX;
+            enemy.y = enemy.targetY;
+        }
     },
     
     // Update enemy in formation
@@ -265,22 +422,35 @@ const EnemyManager = {
         
         const duration = 3.5;
         if (enemy.attackTime >= duration) {
-            const canvasHeight = GameConfig.CANVAS_HEIGHT;
-            const canvasWidth = GameConfig.CANVAS_WIDTH;
-            
-            if (enemy.y < canvasHeight + 50 && enemy.x > -50 && enemy.x < canvasWidth + 50) {
+            // Check if enemy went off-screen - if so, remove it
+            // Otherwise return to formation
+            if (enemy.y > GameConfig.CANVAS_HEIGHT + 100 || 
+                enemy.x < -100 || 
+                enemy.x > GameConfig.CANVAS_WIDTH + 100) {
+                // Enemy flew off screen, mark for removal
+                const queueIndex = this.attackQueue.indexOf(enemy);
+                if (queueIndex > -1) this.attackQueue.splice(queueIndex, 1);
+                
+                if (enemy.formationSpot) {
+                    enemy.formationSpot.taken = false;
+                }
+                
+                const enemyIndex = gameState.enemies.indexOf(enemy);
+                if (enemyIndex > -1) {
+                    console.log('🚀 Enemy flew off-screen, removing. Remaining enemies:', gameState.enemies.length - 1);
+                    gameState.enemies.splice(enemyIndex, 1);
+                }
+                return;
+            } else {
+                // Enemy is still on screen, return to formation
                 enemy.state = GameConfig.ENEMY_STATE.ENTRANCE;
                 enemy.entranceProgress = 0;
                 enemy.entrancePath = this.createEntrancePath(enemy.x, enemy.y, enemy.targetX, enemy.targetY);
-            } else {
-                enemy.formationSpot.taken = false;
-                const index = gameState.enemies.indexOf(enemy);
-                if (index > -1) gameState.enemies.splice(index, 1);
+                
+                const queueIndex = this.attackQueue.indexOf(enemy);
+                if (queueIndex > -1) this.attackQueue.splice(queueIndex, 1);
+                return;
             }
-            
-            const queueIndex = this.attackQueue.indexOf(enemy);
-            if (queueIndex > -1) this.attackQueue.splice(queueIndex, 1);
-            return;
         }
         
         // Follow attack path
@@ -382,9 +552,16 @@ const EnemyManager = {
     
     // Reset enemy manager
     reset() {
+        if (this.spawnTimeouts.length) {
+            this.spawnTimeouts.forEach(id => clearTimeout(id));
+            this.spawnTimeouts = [];
+        }
         this.waveNumber = 0;
+        this.spawningWave = false;
+        this.enemiesSpawnedThisWave = 0;
         this.attackQueue = [];
         this.formationSpots.forEach(spot => spot.taken = false);
+        console.log('🔄 EnemyManager reset (timers cleared)');
     }
 };
 

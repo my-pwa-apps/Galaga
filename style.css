@@ -1,15 +1,116 @@
-body {
-    background: radial-gradient(ellipse at center, #222 0%, #111 100%);
+* {
+    box-sizing: border-box;
     margin: 0;
-    height: 100vh;
+    padding: 0;
+}
+
+body {
+    background: radial-gradient(ellipse at center, #1a1a2e 0%, #0f0f1e 50%, #000 100%);
+    background-attachment: fixed;
+    margin: 0;
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: 'Press Start 2P', monospace, Arial, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Performance optimization */
+    contain: layout style paint;
+    will-change: transform;
 }
+
 #gameCanvas {
-    box-shadow: 0 0 40px #0ff, 0 0 80px #f0f, 0 0 120px #ff0;
+    /* Pixel-perfect rendering - browser compatibility */
+    image-rendering: -moz-crisp-edges;          /* Firefox */
+    image-rendering: -webkit-crisp-edges;       /* Webkit */
+    image-rendering: -webkit-optimize-contrast; /* Edge */
+    image-rendering: pixelated;                 /* Modern browsers */
+    image-rendering: crisp-edges;               /* Fallback */
+    -ms-interpolation-mode: nearest-neighbor;   /* IE */
+    
+    /* Arcade glow effect */
+    box-shadow: 
+        0 0 20px rgba(0, 255, 255, 0.3),
+        0 0 40px rgba(255, 0, 255, 0.2),
+        0 0 60px rgba(255, 255, 0, 0.1),
+        0 0 100px rgba(0, 255, 255, 0.05);
+    
     background: #000;
-    border: 8px solid #444;
-    border-radius: 12px;
+    border: 4px solid #2a2a3e;
+    border-radius: 8px;
+    
+    /* Smooth transitions */
+    transition: box-shadow 0.3s ease;
+    cursor: crosshair;
+    
+    /* Performance optimization */
+    contain: layout paint;
+    will-change: contents;
+}
+
+/* Enhanced glow on hover */
+#gameCanvas:hover {
+    box-shadow: 
+        0 0 30px rgba(0, 255, 255, 0.5),
+        0 0 60px rgba(255, 0, 255, 0.3),
+        0 0 90px rgba(255, 255, 0, 0.2),
+        0 0 120px rgba(0, 255, 255, 0.1);
+}
+
+#gameCanvas:focus {
+    outline: none;
+}
+
+/* Mobile responsive design */
+@media (max-width: 768px) {
+    body {
+        align-items: flex-start;
+        padding-top: 10px;
+    }
+    
+    #gameCanvas {
+        max-width: 95vw;
+        max-height: 95vh;
+        width: auto;
+        height: auto;
+        /* Reduce glow on mobile for performance */
+        box-shadow: 
+            0 0 10px rgba(0, 255, 255, 0.2),
+            0 0 20px rgba(255, 0, 255, 0.1);
+    }
+    
+    #gameCanvas:hover {
+        /* Disable hover effects on mobile */
+        box-shadow: 
+            0 0 10px rgba(0, 255, 255, 0.2),
+            0 0 20px rgba(255, 0, 255, 0.1);
+    }
+}
+
+/* Tablet optimization */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #gameCanvas {
+        max-width: 90vw;
+        max-height: 90vh;
+    }
+}
+
+/* Prevent text selection during gameplay */
+body {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.loading {
+    animation: pulse 1.5s ease-in-out infinite;
 }
