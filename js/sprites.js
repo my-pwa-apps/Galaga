@@ -879,9 +879,6 @@ const AlienSprites = {
             case 'boss':
                 this.drawBoss(ctx, x, y, time, scale, attacking);
                 break;
-            case 'hunter':
-                this.drawHunter(ctx, x, y, time, scale, attacking);
-                break;
             case 'parasite':
                 this.drawParasite(ctx, x, y, time, scale, attacking);
                 break;

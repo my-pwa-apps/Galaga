@@ -162,12 +162,12 @@ const EnemyManager = {
         } else if (availableTypes.includes('beetle')) {
             typesByRow[0] = ['beetle', 'octopus', 'wasp'];
         } else if (availableTypes.includes('octopus')) {
-            typesByRow[0] = ['octopus', 'wasp', 'hunter'];
+            typesByRow[0] = ['octopus', 'wasp', 'butterfly'];
         } else {
-            typesByRow[0] = ['butterfly', 'hunter'];
+            typesByRow[0] = ['butterfly', 'wraith'];
         }
         
-        typesByRow[1] = availableTypes.includes('hunter') ? ['hunter', 'wasp', 'wraith'] : ['butterfly', 'wraith'];
+        typesByRow[1] = availableTypes.includes('wasp') ? ['wasp', 'wraith', 'butterfly'] : ['butterfly', 'wraith'];
         typesByRow[2] = availableTypes.includes('parasite') ? ['parasite', 'wraith', 'skulker'] : ['wraith', 'skulker'];
         typesByRow[3] = ['skulker'];
         

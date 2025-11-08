@@ -676,7 +676,7 @@ const GalagaGame = {
         // Draw some sample aliens flying by
         const alienY = 250;
         AlienSprites.draw(ctx, 'skulker', 90, alienY + Math.sin(time * 2) * 5, time, 1.2, false);
-        AlienSprites.draw(ctx, 'hunter', 180, alienY + Math.sin(time * 2 + 1) * 5, time, 1.2, false);
+        AlienSprites.draw(ctx, 'butterfly', 180, alienY + Math.sin(time * 2 + 1) * 5, time, 1.2, false);
         AlienSprites.draw(ctx, 'octopus', 270, alienY + Math.sin(time * 2 + 2) * 5, time, 1.2, false);
         AlienSprites.draw(ctx, 'parasite', 360, alienY + Math.sin(time * 2 + 3) * 5, time, 1.2, false);
         
@@ -817,109 +817,105 @@ const GalagaGame = {
             ctx.restore();
         }
         
-        // Player ship - enhanced Galaga-style fighter
+        // Player ship - Hunter-style sleek fighter
         ctx.save();
         ctx.translate(player.x, player.y);
         
-        // Engine glow (behind ship)
+        const pulse = Math.sin(this.currentTime * 0.025) * 0.15 + 0.85;
+        
+        // Engine thrust (behind ship)
         if (player.alive) {
-            const thrustPulse = 0.6 + Math.sin(this.currentTime * 0.03) * 0.4;
-            const gradient = ctx.createRadialGradient(0, 16, 0, 0, 16, 10);
-            gradient.addColorStop(0, `rgba(255, 150, 0, ${thrustPulse})`);
-            gradient.addColorStop(0.5, `rgba(255, 100, 0, ${thrustPulse * 0.5})`);
-            gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(-8, 14, 16, 8);
+            const thrustPulse = 0.7 + Math.sin(this.currentTime * 0.04) * 0.3;
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = `rgba(0, 200, 255, ${thrustPulse * 0.6})`;
+            ctx.fillRect(-6, 12, 12, 3);
+            ctx.fillStyle = `rgba(100, 200, 255, ${thrustPulse * 0.4})`;
+            ctx.fillRect(-4, 15, 8, 2);
         }
         
-        // Wing shadow
-        ctx.fillStyle = 'rgba(0, 50, 80, 0.5)';
-        ctx.beginPath();
-        ctx.moveTo(-1, -13);
-        ctx.lineTo(-9, 1);
-        ctx.lineTo(-7, 9);
-        ctx.lineTo(-4, 11);
-        ctx.lineTo(-4, 15);
-        ctx.lineTo(2, 15);
-        ctx.lineTo(2, 11);
-        ctx.lineTo(5, 9);
-        ctx.lineTo(7, 1);
-        ctx.lineTo(-1, -13);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Main body with gradient (blue/cyan)
-        const bodyGradient = ctx.createLinearGradient(0, -14, 0, 14);
-        bodyGradient.addColorStop(0, '#00eeff');
-        bodyGradient.addColorStop(0.5, '#00d4ff');
-        bodyGradient.addColorStop(1, '#0088cc');
+        // Sleek metallic body - angular Hunter design
+        const bodyGradient = ctx.createLinearGradient(0, -12, 0, 12);
+        bodyGradient.addColorStop(0, '#33eeff');
+        bodyGradient.addColorStop(0.5, '#00aacc');
+        bodyGradient.addColorStop(1, '#006688');
         ctx.fillStyle = bodyGradient;
+        
+        // Main angular chassis
         ctx.beginPath();
-        ctx.moveTo(0, -14);      // Nose
-        ctx.lineTo(-8, 0);       // Left wing base
-        ctx.lineTo(-6, 8);       // Left wing tip
-        ctx.lineTo(-3, 10);      // Left body
-        ctx.lineTo(-3, 14);      // Left thruster
-        ctx.lineTo(3, 14);       // Right thruster
-        ctx.lineTo(3, 10);       // Right body
-        ctx.lineTo(6, 8);        // Right wing tip
-        ctx.lineTo(8, 0);        // Right wing base
+        ctx.moveTo(0, -12);      // Sharp nose
+        ctx.lineTo(-10, -2);     // Left wing
+        ctx.lineTo(-10, 8);      // Left side
+        ctx.lineTo(0, 12);       // Bottom center
+        ctx.lineTo(10, 8);       // Right side
+        ctx.lineTo(10, -2);      // Right wing
         ctx.closePath();
         ctx.fill();
         
-        // Cockpit (darker blue with gradient)
-        const cockpitGradient = ctx.createLinearGradient(0, -10, 0, 2);
-        cockpitGradient.addColorStop(0, '#0099dd');
-        cockpitGradient.addColorStop(1, '#0055aa');
-        ctx.fillStyle = cockpitGradient;
+        // Metallic highlights (racing stripes)
+        ctx.strokeStyle = '#66ffff';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(0, -10);
-        ctx.lineTo(-4, 2);
-        ctx.lineTo(4, 2);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(-7, -2);
+        ctx.lineTo(-7, 6);
+        ctx.moveTo(7, -2);
+        ctx.lineTo(7, 6);
+        ctx.stroke();
         
-        // Canopy highlight (bright cyan with glow)
-        ctx.save();
+        // Cockpit window - glowing cyan
         ctx.shadowColor = '#00ffff';
         ctx.shadowBlur = 8;
         ctx.fillStyle = '#66ffff';
         ctx.beginPath();
-        ctx.moveTo(0, -8);
-        ctx.lineTo(-2, -2);
-        ctx.lineTo(2, -2);
-        ctx.closePath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
         
-        // Wing lights (animated yellow/red accents)
-        const wingPulse = Math.sin(this.currentTime * 0.015);
-        ctx.fillStyle = wingPulse > 0 ? '#ffff00' : '#ff6600';
-        ctx.shadowColor = wingPulse > 0 ? '#ffff00' : '#ff6600';
-        ctx.shadowBlur = 4;
-        ctx.fillRect(-7, 0, 2, 3);
-        ctx.fillRect(5, 0, 2, 3);
+        // Cockpit center
+        ctx.fillStyle = '#0088aa';
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.shadowBlur = 0;
         
-        // Thruster ports (metallic detail)
-        ctx.fillStyle = '#003355';
-        ctx.fillRect(-2, 13, 2, 2);
-        ctx.fillRect(0, 13, 2, 2);
+        // Weapon pods on sides
+        ctx.fillStyle = '#004466';
+        ctx.fillRect(-12, 2, 3, 6);
+        ctx.fillRect(9, 2, 3, 6);
         
-        // Outline for definition
+        // Glowing weapon tips
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 6 * pulse;
+        ctx.fillStyle = `rgba(255, 200, 0, ${pulse})`;
+        ctx.fillRect(-12, 8, 3, 2);
+        ctx.fillRect(9, 8, 3, 2);
+        ctx.shadowBlur = 0;
+        
+        // Tech vents
+        ctx.fillStyle = '#003344';
+        for (let i = 0; i < 3; i++) {
+            ctx.fillRect(-2 + i * 2, 4, 1, 4);
+        }
+        
+        // Energy core glow
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = `rgba(0, 200, 255, ${pulse * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(0, 4, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Angular outline for definition
+        ctx.shadowBlur = 0;
         ctx.strokeStyle = '#001122';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(0, -14);
-        ctx.lineTo(-8, 0);
-        ctx.lineTo(-6, 8);
-        ctx.lineTo(-3, 10);
-        ctx.lineTo(-3, 14);
-        ctx.lineTo(3, 14);
-        ctx.lineTo(3, 10);
-        ctx.lineTo(6, 8);
-        ctx.lineTo(8, 0);
-        ctx.lineTo(0, -14);
+        ctx.moveTo(0, -12);
+        ctx.lineTo(-10, -2);
+        ctx.lineTo(-10, 8);
+        ctx.lineTo(0, 12);
+        ctx.lineTo(10, 8);
+        ctx.lineTo(10, -2);
+        ctx.closePath();
         ctx.stroke();
         
         ctx.restore();

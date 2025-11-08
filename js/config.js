@@ -75,10 +75,6 @@ const GameConfig = {
             hp: 1, speed: 80, score: 200, shootChance: 0.012, 
             w: 24, h: 24, color: '#ff00ff', name: 'Butterfly' 
         },
-        hunter: { 
-            hp: 2, speed: 120, score: 250, shootChance: 0.015, 
-            w: 22, h: 22, color: '#00ccff', name: 'Hunter' 
-        },
         parasite: { 
             hp: 1, speed: 150, score: 150, shootChance: 0.01, 
             w: 22, h: 22, color: '#66ff33', name: 'Parasite' 
@@ -109,13 +105,12 @@ const GameConfig = {
     ENEMY_UNLOCKS: {
         1: ['skulker'],                    // Level 1: Only skulkers (like classic Bees)
         2: ['skulker', 'butterfly'],       // Level 2: Add butterfly
-        3: ['skulker', 'butterfly', 'hunter'],  // Level 3: Add hunter
-        4: ['skulker', 'butterfly', 'hunter', 'wraith'],  // Level 4: Add wraith
-        5: ['skulker', 'butterfly', 'hunter', 'wraith', 'wasp'],  // Level 5: Add wasp
-        6: ['skulker', 'butterfly', 'hunter', 'wraith', 'wasp', 'parasite'],  // Level 6: Add parasite
-        7: ['skulker', 'butterfly', 'hunter', 'wraith', 'wasp', 'parasite', 'octopus'],  // Level 7: Add octopus
-        8: ['skulker', 'butterfly', 'hunter', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 8: Add beetle
-        10: ['skulker', 'butterfly', 'hunter', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle', 'boss']  // Level 10: Boss
+        3: ['skulker', 'butterfly', 'wraith'],  // Level 3: Add wraith
+        4: ['skulker', 'butterfly', 'wraith', 'wasp'],  // Level 4: Add wasp
+        5: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite'],  // Level 5: Add parasite
+        6: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus'],  // Level 6: Add octopus
+        7: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 7: Add beetle
+        10: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle', 'boss']  // Level 10: Boss
     },
     
     // Colors - Enhanced arcade aesthetic
