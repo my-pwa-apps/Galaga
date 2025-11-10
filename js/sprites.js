@@ -109,14 +109,20 @@ const AlienSprites = {
         ctx.translate(x, y);
         ctx.scale(scale, scale);
         
-        const wingFlap = Math.sin(time * 8) * 0.4;
+        // When attacking, wings fold back for dive, faster flapping
+        const wingFlap = attacking ? 
+            Math.sin(time * 20) * 0.15 : // Faster, tighter flaps when diving
+            Math.sin(time * 8) * 0.4; // Normal relaxed flight
+        const wingFold = attacking ? 0.7 : 0; // Wings fold back when diving
         const pulse = Math.sin(time * 6) * 0.15 + 0.85;
         
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(0, 13, 8, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // Shadow (only when not attacking)
+        if (!attacking) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(0, 13, 8, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
         // Wings - left with darker, more ominous gradient
         ctx.save();
@@ -128,7 +134,9 @@ const AlienSprites = {
         ctx.shadowColor = '#ff00ff';
         ctx.shadowBlur = 12;
         ctx.beginPath();
-        ctx.ellipse(-10, 0, 8, 10, -0.5 + wingFlap, 0, Math.PI * 2);
+        // Wings fold backward when attacking
+        const leftWingAngle = -0.5 + wingFlap - wingFold;
+        ctx.ellipse(-10, 0, 8, 10, leftWingAngle, 0, Math.PI * 2);
         ctx.fill();
         
         // Wings - right
@@ -138,7 +146,8 @@ const AlienSprites = {
         wingGradientR.addColorStop(1, '#440066');
         ctx.fillStyle = wingGradientR;
         ctx.beginPath();
-        ctx.ellipse(10, 0, 8, 10, 0.5 - wingFlap, 0, Math.PI * 2);
+        const rightWingAngle = 0.5 - wingFlap + wingFold;
+        ctx.ellipse(10, 0, 8, 10, rightWingAngle, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         
@@ -432,24 +441,26 @@ const AlienSprites = {
         ctx.scale(scale, scale);
         
         const writhe = Math.sin(time * 6) * 1.5;
-        const pulse = Math.sin(time * 4) * 0.15 + 0.85;
+        const pulse = attacking ? 
+            Math.sin(time * 8) * 0.2 + 1.1 : // Larger, faster pulse when attacking
+            Math.sin(time * 4) * 0.15 + 0.85;
         const ooze = Math.sin(time * 3);
         
         // Disgusting organic body - pulsating blob
         const bodyGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 12 * pulse);
-        bodyGradient.addColorStop(0, '#88ff44');
+        bodyGradient.addColorStop(0, attacking ? '#99ff55' : '#88ff44');
         bodyGradient.addColorStop(0.5, '#66cc22');
         bodyGradient.addColorStop(1, '#334411');
         ctx.fillStyle = bodyGradient;
-        ctx.shadowColor = '#66ff33';
-        ctx.shadowBlur = 8;
+        ctx.shadowColor = attacking ? '#88ff44' : '#66ff33';
+        ctx.shadowBlur = attacking ? 15 : 8;
         ctx.beginPath();
         ctx.ellipse(0, 0, 9 * pulse, 11 * pulse, 0, 0, Math.PI * 2);
         ctx.fill();
         
         // Visible pulsing veins
-        ctx.strokeStyle = 'rgba(100, 200, 50, 0.6)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = `rgba(100, 200, 50, ${attacking ? 0.8 : 0.6})`;
+        ctx.lineWidth = attacking ? 2 : 1.5;
         ctx.beginPath();
         ctx.moveTo(0, -8);
         ctx.quadraticCurveTo(-4, -2, -6, 4);
@@ -459,30 +470,41 @@ const AlienSprites = {
         ctx.lineTo(0, 8);
         ctx.stroke();
         
-        // Multiple writhing tentacles
+        // Multiple writhing tentacles - extend forward when attacking
         ctx.shadowBlur = 3;
         for (let i = 0; i < 6; i++) {
-            const angle = (i / 6) * Math.PI * 2;
-            const tentacleWave = Math.sin(time * 5 + i) * 8;
+            let angle = (i / 6) * Math.PI * 2;
+            
+            // When attacking, focus tentacles forward (downward)
+            if (attacking) {
+                angle = (angle * 0.5) + Math.PI / 2; // Compress toward downward direction
+            }
+            
+            const tentacleWave = attacking ?
+                Math.sin(time * 10 + i) * 4 : // Less wave, more reach when attacking
+                Math.sin(time * 5 + i) * 8;
+            const tentacleReach = attacking ? 2.5 : 2; // Longer tentacles when attacking
             const baseX = Math.cos(angle) * 7;
             const baseY = Math.sin(angle) * 7;
             
-            ctx.strokeStyle = '#55aa22';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = attacking ? '#66cc33' : '#55aa22';
+            ctx.lineWidth = attacking ? 2.5 : 2;
             ctx.beginPath();
             ctx.moveTo(baseX, baseY);
             ctx.quadraticCurveTo(
                 baseX * 1.5 + tentacleWave, 
                 baseY * 1.5 + writhe,
-                baseX * 2, 
-                baseY * 2
+                baseX * tentacleReach, 
+                baseY * tentacleReach
             );
             ctx.stroke();
             
-            // Tentacle tip
-            ctx.fillStyle = '#88ff44';
+            // Tentacle tip - glows when attacking
+            ctx.fillStyle = attacking ? '#aaff66' : '#88ff44';
+            ctx.shadowColor = attacking ? '#88ff44' : 'transparent';
+            ctx.shadowBlur = attacking ? 8 : 0;
             ctx.beginPath();
-            ctx.arc(baseX * 2, baseY * 2, 1.5, 0, Math.PI * 2);
+            ctx.arc(baseX * tentacleReach, baseY * tentacleReach, attacking ? 2 : 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
         
@@ -527,19 +549,28 @@ const AlienSprites = {
         ctx.translate(x, y);
         ctx.scale(scale, scale);
         
-        const phase = Math.sin(time * 2) * 0.2 + 0.7; // Fade in/out
+        // When attacking, becomes more solid and defined
+        const phase = attacking ? 
+            0.95 : // Nearly solid when attacking
+            Math.sin(time * 2) * 0.2 + 0.7; // Fade in/out normally
         const drift = Math.sin(time * 3) * 2;
         const tendrilWave = time * 4;
         
-        // Eerie glow
+        // Eerie glow - intensifies when attacking
         ctx.shadowColor = attacking ? '#ff00ff' : '#9966ff';
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = attacking ? 25 : 15;
         
-        // Ghostly flowing form - translucent body
+        // Ghostly flowing form - more solid when attacking
         const wraitheGradient = ctx.createRadialGradient(0, -5, 0, 0, 0, 14);
-        wraitheGradient.addColorStop(0, `rgba(180, 150, 255, ${phase * 0.8})`);
-        wraitheGradient.addColorStop(0.6, `rgba(120, 80, 200, ${phase * 0.5})`);
-        wraitheGradient.addColorStop(1, `rgba(60, 40, 120, 0)`);
+        if (attacking) {
+            wraitheGradient.addColorStop(0, `rgba(220, 150, 255, ${phase})`);
+            wraitheGradient.addColorStop(0.6, `rgba(180, 80, 255, ${phase * 0.8})`);
+            wraitheGradient.addColorStop(1, `rgba(120, 40, 200, ${phase * 0.3})`);
+        } else {
+            wraitheGradient.addColorStop(0, `rgba(180, 150, 255, ${phase * 0.8})`);
+            wraitheGradient.addColorStop(0.6, `rgba(120, 80, 200, ${phase * 0.5})`);
+            wraitheGradient.addColorStop(1, `rgba(60, 40, 120, 0)`);
+        }
         ctx.fillStyle = wraitheGradient;
         
         // Main body - flowing ethereal shape
@@ -552,29 +583,39 @@ const AlienSprites = {
         ctx.quadraticCurveTo(8, -8, 0, -12);
         ctx.fill();
         
-        // Ghostly tendrils flowing beneath
+        // Ghostly tendrils - reach forward when attacking
         for (let i = 0; i < 5; i++) {
             const xOffset = (i - 2) * 3;
-            const tendrilLength = 8 + Math.sin(tendrilWave + i) * 4;
-            const tendrilDrift = Math.sin(tendrilWave + i * 0.5) * 3;
-            const alpha = phase * 0.6;
+            const baseTendrilLength = 8 + Math.sin(tendrilWave + i) * 4;
+            const tendrilLength = attacking ? baseTendrilLength * 1.8 : baseTendrilLength; // Longer when attacking
+            const tendrilDrift = attacking ?
+                Math.sin(tendrilWave + i * 0.5) * 1.5 : // Less drift when attacking
+                Math.sin(tendrilWave + i * 0.5) * 3;
+            const alpha = phase * (attacking ? 0.8 : 0.6); // More visible when attacking
             
-            ctx.strokeStyle = `rgba(153, 102, 255, ${alpha})`;
-            ctx.lineWidth = 2 - i * 0.2;
+            ctx.strokeStyle = attacking ? 
+                `rgba(200, 130, 255, ${alpha})` : // Brighter when attacking
+                `rgba(153, 102, 255, ${alpha})`;
+            ctx.lineWidth = attacking ? (2.5 - i * 0.2) : (2 - i * 0.2);
             ctx.beginPath();
             ctx.moveTo(xOffset, 10);
             ctx.quadraticCurveTo(
                 xOffset + tendrilDrift, 
                 10 + tendrilLength * 0.5,
-                xOffset + tendrilDrift * 1.5, 
+                xOffset + tendrilDrift * (attacking ? 0.5 : 1.5), // Straighter when attacking
                 10 + tendrilLength
             );
             ctx.stroke();
             
-            // Wispy ends
-            ctx.fillStyle = `rgba(180, 150, 255, ${alpha * 0.5})`;
+            // Wispy ends - glow when attacking
+            ctx.fillStyle = attacking ?
+                `rgba(220, 150, 255, ${alpha * 0.8})` :
+                `rgba(180, 150, 255, ${alpha * 0.5})`;
+            ctx.shadowColor = attacking ? '#ff00ff' : 'transparent';
+            ctx.shadowBlur = attacking ? 10 : 0;
             ctx.beginPath();
-            ctx.arc(xOffset + tendrilDrift * 1.5, 10 + tendrilLength, 1, 0, Math.PI * 2);
+            ctx.arc(xOffset + tendrilDrift * (attacking ? 0.5 : 1.5), 10 + tendrilLength, 
+                attacking ? 2 : 1, 0, Math.PI * 2);
             ctx.fill();
         }
         
