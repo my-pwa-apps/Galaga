@@ -628,9 +628,15 @@ const GalagaGame = {
     updateAndDrawStars(dt) {
         const ctx = Renderer.ctx;
         
+        // Lightspeed effect during level transition
+        const isTransitioning = GameState.levelTransition > 0;
+        const transitionProgress = isTransitioning ? (2 - GameState.levelTransition) / 2 : 0;
+        const speedMultiplier = isTransitioning ? 1 + (transitionProgress * 20) : 1;
+        const stretchFactor = isTransitioning ? 1 + (transitionProgress * 30) : 1;
+        
         this.starLayers.forEach(layer => {
             layer.forEach(star => {
-                star.y += star.speed * dt;
+                star.y += star.speed * dt * speedMultiplier;
                 if (star.y > GameConfig.CANVAS_HEIGHT) {
                     star.y = -5;
                     star.x = Math.random() * GameConfig.CANVAS_WIDTH;
@@ -638,7 +644,21 @@ const GalagaGame = {
                 
                 ctx.globalAlpha = star.brightness;
                 ctx.fillStyle = '#ffffff';
-                ctx.fillRect(star.x, star.y, star.size, star.size);
+                
+                // Draw stretched star lines during transition (lightspeed effect)
+                if (isTransitioning && stretchFactor > 1) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(star.x, star.y);
+                    ctx.lineTo(star.x, star.y - star.size * stretchFactor);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = star.size;
+                    ctx.stroke();
+                    ctx.restore();
+                } else {
+                    // Normal star dots
+                    ctx.fillRect(star.x, star.y, star.size, star.size);
+                }
             });
         });
         
@@ -945,21 +965,12 @@ const GalagaGame = {
             align: 'center'
         });
         
-        // Lives (right) - ship icons only
-        for (let i = 0; i < GameState.lives; i++) {
-            const shipX = GameConfig.CANVAS_WIDTH - 60 + i * 20;
-            const shipY = 20;
-            
-            // Mini ship icon
-            ctx.fillStyle = '#00d4ff';
-            ctx.beginPath();
-            ctx.moveTo(shipX, shipY - 5);
-            ctx.lineTo(shipX - 3, shipY + 2);
-            ctx.lineTo(shipX, shipY + 1);
-            ctx.lineTo(shipX + 3, shipY + 2);
-            ctx.closePath();
-            ctx.fill();
-        }
+        // Lives (right) - heart icon with number
+        Renderer.drawText(`♥ ${GameState.lives}`, GameConfig.CANVAS_WIDTH - 10, 20, {
+            font: 'bold 14px monospace',
+            color: '#ff0066',
+            align: 'right'
+        });
         ctx.restore();
     },
     
