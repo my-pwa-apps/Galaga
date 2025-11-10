@@ -263,9 +263,13 @@ const GalagaGame = {
         player.x = Math.max(GameConfig.PLAYER.WIDTH / 2, 
                            Math.min(GameConfig.CANVAS_WIDTH - GameConfig.PLAYER.WIDTH / 2, player.x));
         
-        // Shooting
+        // Shooting - autofire on mobile, manual on desktop
         player.cooldown -= dt;
-        if (InputManager.isFire() && player.cooldown <= 0) {
+        const shouldShoot = InputManager.isTouchDevice ? 
+            (player.cooldown <= 0) : // Mobile: autofire
+            (InputManager.isFire() && player.cooldown <= 0); // Desktop: manual
+            
+        if (shouldShoot) {
             this.playerShoot();
             
             const cooldownTime = player.power === 'rapid' ? 0.1 : 0.3;
@@ -923,48 +927,28 @@ const GalagaGame = {
     
     // Draw HUD
     drawHUD(ctx) {
-        // HUD background panel
+        // Single line HUD at top
         ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(5, 5, 150, 70);
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(5, 5, 150, 70);
-        ctx.restore();
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 5;
         
-        // Score with glow
-        ctx.save();
-        ctx.shadowColor = '#ffff00';
-        ctx.shadowBlur = 8;
-        Renderer.drawText(`SCORE`, 15, 12, {
-            font: 'bold 12px monospace',
-            color: '#00ffff'
-        });
-        Renderer.drawText(`${GameState.score.toLocaleString()}`, 15, 28, {
-            font: 'bold 16px monospace',
+        // Score (left)
+        Renderer.drawText(`${GameState.score.toLocaleString()}`, 10, 20, {
+            font: 'bold 14px monospace',
             color: '#ffff00'
         });
-        ctx.restore();
         
-        // Level indicator with icon
-        ctx.save();
-        ctx.shadowColor = '#00ff00';
-        ctx.shadowBlur = 6;
-        Renderer.drawText(`⬆ LV ${GameState.level}`, 15, 48, {
+        // Level (center)
+        Renderer.drawText(`LV ${GameState.level}`, GameConfig.CANVAS_WIDTH / 2, 20, {
             font: 'bold 14px monospace',
-            color: '#00ff88'
+            color: '#00ff88',
+            align: 'center'
         });
-        ctx.restore();
         
-        // Lives display with ship icons
-        ctx.save();
-        Renderer.drawText(`♥`, 15, 62, {
-            font: '14px monospace',
-            color: '#ff0066'
-        });
+        // Lives (right) - ship icons only
         for (let i = 0; i < GameState.lives; i++) {
-            const shipX = 35 + i * 20;
-            const shipY = 68;
+            const shipX = GameConfig.CANVAS_WIDTH - 60 + i * 20;
+            const shipY = 20;
             
             // Mini ship icon
             ctx.fillStyle = '#00d4ff';
@@ -983,13 +967,41 @@ const GalagaGame = {
     drawTouchControls(ctx) {
         const buttons = InputManager.touchControls.buttons;
         
-        Object.values(buttons).forEach(button => {
-            ctx.strokeStyle = button.pressed ? '#00ff00' : '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.globalAlpha = 0.5;
-            ctx.strokeRect(button.x, button.y, button.w, button.h);
-            ctx.globalAlpha = 1;
-        });
+        ctx.save();
+        
+        // Left button
+        if (buttons.left) {
+            ctx.fillStyle = buttons.left.pressed ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.2)';
+            ctx.strokeStyle = buttons.left.pressed ? '#00ff00' : '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.fillRect(buttons.left.x, buttons.left.y, buttons.left.w, buttons.left.h);
+            ctx.strokeRect(buttons.left.x, buttons.left.y, buttons.left.w, buttons.left.h);
+            
+            // Left arrow
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 30px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('◄', buttons.left.x + buttons.left.w / 2, buttons.left.y + buttons.left.h / 2);
+        }
+        
+        // Right button
+        if (buttons.right) {
+            ctx.fillStyle = buttons.right.pressed ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.2)';
+            ctx.strokeStyle = buttons.right.pressed ? '#00ff00' : '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.fillRect(buttons.right.x, buttons.right.y, buttons.right.w, buttons.right.h);
+            ctx.strokeRect(buttons.right.x, buttons.right.y, buttons.right.w, buttons.right.h);
+            
+            // Right arrow
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 30px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('►', buttons.right.x + buttons.right.w / 2, buttons.right.y + buttons.right.h / 2);
+        }
+        
+        ctx.restore();
     },
     
     // Draw pause screen

@@ -130,7 +130,7 @@ const InputManager = {
         const canvasWidth = this.canvas.width;
         const canvasHeight = this.canvas.height;
         
-        // Left button
+        // Left button (bottom left)
         this.touchControls.buttons.left = {
             x: margin,
             y: canvasHeight - buttonSize - bottomMargin,
@@ -141,35 +141,13 @@ const InputManager = {
             touchId: null
         };
         
-        // Right button
+        // Right button (bottom right of left button)
         this.touchControls.buttons.right = {
             x: margin + buttonSize + 10,
             y: canvasHeight - buttonSize - bottomMargin,
             w: buttonSize,
             h: buttonSize,
             key: 'ArrowRight',
-            pressed: false,
-            touchId: null
-        };
-        
-        // Auto-shoot button
-        this.touchControls.buttons.autoShoot = {
-            x: canvasWidth - buttonSize * 2 - margin - 10,
-            y: canvasHeight - buttonSize - bottomMargin,
-            w: buttonSize,
-            h: buttonSize,
-            key: null,
-            pressed: false,
-            touchId: null
-        };
-        
-        // Fire button
-        this.touchControls.buttons.fire = {
-            x: canvasWidth - buttonSize - margin,
-            y: canvasHeight - buttonSize - bottomMargin,
-            w: buttonSize,
-            h: buttonSize,
-            key: 'Space',
             pressed: false,
             touchId: null
         };
