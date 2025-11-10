@@ -617,55 +617,172 @@ const AlienSprites = {
         ctx.translate(x, y);
         ctx.scale(scale, scale);
         
-        const wingFlap = Math.sin(time * 14) * 0.35;
-        const abdomenPulse = attacking ? Math.sin(time * 20) * 0.15 : 0;
+        const wingFlap = Math.sin(time * 18) * 0.4;
+        const abdomenPulse = attacking ? Math.sin(time * 20) * 0.2 : 0;
+        const wingBlur = Math.abs(Math.sin(time * 18)) * 3;
         
-        // Head
+        // Transparent wings (behind body) with motion blur
+        ctx.save();
+        ctx.globalAlpha = 0.15 + Math.abs(Math.sin(time * 18)) * 0.1;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
+        ctx.shadowBlur = wingBlur;
+        
+        // Left wing pair
+        ctx.fillStyle = 'rgba(200, 220, 255, 0.25)';
+        ctx.strokeStyle = 'rgba(150, 170, 200, 0.4)';
+        ctx.lineWidth = 0.5;
+        // Hindwing
+        ctx.beginPath();
+        ctx.ellipse(-9, 2, 6, 9, -0.5 + wingFlap, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Forewing
+        ctx.beginPath();
+        ctx.ellipse(-8, -3, 7, 12, -0.4 + wingFlap, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Right wing pair
+        // Hindwing
+        ctx.beginPath();
+        ctx.ellipse(9, 2, 6, 9, 0.5 - wingFlap, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Forewing
+        ctx.beginPath();
+        ctx.ellipse(8, -3, 7, 12, 0.4 - wingFlap, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        
+        // Head (menacing, angular)
+        const headGradient = ctx.createRadialGradient(0, -8, 0, 0, -8, 5);
+        headGradient.addColorStop(0, '#1a1a00');
+        headGradient.addColorStop(1, '#000000');
+        ctx.fillStyle = headGradient;
+        ctx.beginPath();
+        ctx.arc(0, -8, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Menacing compound eyes (large, red, glowing)
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = attacking ? 8 : 4;
+        ctx.fillStyle = attacking ? '#ff3300' : '#cc0000';
+        ctx.beginPath();
+        ctx.ellipse(-3, -9, 2.5, 3, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(3, -9, 2.5, 3, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Eye highlights
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255, 100, 100, 0.6)';
+        ctx.beginPath();
+        ctx.arc(-3, -10, 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(3, -10, 1, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Mandibles (pincer-like)
+        ctx.strokeStyle = '#444444';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-2, -5);
+        ctx.lineTo(-4, -3);
+        ctx.moveTo(2, -5);
+        ctx.lineTo(4, -3);
+        ctx.stroke();
+        
+        // Thorax (segmented, armored look)
+        const thoraxGradient = ctx.createLinearGradient(0, -4, 0, 4);
+        thoraxGradient.addColorStop(0, '#ffcc00');
+        thoraxGradient.addColorStop(0.5, '#ffaa00');
+        thoraxGradient.addColorStop(1, '#ff8800');
+        ctx.fillStyle = thoraxGradient;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5.5, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Thorax segments
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-5, -2);
+        ctx.lineTo(5, -2);
+        ctx.moveTo(-5, 2);
+        ctx.lineTo(5, 2);
+        ctx.stroke();
+        
+        // Abdomen (striped, pulsing when attacking)
+        const abdomenGradient = ctx.createLinearGradient(0, 5, 0, 20);
+        abdomenGradient.addColorStop(0, '#ffcc00');
+        abdomenGradient.addColorStop(1, '#ff8800');
+        ctx.fillStyle = abdomenGradient;
+        ctx.beginPath();
+        ctx.ellipse(0, 11 + abdomenPulse, 4.5, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Bold black stripes on abdomen
         ctx.fillStyle = '#000000';
-        ctx.beginPath();
-        ctx.arc(0, -8, 4, 0, Math.PI * 2);
-        ctx.fill();
+        for (let i = 0; i < 4; i++) {
+            const stripeY = 6 + i * 3.5;
+            ctx.beginPath();
+            ctx.ellipse(0, stripeY, 4.5, 1.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
-        // Thorax
-        ctx.fillStyle = '#ffaa00';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 5, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // Legs (six segmented legs)
+        ctx.strokeStyle = '#1a1a00';
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round';
+        for (let side = -1; side <= 1; side += 2) {
+            // Front leg
+            ctx.beginPath();
+            ctx.moveTo(side * 4, -2);
+            ctx.lineTo(side * 7, 0);
+            ctx.lineTo(side * 9, 3);
+            ctx.stroke();
+            // Middle leg
+            ctx.beginPath();
+            ctx.moveTo(side * 5, 1);
+            ctx.lineTo(side * 8, 3);
+            ctx.lineTo(side * 10, 5);
+            ctx.stroke();
+            // Back leg
+            ctx.beginPath();
+            ctx.moveTo(side * 4, 4);
+            ctx.lineTo(side * 7, 6);
+            ctx.lineTo(side * 9, 8);
+            ctx.stroke();
+        }
         
-        // Abdomen (striped)
-        ctx.fillStyle = '#ffaa00';
+        // Menacing stinger (larger, more threatening)
+        ctx.shadowColor = attacking ? '#ff0000' : '#000000';
+        ctx.shadowBlur = attacking ? 10 : 2;
+        const stingerGradient = ctx.createLinearGradient(0, 18, 0, 25);
+        stingerGradient.addColorStop(0, attacking ? '#ff3300' : '#2a2a2a');
+        stingerGradient.addColorStop(1, attacking ? '#990000' : '#000000');
+        ctx.fillStyle = stingerGradient;
         ctx.beginPath();
-        ctx.ellipse(0, 9 + abdomenPulse, 4, 10, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Black stripes on abdomen
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(-4, 5, 8, 2);
-        ctx.fillRect(-4, 10, 8, 2);
-        ctx.fillRect(-4, 15, 8, 2);
-        
-        // Wings
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.beginPath();
-        ctx.ellipse(-7, -2, 8, 10, -0.3 + wingFlap, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(7, -2, 8, 10, 0.3 - wingFlap, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Stinger (glows when attacking)
-        ctx.fillStyle = attacking ? '#ff0000' : '#333333';
-        ctx.beginPath();
-        ctx.moveTo(0, 19);
-        ctx.lineTo(-2, 23);
-        ctx.lineTo(2, 23);
+        ctx.moveTo(0, 20);
+        ctx.lineTo(-2.5, 25);
+        ctx.lineTo(0, 26);
+        ctx.lineTo(2.5, 25);
         ctx.closePath();
         ctx.fill();
         
-        // Eyes
-        ctx.fillStyle = '#ff0000';
-        ctx.fillRect(-2, -9, 1, 2);
-        ctx.fillRect(1, -9, 1, 2);
+        // Poison drip when attacking
+        if (attacking) {
+            ctx.fillStyle = '#00ff00';
+            ctx.shadowColor = '#00ff00';
+            ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.arc(0, 26, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
         ctx.restore();
     },

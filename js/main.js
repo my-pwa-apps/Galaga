@@ -263,11 +263,11 @@ const GalagaGame = {
         player.x = Math.max(GameConfig.PLAYER.WIDTH / 2, 
                            Math.min(GameConfig.CANVAS_WIDTH - GameConfig.PLAYER.WIDTH / 2, player.x));
         
-        // Shooting - autofire on mobile, manual on desktop
+        // Shooting - autofire only on devices without keyboard (true mobile)
         player.cooldown -= dt;
-        const shouldShoot = InputManager.isTouchDevice ? 
-            (player.cooldown <= 0) : // Mobile: autofire
-            (InputManager.isFire() && player.cooldown <= 0); // Desktop: manual
+        const shouldShoot = !InputManager.hasKeyboard ? 
+            (player.cooldown <= 0) : // Mobile without keyboard: autofire
+            (InputManager.isFire() && player.cooldown <= 0); // Desktop or keyboard: manual
             
         if (shouldShoot) {
             this.playerShoot();
