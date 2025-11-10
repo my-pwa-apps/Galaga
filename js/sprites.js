@@ -852,45 +852,61 @@ const AlienSprites = {
     drawOctopus(ctx, x, y, time, scale = 1, attacking = false) {
         ctx.save();
         ctx.translate(x, y);
+        
+        // Rotate body when diving/attacking
+        if (attacking) {
+            ctx.rotate(Math.PI); // Point head down when diving
+        }
+        
         ctx.scale(scale, scale);
         
         const pulse = 0.9 + Math.sin(time * 5) * 0.1;
         const attackIntensity = attacking ? 1.5 : 1;
         
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(0, 15, 10, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // Shadow (only when not attacking)
+        if (!attacking) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(0, 15, 10, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
-        // Draw 8 tentacles (behind body)
+        // Draw 8 tentacles
         for (let i = 0; i < 8; i++) {
             const angle = (Math.PI * 2 * i) / 8;
-            const tentacleWave = Math.sin(time * 8 + i) * 12 * attackIntensity;
-            const tentacleWave2 = Math.cos(time * 6 + i * 0.5) * 8 * attackIntensity;
+            
+            // When attacking, tentacles stream behind
+            const tentacleOffset = attacking ? -Math.PI / 2 : 0; // Shift tentacles up/behind when diving
+            const adjustedAngle = angle + tentacleOffset;
+            const tentacleLength = attacking ? 25 : 18; // Longer when streaming
+            const tentacleWave = attacking ? 
+                Math.sin(time * 12 + i) * 5 : // Less wave when diving
+                Math.sin(time * 8 + i) * 12; // More wave when idle
+            const tentacleWave2 = attacking ?
+                Math.cos(time * 10 + i * 0.5) * 3 :
+                Math.cos(time * 6 + i * 0.5) * 8;
             
             ctx.save();
-            ctx.strokeStyle = '#ff3366';
             ctx.lineWidth = 3;
             ctx.lineCap = 'round';
             
             // Gradient for tentacle
-            const tentacleGradient = ctx.createLinearGradient(0, 0, 0, 25);
+            const tentacleGradient = ctx.createLinearGradient(0, 0, 0, tentacleLength);
             tentacleGradient.addColorStop(0, '#ff6699');
             tentacleGradient.addColorStop(1, '#cc3366');
             ctx.strokeStyle = tentacleGradient;
             
             // Draw wavy tentacle with multiple segments
             ctx.beginPath();
-            const startX = Math.cos(angle) * 8;
-            const startY = Math.sin(angle) * 8;
+            const startX = Math.cos(adjustedAngle) * 8;
+            const startY = Math.sin(adjustedAngle) * 8;
             ctx.moveTo(startX, startY);
             
             // Bezier curve for smooth tentacle
-            const midX = Math.cos(angle) * (12 + tentacleWave);
-            const midY = Math.sin(angle) * (12 + tentacleWave);
-            const endX = Math.cos(angle) * (18 + tentacleWave2);
-            const endY = Math.sin(angle) * (18 + tentacleWave2);
+            const midX = Math.cos(adjustedAngle) * (12 + tentacleWave);
+            const midY = Math.sin(adjustedAngle) * (12 + tentacleWave);
+            const endX = Math.cos(adjustedAngle) * (tentacleLength + tentacleWave2);
+            const endY = Math.sin(adjustedAngle) * (tentacleLength + tentacleWave2);
             
             ctx.quadraticCurveTo(midX, midY, endX, endY);
             ctx.stroke();

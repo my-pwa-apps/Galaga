@@ -110,6 +110,8 @@ const GameConfig = {
         5: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite'],  // Level 5: Add parasite
         6: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus'],  // Level 6: Add octopus
         7: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 7: Add beetle
+        8: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 8: Same as 7
+        9: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 9: Same as 7
         10: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle', 'boss']  // Level 10: Boss
     },
     
