@@ -67,14 +67,6 @@ const CollisionSystem = {
         );
     },
     
-    // Check powerup vs player collision
-    checkPowerupPlayerCollision(powerup, player) {
-        return this.circleCollision(
-            powerup.x, powerup.y, powerup.w / 2,
-            player.x, player.y, player.w / 2
-        );
-    },
-    
     // Comprehensive collision check
     checkAll(gameState, callbacks = {}) {
         const {
@@ -82,7 +74,6 @@ const CollisionSystem = {
             onBulletEnemyHit,
             onBulletPlayerHit,
             onEnemyPlayerHit,
-            onPowerupCollected,
             onEnemyDestroyed
         } = callbacks;
         
@@ -126,8 +117,8 @@ const CollisionSystem = {
             }
         }
         
-        // Enemy bullets vs player
-        if (onBulletPlayerHit && gameState.player.alive) {
+        // Enemy bullets vs player (skip if invulnerable)
+        if (onBulletPlayerHit && gameState.player.alive && !gameState.player.invulnerable) {
             for (let i = gameState.enemyBullets.length - 1; i >= 0; i--) {
                 const bullet = gameState.enemyBullets[i];
                 if (bullet.from !== 'enemy') continue;
@@ -139,29 +130,17 @@ const CollisionSystem = {
         }
         
         // Enemies vs player
-        if (onEnemyPlayerHit && gameState.player.alive) {
+        if (onEnemyPlayerHit && gameState.player.alive && !gameState.player.invulnerable) {
             for (let i = gameState.enemies.length - 1; i >= 0; i--) {
                 const enemy = gameState.enemies[i];
                 
                 if (this.checkEnemyPlayerCollision(enemy, gameState.player)) {
-                    if (!gameState.player.shield && !gameState.player.invulnerable) {
-                        onEnemyPlayerHit(i, enemy);
-                        break; // Only process one collision per frame
-                    }
+                    onEnemyPlayerHit(i, enemy);
+                    break; // Only process one collision per frame
                 }
             }
         }
         
-        // Powerups vs player
-        if (onPowerupCollected) {
-            for (let i = gameState.powerups.length - 1; i >= 0; i--) {
-                const powerup = gameState.powerups[i];
-                
-                if (this.checkPowerupPlayerCollision(powerup, gameState.player)) {
-                    onPowerupCollected(i, powerup);
-                }
-            }
-        }
     }
 };
 

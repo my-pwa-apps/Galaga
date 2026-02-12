@@ -20,7 +20,7 @@ const AudioEngine = {
             document.addEventListener('keydown', () => this.resume(), { once: true });
             document.addEventListener('touchstart', () => this.resume(), { once: true });
             
-            console.log('✅ Audio Engine initialized');
+            // Audio engine ready
         } catch (e) {
             console.warn('⚠️ Web Audio API not supported:', e);
             this.enabled = false;

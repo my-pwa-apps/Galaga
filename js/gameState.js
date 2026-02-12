@@ -27,9 +27,6 @@ const GameState = {
         speed: 300,
         cooldown: 0,
         alive: true,
-        power: 'normal',
-        powerTimer: 0,
-        shield: false,
         invulnerable: false,
         invulnerabilityTimer: 0
     },
@@ -51,7 +48,6 @@ const GameState = {
     bullets: [],
     enemies: [],
     enemyBullets: [],
-    powerups: [],
     particles: [],
     formationSpots: [],
     attackQueue: [],
@@ -71,7 +67,6 @@ const GameState = {
         enemiesDestroyed: 0,
         shotsFired: 0,
         shotsHit: 0,
-        powerupsCollected: 0,
         survivalTime: 0,
         accuracy: 0,
         gameStartTime: 0
@@ -82,10 +77,6 @@ const GameState = {
     capturedShip: false,
     dualShip: false,
     challengeStage: false,
-    
-    // Flags
-    hasKeyboard: false,
-    autoShootActive: false,
     
     // Wave configuration (dynamic)
     waveConfig: {
@@ -117,9 +108,6 @@ const GameState = {
             speed: GameConfig.PLAYER.SPEED,
             cooldown: 0,
             alive: true,
-            power: 'normal',
-            powerTimer: 0,
-            shield: false,
             invulnerable: false,
             invulnerabilityTimer: 0
         };
@@ -127,7 +115,6 @@ const GameState = {
         this.bullets = [];
         this.enemies = [];
         this.enemyBullets = [];
-        this.powerups = [];
         this.particles = [];
         this.attackQueue = [];
         
@@ -139,7 +126,7 @@ const GameState = {
             enemiesDestroyed: 0,
             shotsFired: 0,
             shotsHit: 0,
-            powerupsCollected: 0,
+
             survivalTime: 0,
             accuracy: 0,
             gameStartTime: Date.now()
@@ -158,7 +145,7 @@ const GameState = {
             attackingShootChance: GameConfig.DIFFICULTY.ATTACKING_SHOOT_CHANCE
         };
         
-        console.log('Game state reset');
+        debugLog('Game state reset');
     },
     
     updateStats(dt) {
@@ -169,7 +156,7 @@ const GameState = {
     },
     
     setState(newState) {
-        console.log(`State change: ${this.current} → ${newState}`);
+        debugLog(`State: ${this.current} → ${newState}`);
         this.current = newState;
     },
     

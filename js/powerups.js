@@ -10,7 +10,7 @@ const PowerupManager = {
     
     // Initialize powerup manager
     init() {
-        console.log('✅ Powerup Manager initialized');
+        // Powerup Manager ready
         return this;
     },
     
@@ -23,16 +23,17 @@ const PowerupManager = {
             this.spawnTimer = 0;
         }
         
-        // Update powerup positions
-        gameState.powerups.forEach((powerup, index) => {
+        // Update powerup positions (iterate backward for safe splicing)
+        for (let i = gameState.powerups.length - 1; i >= 0; i--) {
+            const powerup = gameState.powerups[i];
             powerup.y += 50 * dt; // Fall speed
             powerup.rotation = (powerup.rotation || 0) + dt * 2;
             
             // Remove if off-screen
             if (powerup.y > GameConfig.CANVAS_HEIGHT + 50) {
-                gameState.powerups.splice(index, 1);
+                gameState.powerups.splice(i, 1);
             }
-        });
+        }
     },
     
     // Spawn random powerup
@@ -74,24 +75,24 @@ const PowerupManager = {
             case 'double':
                 player.power = 'double';
                 player.powerTimer = 10; // 10 seconds
-                console.log('💪 Double shot activated!');
+                debugLog('Double shot activated');
                 break;
                 
             case 'speed':
                 player.power = 'rapid';
                 player.powerTimer = 8; // 8 seconds
-                console.log('⚡ Rapid fire activated!');
+                debugLog('Rapid fire activated');
                 break;
                 
             case 'shield':
                 player.shield = true;
                 player.powerTimer = 12; // 12 seconds
-                console.log('🛡️ Shield activated!');
+                debugLog('Shield activated');
                 break;
                 
             case 'health':
                 gameState.lives = Math.min(gameState.lives + 1, 5);
-                console.log('❤️ Extra life!');
+                debugLog('Extra life');
                 break;
         }
         
@@ -117,11 +118,11 @@ const PowerupManager = {
                 // Powerup expired
                 if (player.power === 'double' || player.power === 'rapid') {
                     player.power = 'normal';
-                    console.log('Powerup expired');
+                    debugLog('Powerup expired');
                 }
                 if (player.shield) {
                     player.shield = false;
-                    console.log('Shield expired');
+                    debugLog('Shield expired');
                 }
                 player.powerTimer = 0;
             }

@@ -25,7 +25,7 @@ const ObjectPool = {
         this.initEnemyBulletPool();
         this.initParticlePool();
         
-        console.log(`✅ Object pools initialized (bullets: ${this.bulletPoolSize}, enemy bullets: ${this.enemyBulletPoolSize}, particles: ${this.particlePoolSize})`);
+        // Object pools ready
         return this;
     },
     

@@ -17,7 +17,7 @@ const Renderer = {
         this.ctx = this.canvas.getContext('2d');
         this.ctx.imageSmoothingEnabled = false;
         
-        console.log(`✅ Renderer initialized (${this.canvas.width}x${this.canvas.height})`);
+        // Renderer ready
         return this;
     },
     

@@ -25,7 +25,7 @@ const GraphicsOptimizer = {
         this.detectCapabilities();
         this.adjustQualityBasedOnDevice();
         this.startPerformanceMonitoring();
-        console.log(`✅ Graphics Optimizer initialized - Quality: ${this.qualityLevel}`);
+        // Graphics optimizer ready
         return this;
     },
     
@@ -39,7 +39,7 @@ const GraphicsOptimizer = {
             const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
             if (debugInfo) {
                 const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-                console.log('GPU Renderer:', renderer);
+                debugLog('GPU Renderer:', renderer);
                 
                 if (renderer.includes('Intel') && renderer.includes('HD')) {
                     this.qualityLevel = 'medium';
@@ -101,11 +101,11 @@ const GraphicsOptimizer = {
         if (currentFPS < 30 && this.qualityLevel !== 'low') {
             this.qualityLevel = this.qualityLevel === 'high' ? 'medium' : 'low';
             this.lastQualityAdjustment = now;
-            console.log(`⚠️ FPS low (${currentFPS.toFixed(1)}), reducing quality to ${this.qualityLevel}`);
+            debugLog(`FPS low (${currentFPS.toFixed(1)}), reducing quality to ${this.qualityLevel}`);
         } else if (currentFPS > 55 && this.qualityLevel !== 'high') {
             this.qualityLevel = this.qualityLevel === 'low' ? 'medium' : 'high';
             this.lastQualityAdjustment = now;
-            console.log(`✅ FPS good (${currentFPS.toFixed(1)}), increasing quality to ${this.qualityLevel}`);
+            debugLog(`FPS good (${currentFPS.toFixed(1)}), increasing quality to ${this.qualityLevel}`);
         }
     },
     
@@ -141,30 +141,37 @@ const GraphicsOptimizer = {
     batchRenderParticles(ctx, particles) {
         if (particles.length === 0) return;
         
-        // Group particles by color
+        // Group particles by color for minimal state changes
         const particlesByColor = new Map();
-        particles.forEach(particle => {
-            const key = `${particle.color}_${particle.life.toFixed(2)}`;
-            if (!particlesByColor.has(key)) {
-                particlesByColor.set(key, []);
+        for (let i = 0; i < particles.length; i++) {
+            const particle = particles[i];
+            const color = particle.color;
+            if (!particlesByColor.has(color)) {
+                particlesByColor.set(color, []);
             }
-            particlesByColor.get(key).push(particle);
-        });
+            particlesByColor.get(color).push(particle);
+        }
         
-        // Render each color group
+        // Render each color group with computed alpha
         ctx.save();
-        particlesByColor.forEach((group, key) => {
-            const firstParticle = group[0];
-            const alpha = firstParticle.life / firstParticle.maxLife;
+        particlesByColor.forEach((group, color) => {
+            ctx.fillStyle = color;
             
-            ctx.globalAlpha = alpha;
-            ctx.fillStyle = firstParticle.color;
-            
-            group.forEach(particle => {
-                ctx.beginPath();
-                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-                ctx.fill();
-            });
+            for (let i = 0; i < group.length; i++) {
+                const particle = group[i];
+                const alpha = particle.maxLife > 0 ? particle.life / particle.maxLife : 0;
+                ctx.globalAlpha = alpha;
+                
+                // Use fillRect for small particles (faster than arc)
+                const size = particle.size;
+                if (size <= 2) {
+                    ctx.fillRect(particle.x - size * 0.5, particle.y - size * 0.5, size, size);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
         });
         ctx.restore();
     },

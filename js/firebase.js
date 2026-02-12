@@ -30,7 +30,7 @@ const FirebaseService = {
     
     // Initialize Firebase
     init() {
-        console.log('🔥 Initializing Firebase Service...');
+        debugLog('Initializing Firebase Service...');
         
         try {
             if (typeof firebase === 'undefined') {
@@ -46,7 +46,7 @@ const FirebaseService = {
             
             this.setupConnectionMonitoring();
             
-            console.log('✅ Firebase Service initialized successfully');
+            debugLog('Firebase Service initialized');
             return true;
             
         } catch (error) {
@@ -64,7 +64,6 @@ const FirebaseService = {
         const connectedRef = this.db.ref('.info/connected');
         connectedRef.on('value', (snapshot) => {
             this.isConnected = snapshot.val() === true;
-            console.log(`Firebase: ${this.isConnected ? '🟢 ONLINE' : '🔴 OFFLINE'}`);
         });
     },
     
@@ -91,7 +90,7 @@ const FirebaseService = {
             
             scores.reverse();
             this.cache.highScores = scores;
-            console.log(`✅ Fetched ${scores.length} high scores`);
+            debugLog(`Fetched ${scores.length} high scores`);
             
             return scores;
             
@@ -125,7 +124,7 @@ const FirebaseService = {
             const newScoreRef = this.db.ref('highScores').push();
             await newScoreRef.set(scoreData);
             
-            console.log('✅ High score saved:', scoreData);
+            debugLog('High score saved:', scoreData);
             
             await this.cleanupHighScores();
             await this.fetchHighScores();
@@ -163,7 +162,7 @@ const FirebaseService = {
                     this.db.ref(`highScores/${item.id}`).remove()
                 );
                 await Promise.all(removePromises);
-                console.log(`🧹 Cleaned up ${toRemove.length} old high scores`);
+                debugLog(`Cleaned up ${toRemove.length} old high scores`);
             }
             
         } catch (error) {
@@ -193,7 +192,7 @@ const FirebaseService = {
             };
             
             await this.db.ref(`playerStats/${sessionId}`).set(statsData);
-            console.log('✅ Player stats saved');
+            debugLog('Player stats saved');
             
             return true;
             
@@ -242,7 +241,7 @@ const FirebaseService = {
                 lastUpdated: Date.now()
             });
             
-            console.log('✅ Settings saved');
+            debugLog('Settings saved');
             return true;
             
         } catch (error) {
@@ -297,7 +296,7 @@ const FirebaseService = {
             gameSettings: null,
             achievements: []
         };
-        console.log('🧹 Firebase cache cleared');
+        debugLog('Firebase cache cleared');
     }
 };
 

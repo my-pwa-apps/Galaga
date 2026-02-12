@@ -2,9 +2,16 @@
 // GAME CONFIGURATION
 // ============================================
 
+// Debug logging utility (must be defined before any module uses it)
+const debugLog = (...args) => {
+    if (typeof GameConfig !== 'undefined' && GameConfig.DEBUG_MODE) {
+        console.log(...args);
+    }
+};
+
 const GameConfig = {
     // Debug mode - set to false for production
-    DEBUG_MODE: true,
+    DEBUG_MODE: false,
     
     // Canvas dimensions
     CANVAS_WIDTH: 480,
@@ -12,7 +19,7 @@ const GameConfig = {
     
     // Game constants
     MAX_HIGH_SCORES: 10,
-    MAX_ENEMIES: 32,
+    MAX_ENEMIES: 42,
     NUM_STARS: 100,
     
     // Pool sizes
@@ -29,10 +36,10 @@ const GameConfig = {
         HEIGHT: 30,
         START_X: 240,
         START_Y: 550,
-        COOLDOWN: 0.15,
-        COOLDOWN_SPEED: 0.1,
-        // Player bullet speed (was hardcoded in main.js)
-        BULLET_SPEED: 400
+        COOLDOWN: 0.25,
+        COOLDOWN_SPEED: 0.15,
+        BULLET_SPEED: 500,
+        MAX_BULLETS: 2  // Original Galaga limits player to 2 bullets on screen
     },
     
     // Powerup configuration
@@ -57,47 +64,55 @@ const GameConfig = {
         ATTACKING_SHOOT_CHANCE: 0.015,
         RETURN_TO_FORMATION_CHANCE: 0.7,
         ATTACK_CURVE_INTENSITY: 1,
-        // Scaling multipliers per level
-        HP_SCALE_PER_LEVEL: 0.08,
-        SPEED_SCALE_PER_LEVEL: 0.08,
-        SPEED_SCALE_MAX: 1.4,
-        SHOOT_SCALE_PER_LEVEL: 0.03,
-        SHOOT_CHANCE_MAX: 0.06
+        // Scaling multipliers per level (no HP scaling - enemies always die in 1-2 hits)
+        HP_SCALE_PER_LEVEL: 0,
+        SPEED_SCALE_PER_LEVEL: 0.06,
+        SPEED_SCALE_MAX: 1.5,
+        SHOOT_SCALE_PER_LEVEL: 0.04,
+        SHOOT_CHANCE_MAX: 0.08
     },
     
-    // Enemy configuration
+    // Enemy configuration (original Galaga: all 1 HP except boss = 2 HP)
     ENEMIES: {
         skulker: { 
-            hp: 1, speed: 100, score: 100, shootChance: 0.01, 
-            w: 20, h: 20, color: '#cc0000', name: 'Skulker' 
+            hp: 1, speed: 100, score: 50, shootChance: 0.01, 
+            w: 20, h: 20, color: '#cc0000', name: 'Skulker',
+            diveScore: 100   // Double score when diving
         },
         butterfly: { 
-            hp: 1, speed: 80, score: 200, shootChance: 0.012, 
-            w: 24, h: 24, color: '#ff00ff', name: 'Butterfly' 
+            hp: 1, speed: 80, score: 80, shootChance: 0.012, 
+            w: 24, h: 24, color: '#ff00ff', name: 'Butterfly',
+            diveScore: 160
         },
         parasite: { 
-            hp: 1, speed: 150, score: 150, shootChance: 0.01, 
-            w: 22, h: 22, color: '#66ff33', name: 'Parasite' 
+            hp: 1, speed: 150, score: 60, shootChance: 0.01, 
+            w: 22, h: 22, color: '#66ff33', name: 'Parasite',
+            diveScore: 120
         },
         wraith: { 
-            hp: 1, speed: 140, score: 180, shootChance: 0.011, 
-            w: 24, h: 28, color: '#9966ff', name: 'Wraith' 
+            hp: 1, speed: 140, score: 70, shootChance: 0.011, 
+            w: 24, h: 28, color: '#9966ff', name: 'Wraith',
+            diveScore: 140
         },
         wasp: { 
-            hp: 2, speed: 110, score: 280, shootChance: 0.018, 
-            w: 20, h: 24, color: '#ffaa00', name: 'Wasp' 
+            hp: 1, speed: 110, score: 80, shootChance: 0.018, 
+            w: 20, h: 24, color: '#ffaa00', name: 'Wasp',
+            diveScore: 160
         },
         beetle: { 
-            hp: 3, speed: 70, score: 350, shootChance: 0.013, 
-            w: 26, h: 26, color: '#6633cc', name: 'Beetle' 
+            hp: 1, speed: 70, score: 100, shootChance: 0.013, 
+            w: 26, h: 26, color: '#6633cc', name: 'Beetle',
+            diveScore: 200
         },
         octopus: { 
-            hp: 2, speed: 90, score: 300, shootChance: 0.016, 
-            w: 28, h: 28, color: '#ff6699', name: 'Octopus' 
+            hp: 1, speed: 90, score: 100, shootChance: 0.016, 
+            w: 28, h: 28, color: '#ff6699', name: 'Octopus',
+            diveScore: 200
         },
         boss: { 
-            hp: 3, speed: 60, score: 500, shootChance: 0.02, 
-            w: 32, h: 32, color: '#00ffff', name: 'Boss' 
+            hp: 2, speed: 60, score: 150, shootChance: 0.02, 
+            w: 32, h: 32, color: '#00ffff', name: 'Boss',
+            diveScore: 400
         }
     },
     

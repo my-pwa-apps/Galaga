@@ -55,7 +55,7 @@ const InputManager = {
             this.initTouch();
         }
         
-        console.log(`✅ Input Manager initialized (touch: ${this.isTouchDevice})`);
+        // Input manager ready
         return this;
     },
     
@@ -82,13 +82,11 @@ const InputManager = {
     
     // Handle window losing focus
     handleWindowBlur() {
-        console.log('Window lost focus - resetting input state');
         this.reset();
     },
     
     // Handle window regaining focus
     handleWindowFocus() {
-        console.log('Window regained focus - ready for input');
         if (this.canvas) {
             this.canvas.focus();
         }
@@ -97,14 +95,13 @@ const InputManager = {
     // Handle key down
     handleKeyDown(e) {
         // Prevent default for game keys
-        if (['Space', 'ArrowLeft', 'ArrowRight', 'KeyP', 'Enter'].includes(e.code)) {
+        if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyP', 'Enter'].includes(e.code)) {
             e.preventDefault();
         }
         
         // Mark keyboard as detected
         if (!this.hasKeyboard) {
             this.hasKeyboard = true;
-            console.log('Keyboard detected - touch controls will be hidden');
         }
         
         this.keys[e.code] = true;
@@ -124,118 +121,68 @@ const InputManager = {
     initTouch() {
         if (!this.canvas) return;
         
-        const buttonSize = 60;
-        const margin = 20;
-        const bottomMargin = 40;
-        const canvasWidth = this.canvas.width;
-        const canvasHeight = this.canvas.height;
+        // Get HTML touch control elements
+        const touchControlsEl = document.getElementById('touchControls');
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+        const btnFire = document.getElementById('btnFire');
         
-        // Left button (bottom left)
-        this.touchControls.buttons.left = {
-            x: margin,
-            y: canvasHeight - buttonSize - bottomMargin,
-            w: buttonSize,
-            h: buttonSize,
-            key: 'ArrowLeft',
-            pressed: false,
-            touchId: null
-        };
+        if (!touchControlsEl || !btnLeft || !btnRight || !btnFire) {
+            console.warn('Touch control HTML elements not found');
+            return;
+        }
         
-        // Right button (bottom right of left button)
-        this.touchControls.buttons.right = {
-            x: margin + buttonSize + 10,
-            y: canvasHeight - buttonSize - bottomMargin,
-            w: buttonSize,
-            h: buttonSize,
-            key: 'ArrowRight',
-            pressed: false,
-            touchId: null
-        };
+        // Show touch controls
+        touchControlsEl.classList.add('visible');
         
-        // Add touch listeners
-        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-        this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-        this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+        // Wire up button events with multi-touch support
+        this._wireButton(btnLeft, 'left', 'ArrowLeft');
+        this._wireButton(btnRight, 'right', 'ArrowRight');
+        this._wireButton(btnFire, 'fire', 'Space');
         
-        this.touchControls.enabled = true;
-        console.log('Touch controls initialized');
-    },
-    
-    // Handle touch start
-    handleTouchStart(e) {
-        e.preventDefault();
-        
-        const rect = this.canvas.getBoundingClientRect();
-        const touches = e.changedTouches;
-        
-        for (let i = 0; i < touches.length; i++) {
-            const touch = touches[i];
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-            
-            // For splash/game over screens - treat any tap as Enter/Space
-            // This allows tap-anywhere to start/continue
-            // Trigger the state change callback which handles screen transitions
+        // Canvas tap for state changes (start/continue/etc.)
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
             if (this.onStateChange) {
                 this.onStateChange('Space');
             }
-            
-            // Also simulate Space key for consistent handling
             this.keys['Space'] = true;
             setTimeout(() => { this.keys['Space'] = false; }, 100);
-            
-            // Check which button was touched (for gameplay)
-            for (const [buttonName, button] of Object.entries(this.touchControls.buttons)) {
-                if (x >= button.x && x <= button.x + button.w &&
-                    y >= button.y && y <= button.y + button.h) {
-                    
-                    button.pressed = true;
-                    button.touchId = touch.identifier;
-                    
-                    // Handle special cases
-                    if (buttonName === 'autoShoot') {
-                        this.autoShootActive = !this.autoShootActive;
-                    } else if (button.key) {
-                        this.keys[button.key] = true;
-                    }
-                    
-                    break;
-                }
-            }
-        }
+        }, { passive: false });
+        
+        this.touchControls.enabled = true;
     },
     
-    // Handle touch move
-    handleTouchMove(e) {
-        e.preventDefault();
-        // Could add drag handling here if needed
+    // Wire a touch button to a key
+    _wireButton(element, buttonName, keyCode) {
+        const button = this.touchControls.buttons[buttonName];
+        
+        const press = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            button.pressed = true;
+            if (keyCode) this.keys[keyCode] = true;
+            element.classList.add('pressed');
+        };
+        
+        const release = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            button.pressed = false;
+            if (keyCode) this.keys[keyCode] = false;
+            element.classList.remove('pressed');
+        };
+        
+        element.addEventListener('touchstart', press, { passive: false });
+        element.addEventListener('touchend', release, { passive: false });
+        element.addEventListener('touchcancel', release, { passive: false });
+        
+        // Prevent context menu on long press
+        element.addEventListener('contextmenu', (e) => e.preventDefault());
     },
     
-    // Handle touch end
-    handleTouchEnd(e) {
-        e.preventDefault();
-        
-        const touches = e.changedTouches;
-        
-        for (let i = 0; i < touches.length; i++) {
-            const touch = touches[i];
-            
-            // Find and release the button
-            for (const [buttonName, button] of Object.entries(this.touchControls.buttons)) {
-                if (button.touchId === touch.identifier) {
-                    button.pressed = false;
-                    button.touchId = null;
-                    
-                    // Release key (except autoShoot which is a toggle)
-                    if (button.key && buttonName !== 'autoShoot') {
-                        this.keys[button.key] = false;
-                    }
-                    
-                    break;
-                }
-            }
-        }
-    },
+    // Handle touch start (legacy - now handled by HTML buttons)
+    // Canvas tap is handled in initTouch for state changes only
     
     // Check if key is pressed
     isKeyPressed(keyCode) {

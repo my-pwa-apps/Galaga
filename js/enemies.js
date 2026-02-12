@@ -7,7 +7,7 @@ const EnemyManager = {
     types: null, // Will be populated from GameConfig.ENEMIES
     spawnTimer: 0,
     spawnInterval: 2,
-    maxEnemies: 32,
+    maxEnemies: 42,
     waveNumber: 0,
     spawningWave: false, // true while a wave is in the timed entrance spawning phase
     spawnTimeouts: [], // active setTimeout IDs for wave spawning
@@ -24,24 +24,31 @@ const EnemyManager = {
         this.setupFormation();
         this.spawningWave = false;
         this.spawnTimeouts = [];
-        console.log('✅ Enemy Manager initialized with types:', this.types);
+        debugLog('Enemy Manager initialized with types:', this.types);
         return this;
     },
     
     // Setup enemy formation spots (Galaga-style grid)
+    // Original Galaga: Row 0 = 4 bosses, Row 1 = 8 butterflies, Rows 2-4 = 10 bees each
+    // We adapt this: 5 rows, cols vary per row for authentic look
     setupFormation() {
         this.formationSpots = [];
-        const rows = 4;
-        const cols = 8;
-        const spacingX = 40;
-        const spacingY = 30;
-        const startX = (GameConfig.CANVAS_WIDTH - (cols - 1) * spacingX) / 2;
-        const startY = 60;
+        const formationRows = [
+            { count: 4,  spacingX: 50 }, // Row 0: bosses/elites (4 wide)
+            { count: 8,  spacingX: 40 }, // Row 1: mid-tier (8 wide)
+            { count: 10, spacingX: 36 }, // Row 2: common (10 wide)
+            { count: 10, spacingX: 36 }, // Row 3: common (10 wide)
+            { count: 10, spacingX: 36 }, // Row 4: common (10 wide)
+        ];
+        const spacingY = 28;
+        const startY = 55;
 
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < formationRows.length; r++) {
+            const row = formationRows[r];
+            const startX = (GameConfig.CANVAS_WIDTH - (row.count - 1) * row.spacingX) / 2;
+            for (let c = 0; c < row.count; c++) {
                 this.formationSpots.push({
-                    x: startX + c * spacingX,
+                    x: startX + c * row.spacingX,
                     y: startY + r * spacingY,
                     taken: false,
                     row: r,
@@ -50,7 +57,7 @@ const EnemyManager = {
             }
         }
         
-        console.log(`Formation setup: ${this.formationSpots.length} spots`);
+        debugLog(`Formation setup: ${this.formationSpots.length} spots (5 rows)`);
     },
     
     // Get an empty formation spot
@@ -113,11 +120,11 @@ const EnemyManager = {
         this.waveNumber++;
         this.enemiesSpawnedThisWave = 0;
         if (GameConfig.DEBUG_MODE) {
-            console.log(`Spawning wave ${this.waveNumber} for level ${level}`);
+            debugLog(`Spawning wave ${this.waveNumber} for level ${level}`);
         }
 
         const availableTypes = this.getAvailableTypes(level);
-        const enemyCount = Math.min(8 + level * 2, 24);
+        const enemyCount = Math.min(12 + level * 3, 42);
 
         // Classic Galaga grouping: assign types to rows
         // Top rows: Elite enemies, Bottom rows: Common enemies
@@ -136,12 +143,12 @@ const EnemyManager = {
                 }
                 spawned++;
                 if (GameConfig.DEBUG_MODE) {
-                    console.log(`[SPAWN] Spawned ${spawned}/${totalToSpawn} enemies (${this.enemiesSpawnedThisWave} successful)`);
+                    debugLog(`[SPAWN] Spawned ${spawned}/${totalToSpawn} enemies (${this.enemiesSpawnedThisWave} successful)`);
                 }
                 if (spawned >= totalToSpawn) {
                     // All spawn attempts completed
                     this.spawningWave = false;
-                    console.log(`Wave ${this.waveNumber} fully spawned - ${this.enemiesSpawnedThisWave} enemies active`);
+                    debugLog(`Wave ${this.waveNumber} fully spawned - ${this.enemiesSpawnedThisWave} enemies active`);
                 }
             }, i * 300);
             this.spawnTimeouts.push(timeoutId);
@@ -149,27 +156,32 @@ const EnemyManager = {
     },
     
     // Assign enemy types to formation rows (Galaga-style)
+    // Row 0: bosses/elites, Row 1: mid-tier, Rows 2-4: common
     assignTypesToFormationRows(availableTypes, level) {
         const typesByRow = {};
         
-        // Classic Galaga formation: 
-        // Row 0 (top): Boss/elite enemies
-        // Row 1: Medium enemies
-        // Row 2-3: Common/weak enemies
-        
+        // Row 0 (top): Boss/elite enemies (4 slots)
         if (availableTypes.includes('boss')) {
-            typesByRow[0] = ['boss', 'beetle', 'octopus'];
+            typesByRow[0] = ['boss'];
         } else if (availableTypes.includes('beetle')) {
-            typesByRow[0] = ['beetle', 'octopus', 'wasp'];
+            typesByRow[0] = ['beetle'];
         } else if (availableTypes.includes('octopus')) {
-            typesByRow[0] = ['octopus', 'wasp', 'butterfly'];
+            typesByRow[0] = ['octopus'];
         } else {
-            typesByRow[0] = ['butterfly', 'wraith'];
+            typesByRow[0] = ['butterfly'];
         }
         
-        typesByRow[1] = availableTypes.includes('wasp') ? ['wasp', 'wraith', 'butterfly'] : ['butterfly', 'wraith'];
-        typesByRow[2] = availableTypes.includes('parasite') ? ['parasite', 'wraith', 'skulker'] : ['wraith', 'skulker'];
-        typesByRow[3] = ['skulker'];
+        // Row 1: Mid-tier (8 slots)
+        if (availableTypes.includes('wasp')) {
+            typesByRow[1] = ['butterfly', 'wasp'];
+        } else {
+            typesByRow[1] = ['butterfly'];
+        }
+        
+        // Rows 2-4: Common enemies (10 slots each)
+        typesByRow[2] = availableTypes.includes('wraith') ? ['wraith', 'skulker'] : ['skulker'];
+        typesByRow[3] = availableTypes.includes('parasite') ? ['skulker', 'parasite'] : ['skulker'];
+        typesByRow[4] = ['skulker'];
         
         // Filter to only include available types
         for (let row in typesByRow) {
@@ -190,7 +202,7 @@ const EnemyManager = {
         const formationSpot = this.getEmptyFormationSpot();
         if (!formationSpot) {
             if (GameConfig.DEBUG_MODE) {
-                console.log('[DEBUG] spawnEnemy aborted - no formation spot available. Current enemies:', gameState.enemies.length);
+                debugLog('[DEBUG] spawnEnemy aborted - no formation spot available. Current enemies:', gameState.enemies.length);
             }
             return false;
         }
@@ -222,13 +234,10 @@ const EnemyManager = {
         };
         
         gameState.enemies.push(enemy);
-        if (GameConfig.DEBUG_MODE && gameState.enemies.length % 5 === 0) {
-            console.log(`[DEBUG] Spawned enemy #${gameState.enemies.length} in wave ${this.waveNumber}`);
-        }
         return true;
     },
     
-    // Legacy spawn function for compatibility
+    // Legacy spawn function - kept for compatibility
     spawnEnemy(level, gameState, availableTypes = null) {
         if (gameState.enemies.length >= this.maxEnemies) return false;
         
@@ -242,9 +251,7 @@ const EnemyManager = {
         // Get formation spot
         const formationSpot = this.getEmptyFormationSpot();
         if (!formationSpot) {
-            if (GameConfig.DEBUG_MODE) {
-                console.log('[DEBUG] spawnEnemy aborted - no formation spot available. Current enemies:', gameState.enemies.length);
-            }
+            debugLog('spawnEnemy aborted - no formation spot available');
             return false;
         }
         
@@ -270,9 +277,6 @@ const EnemyManager = {
         };
         
         gameState.enemies.push(enemy);
-        if (gameState.enemies.length % 5 === 0) {
-            console.log(`[DEBUG] Spawned enemy #${gameState.enemies.length} in wave ${this.waveNumber}`);
-        }
         return true;
     },
     
@@ -350,19 +354,14 @@ const EnemyManager = {
                   3 * t1 * t * t * path.controlY2 +
                   t * t * t * path.endY;
         
-        // Remove enemies that flew way off-screen (beyond play area + buffer)
+        // Safety: if enemy flew way off-screen during entrance, snap to target
         if (enemy.y > GameConfig.CANVAS_HEIGHT + 100 || 
-            enemy.x < -100 || 
-            enemy.x > GameConfig.CANVAS_WIDTH + 100) {
-            console.log('🚀 Enemy flew off-screen during entrance, removing. Position: x=' + Math.round(enemy.x) + ', y=' + Math.round(enemy.y));
-            const index = GameState.enemies.indexOf(enemy);
-            if (index > -1) {
-                if (enemy.formationSpot) {
-                    enemy.formationSpot.taken = false;
-                }
-                GameState.enemies.splice(index, 1);
-                console.log('   Remaining enemies:', GameState.enemies.length);
-            }
+            enemy.x < -200 || 
+            enemy.x > GameConfig.CANVAS_WIDTH + 200) {
+            debugLog('Enemy off-screen during entrance, snapping to formation');
+            enemy.state = GameConfig.ENEMY_STATE.FORMATION;
+            enemy.x = enemy.targetX;
+            enemy.y = enemy.targetY;
             return;
         }
         
@@ -422,35 +421,20 @@ const EnemyManager = {
         
         const duration = 3.5;
         if (enemy.attackTime >= duration) {
-            // Check if enemy went off-screen - if so, remove it
-            // Otherwise return to formation
-            if (enemy.y > GameConfig.CANVAS_HEIGHT + 100 || 
-                enemy.x < -100 || 
-                enemy.x > GameConfig.CANVAS_WIDTH + 100) {
-                // Enemy flew off screen, mark for removal
-                const queueIndex = this.attackQueue.indexOf(enemy);
-                if (queueIndex > -1) this.attackQueue.splice(queueIndex, 1);
-                
-                if (enemy.formationSpot) {
-                    enemy.formationSpot.taken = false;
-                }
-                
-                const enemyIndex = gameState.enemies.indexOf(enemy);
-                if (enemyIndex > -1) {
-                    console.log('🚀 Enemy flew off-screen, removing. Remaining enemies:', gameState.enemies.length - 1);
-                    gameState.enemies.splice(enemyIndex, 1);
-                }
-                return;
-            } else {
-                // Enemy is still on screen, return to formation
-                enemy.state = GameConfig.ENEMY_STATE.ENTRANCE;
-                enemy.entranceProgress = 0;
-                enemy.entrancePath = this.createEntrancePath(enemy.x, enemy.y, enemy.targetX, enemy.targetY);
-                
-                const queueIndex = this.attackQueue.indexOf(enemy);
-                if (queueIndex > -1) this.attackQueue.splice(queueIndex, 1);
-                return;
-            }
+            // In original Galaga, enemies that dive off-screen re-enter from the top
+            // and fly back to their formation spot
+            const queueIndex = this.attackQueue.indexOf(enemy);
+            if (queueIndex > -1) this.attackQueue.splice(queueIndex, 1);
+            
+            // Return to formation via entrance path from top of screen
+            enemy.state = GameConfig.ENEMY_STATE.ENTRANCE;
+            enemy.entranceProgress = 0;
+            // Re-enter from the top, near center
+            const reEntryX = enemy.targetX + (Math.random() - 0.5) * 60;
+            enemy.x = reEntryX;
+            enemy.y = -30;
+            enemy.entrancePath = this.createEntrancePath(reEntryX, -30, enemy.targetX, enemy.targetY);
+            return;
         }
         
         // Follow attack path
@@ -537,16 +521,7 @@ const EnemyManager = {
     draw(ctx, gameState, time) {
         gameState.enemies.forEach(enemy => {
             const attacking = enemy.state === GameConfig.ENEMY_STATE.ATTACK;
-            
-            // Draw alien sprite
             AlienSprites.draw(ctx, enemy.type, enemy.x, enemy.y, time, 1, attacking);
-            
-            // Draw health bar for tougher enemies
-            if (enemy.maxHP > 1) {
-                const healthPercent = enemy.hp / enemy.maxHP;
-                ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
-                ctx.fillRect(enemy.x - 10, enemy.y - 18, 20 * healthPercent, 2);
-            }
         });
     },
     
@@ -561,7 +536,7 @@ const EnemyManager = {
         this.enemiesSpawnedThisWave = 0;
         this.attackQueue = [];
         this.formationSpots.forEach(spot => spot.taken = false);
-        console.log('🔄 EnemyManager reset (timers cleared)');
+        debugLog('EnemyManager reset');
     }
 };
 
