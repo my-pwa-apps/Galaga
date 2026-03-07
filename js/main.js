@@ -48,7 +48,6 @@ const GalagaGame = {
         // Initialize all systems
         AudioEngine.init();
         GraphicsOptimizer.init();
-        ObjectPool.init();
         EnemyManager.init();
         FirebaseService.init();
         
@@ -768,13 +767,12 @@ const GalagaGame = {
         ctx.fillText('GALAGA', GameConfig.CANVAS_WIDTH / 2, 120);
         ctx.restore();
         
-        // Animated subtitle with rainbow effect
-        const hue = (time * 50) % 360;
+        // Subtitle - authentic arcade style
         ctx.save();
         ctx.font = "10px 'Press Start 2P', monospace";
         ctx.textAlign = 'center';
-        ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
-        ctx.fillText('RETRO SPACE SHOOTER', GameConfig.CANVAS_WIDTH / 2, 170);
+        ctx.fillStyle = '#ff0000';
+        ctx.fillText('\u00A9 1981 NAMCO', GameConfig.CANVAS_WIDTH / 2, 170);
         ctx.restore();
         
         // Draw some sample aliens flying by
@@ -915,7 +913,7 @@ const GalagaGame = {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(0, GameConfig.CANVAS_HEIGHT / 2 - 40, GameConfig.CANVAS_WIDTH, 80);
             
-            // Level text
+            // Level text — authentic Galaga shows "STAGE X"
             ctx.shadowColor = '#00ffff';
             ctx.shadowBlur = 20;
             ctx.font = "20px 'Press Start 2P', monospace";
@@ -927,7 +925,7 @@ const GalagaGame = {
             ctx.shadowBlur = 0;
             ctx.font = "10px 'Press Start 2P', monospace";
             ctx.fillStyle = '#ffff00';
-            ctx.fillText('GET READY!', GameConfig.CANVAS_WIDTH / 2, GameConfig.CANVAS_HEIGHT / 2 + 18);
+            ctx.fillText('READY', GameConfig.CANVAS_WIDTH / 2, GameConfig.CANVAS_HEIGHT / 2 + 18);
             
             ctx.restore();
         }
@@ -1176,66 +1174,108 @@ const GalagaGame = {
         ctx.restore();
     },
     
-    // Draw game over
+    // Draw game over — authentic Galaga RESULTS screen
     drawGameOver() {
         const ctx = Renderer.ctx;
         const time = this.currentTime / 1000;
+        const arcadeFont = "'Press Start 2P', monospace";
+        const cx = GameConfig.CANVAS_WIDTH / 2;
         
-        // Dramatic fade effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        // Black background
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
         
-        // Red warning lines
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(0, 200);
-        ctx.lineTo(GameConfig.CANVAS_WIDTH, 200);
-        ctx.moveTo(0, 420);
-        ctx.lineTo(GameConfig.CANVAS_WIDTH, 420);
-        ctx.stroke();
-        
-        // Game Over title with dramatic effect
+        // GAME OVER title (red, like original)
         ctx.save();
         const textPulse = 0.8 + Math.sin(time * 5) * 0.2;
         ctx.globalAlpha = textPulse;
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 30;
-        Renderer.drawText('GAME OVER', GameConfig.CANVAS_WIDTH / 2, 230, {
-            font: "24px 'Press Start 2P', monospace",
+        Renderer.drawText('GAME OVER', cx, 120, {
+            font: `24px ${arcadeFont}`,
             color: '#ff0000',
             align: 'center'
         });
         ctx.restore();
         
-        // Stats panel
-        ctx.fillStyle = 'rgba(0, 20, 40, 0.8)';
-        ctx.fillRect(90, 290, 300, 80);
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(90, 290, 300, 80);
-        
-        // Final score with formatting
-        ctx.save();
-        ctx.shadowColor = '#ffff00';
-        ctx.shadowBlur = 10;
-        Renderer.drawText('FINAL SCORE', GameConfig.CANVAS_WIDTH / 2, 305, {
-            font: "10px 'Press Start 2P', monospace",
+        // --- RESULTS --- (authentic Galaga results screen)
+        Renderer.drawText('----- RESULTS -----', cx, 200, {
+            font: `10px ${arcadeFont}`,
             color: '#00ffff',
             align: 'center'
         });
-        Renderer.drawText(`${GameState.score.toLocaleString()}`, GameConfig.CANVAS_WIDTH / 2, 330, {
-            font: "20px 'Press Start 2P', monospace",
+        
+        // Shots Fired
+        Renderer.drawText('SHOTS FIRED', cx - 80, 245, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'left'
+        });
+        Renderer.drawText(`${GameState.stats.shotsFired}`, cx + 120, 245, {
+            font: `9px ${arcadeFont}`,
             color: '#ffff00',
-            align: 'center'
+            align: 'right'
+        });
+        
+        // Number of Hits
+        Renderer.drawText('NUMBER OF HITS', cx - 80, 275, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'left'
+        });
+        Renderer.drawText(`${GameState.stats.shotsHit}`, cx + 120, 275, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffff00',
+            align: 'right'
+        });
+        
+        // Dividing line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - 80, 295);
+        ctx.lineTo(cx + 120, 295);
+        ctx.stroke();
+        
+        // Hit/Miss Ratio
+        const accuracy = GameState.stats.shotsFired > 0
+            ? ((GameState.stats.shotsHit / GameState.stats.shotsFired) * 100).toFixed(1)
+            : '0.0';
+        Renderer.drawText('HIT-MISS RATIO', cx - 80, 315, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'left'
+        });
+        Renderer.drawText(`${accuracy} %`, cx + 120, 315, {
+            font: `9px ${arcadeFont}`,
+            color: '#00ff00',
+            align: 'right'
+        });
+        
+        // Score
+        Renderer.drawText('SCORE', cx - 80, 355, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'left'
+        });
+        ctx.save();
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 8;
+        Renderer.drawText(`${GameState.score.toLocaleString()}`, cx + 120, 355, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffff00',
+            align: 'right'
         });
         ctx.restore();
         
-        // Level reached
-        Renderer.drawText(`Level Reached: ${GameState.level}`, GameConfig.CANVAS_WIDTH / 2, 360, {
-            font: "9px 'Press Start 2P', monospace",
-            color: '#00ff88',
-            align: 'center'
+        // Stage reached
+        Renderer.drawText('STAGE', cx - 80, 385, {
+            font: `9px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'left'
+        });
+        Renderer.drawText(`${GameState.level}`, cx + 120, 385, {
+            font: `9px ${arcadeFont}`,
+            color: '#00ffff',
+            align: 'right'
         });
         
         // Continue prompt with pulse
@@ -1243,8 +1283,8 @@ const GalagaGame = {
         const continueText = InputManager.isTouchDevice ? 'TAP TO CONTINUE' : 'PRESS SPACE';
         ctx.save();
         ctx.globalAlpha = continuePulse;
-        Renderer.drawText(continueText, GameConfig.CANVAS_WIDTH / 2, 440, {
-            font: "10px 'Press Start 2P', monospace",
+        Renderer.drawText(continueText, cx, 460, {
+            font: `10px ${arcadeFont}`,
             color: '#ffffff',
             align: 'center'
         });

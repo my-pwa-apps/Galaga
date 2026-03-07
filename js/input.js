@@ -140,14 +140,17 @@ const InputManager = {
         this._wireButton(btnRight, 'right', 'ArrowRight');
         this._wireButton(btnFire, 'fire', 'Space');
         
-        // Canvas tap for state changes (start/continue/etc.)
+        // Canvas tap for state changes only (start/continue — NOT during gameplay)
         this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+            // Only handle canvas taps for non-gameplay state changes
+            // During gameplay, the dedicated FIRE button handles shooting
             if (this.onStateChange) {
-                this.onStateChange('Space');
+                const state = typeof GameState !== 'undefined' ? GameState.current : '';
+                if (state !== GameConfig.STATE.PLAYING && state !== GameConfig.STATE.PAUSED) {
+                    e.preventDefault();
+                    this.onStateChange('Space');
+                }
             }
-            this.keys['Space'] = true;
-            setTimeout(() => { this.keys['Space'] = false; }, 100);
         }, { passive: false });
         
         this.touchControls.enabled = true;

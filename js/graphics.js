@@ -15,6 +15,7 @@ const GraphicsOptimizer = {
     avgFrameTime: 16.67,
     performanceHistory: [],
     lastQualityAdjustment: 0,
+    performanceIntervalId: null,
     
     // Quality presets
     qualityPresets: null, // Will be set from GameConfig
@@ -70,7 +71,7 @@ const GraphicsOptimizer = {
     startPerformanceMonitoring() {
         if (!this.adaptiveQuality) return;
         
-        setInterval(() => {
+        this.performanceIntervalId = setInterval(() => {
             this.analyzePerformance();
         }, 2000);
     },
@@ -204,6 +205,10 @@ const GraphicsOptimizer = {
     reset() {
         this.frameCount = 0;
         this.performanceHistory = [];
+        if (this.performanceIntervalId !== null) {
+            clearInterval(this.performanceIntervalId);
+            this.performanceIntervalId = null;
+        }
     }
 };
 

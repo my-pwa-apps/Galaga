@@ -11,7 +11,6 @@ const GameState = {
     lives: 3,
     level: 1,
     levelTransition: 0,
-    screenShake: 0,
     
     // Time tracking
     dt: 0,
@@ -31,28 +30,11 @@ const GameState = {
         invulnerabilityTimer: 0
     },
     
-    // Input state
-    keys: {},
-    
-    // Touch controls
-    touchControls: {
-        active: false,
-        buttons: {
-            left: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'ArrowLeft', label: '<' },
-            right: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'ArrowRight', label: '>' },
-            fire: { x: 0, y: 0, w: 0, h: 0, pressed: false, key: 'Space', label: 'O' }
-        }
-    },
-    
     // Collections
     bullets: [],
     enemies: [],
     enemyBullets: [],
     particles: [],
-    formationSpots: [],
-    attackQueue: [],
-    stars: [],
-    starsBackground: [],
     
     // High score entry
     playerInitials: ['A', 'A', 'A'],
@@ -69,14 +51,9 @@ const GameState = {
         shotsHit: 0,
         survivalTime: 0,
         accuracy: 0,
+        powerupsCollected: 0,
         gameStartTime: 0
     },
-    
-    // Boss mechanics
-    bossGalaga: null,
-    capturedShip: false,
-    dualShip: false,
-    challengeStage: false,
     
     // Wave configuration (dynamic)
     waveConfig: {
@@ -97,7 +74,6 @@ const GameState = {
         this.lives = 3;
         this.level = 1;
         this.levelTransition = 0;
-        this.screenShake = 0;
         this.splashTimer = 0;
         
         this.player = {
@@ -116,7 +92,6 @@ const GameState = {
         this.enemies = [];
         this.enemyBullets = [];
         this.particles = [];
-        this.attackQueue = [];
         
         this.playerInitials = ['A', 'A', 'A'];
         this.initialIndex = 0;
@@ -126,9 +101,9 @@ const GameState = {
             enemiesDestroyed: 0,
             shotsFired: 0,
             shotsHit: 0,
-
             survivalTime: 0,
             accuracy: 0,
+            powerupsCollected: 0,
             gameStartTime: Date.now()
         };
         

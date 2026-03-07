@@ -22,13 +22,6 @@ const GameConfig = {
     MAX_ENEMIES: 42,
     NUM_STARS: 100,
     
-    // Pool sizes
-    POOL: {
-        MAX_BULLETS: 50,
-        MAX_ENEMY_BULLETS: 100,
-        MAX_PARTICLES: 250
-    },
-    
     // Player configuration
     PLAYER: {
         SPEED: 300,
@@ -40,17 +33,6 @@ const GameConfig = {
         COOLDOWN_SPEED: 0.15,
         BULLET_SPEED: 500,
         MAX_BULLETS: 2  // Original Galaga limits player to 2 bullets on screen
-    },
-    
-    // Powerup configuration
-    POWERUP: {
-        SPAWN_INTERVAL: 15,
-        DROP_CHANCE: 0.1,
-        DURATION: {
-            DOUBLE: 10,
-            SPEED: 10,
-            SHIELD: 15
-        }
     },
     
     // Difficulty scaling - balanced progression
@@ -73,45 +55,49 @@ const GameConfig = {
     },
     
     // Enemy configuration (original Galaga: all 1 HP except boss = 2 HP)
+    // Scoring based on original Galaga arcade:
+    //   Bee (Zako): formation=50, diving=100
+    //   Butterfly (Goei): formation=80, diving=160  
+    //   Boss Galaga: formation=150, diving hit1=400, diving hit2=800 (escort kills)
     ENEMIES: {
         skulker: { 
             hp: 1, speed: 100, score: 50, shootChance: 0.01, 
-            w: 20, h: 20, color: '#cc0000', name: 'Skulker',
-            diveScore: 100   // Double score when diving
+            w: 20, h: 20, color: '#cc0000', name: 'Zako',
+            diveScore: 100
         },
         butterfly: { 
             hp: 1, speed: 80, score: 80, shootChance: 0.012, 
-            w: 24, h: 24, color: '#ff00ff', name: 'Butterfly',
+            w: 24, h: 24, color: '#ff00ff', name: 'Goei',
             diveScore: 160
         },
         parasite: { 
             hp: 1, speed: 150, score: 60, shootChance: 0.01, 
-            w: 22, h: 22, color: '#66ff33', name: 'Parasite',
+            w: 22, h: 22, color: '#66ff33', name: 'Sasori',
             diveScore: 120
         },
         wraith: { 
             hp: 1, speed: 140, score: 70, shootChance: 0.011, 
-            w: 24, h: 28, color: '#9966ff', name: 'Wraith',
+            w: 24, h: 28, color: '#9966ff', name: 'Tonbo',
             diveScore: 140
         },
         wasp: { 
             hp: 1, speed: 110, score: 80, shootChance: 0.018, 
-            w: 20, h: 24, color: '#ffaa00', name: 'Wasp',
+            w: 20, h: 24, color: '#ffaa00', name: 'Momiji',
             diveScore: 160
         },
         beetle: { 
             hp: 1, speed: 70, score: 100, shootChance: 0.013, 
-            w: 26, h: 26, color: '#6633cc', name: 'Beetle',
+            w: 26, h: 26, color: '#6633cc', name: 'Midori',
             diveScore: 200
         },
         octopus: { 
             hp: 1, speed: 90, score: 100, shootChance: 0.016, 
-            w: 28, h: 28, color: '#ff6699', name: 'Octopus',
+            w: 28, h: 28, color: '#ff6699', name: 'Enterprise',
             diveScore: 200
         },
         boss: { 
             hp: 2, speed: 60, score: 150, shootChance: 0.02, 
-            w: 32, h: 32, color: '#00ffff', name: 'Boss',
+            w: 32, h: 32, color: '#00ffff', name: 'Boss Galaga',
             diveScore: 400
         }
     },
@@ -143,12 +129,6 @@ const GameConfig = {
         PARTICLE_HIT: '#ffaa00',
         PARTICLE_EXPLOSION_1: '#ff6600',
         PARTICLE_EXPLOSION_2: '#ffff00',
-        POWERUP: {
-            DOUBLE: '#00ff00',
-            SPEED: '#ffff00',
-            SHIELD: '#00ffff',
-            HEALTH: '#ff0000'
-        },
         UI: {
             OVERLAY_BG: 'rgba(0, 0, 0, 0.7)',
             BUTTON_BG: 'rgba(0, 255, 255, 0.2)',
@@ -201,9 +181,7 @@ const GameConfig = {
 
 // Make config immutable
 Object.freeze(GameConfig);
-Object.freeze(GameConfig.POOL);
 Object.freeze(GameConfig.PLAYER);
-Object.freeze(GameConfig.POWERUP);
 Object.freeze(GameConfig.DIFFICULTY);
 Object.freeze(GameConfig.ENEMIES);
 Object.freeze(GameConfig.ENEMY_UNLOCKS);

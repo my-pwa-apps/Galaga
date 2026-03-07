@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Classic Galaga arcade game tribute with modern JavaScript">
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Galaga Arcade Tribute</title>
+    <title>Galaga</title>
     
     <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,9 +31,9 @@
         </div>
     </div>
 
-    <!-- Firebase SDK - async loading -->
-    <script defer src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script defer src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <!-- Firebase SDK - loaded synchronously before game modules to avoid race condition -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <!-- Galaga Game Modules (load order is important!) -->
     <!-- 1. Foundation: Config and State -->
@@ -48,13 +47,11 @@
     
     <!-- 3. Utilities -->
     <script src="js/collision.js"></script>
-    <script src="js/objectPool.js"></script>
     <script src="js/graphics.js"></script>
     
     <!-- 4. Game Content -->
     <script src="js/sprites.js"></script>
     <script src="js/enemies.js"></script>
-    <script src="js/powerups.js"></script>
     
     <!-- 5. Cloud Services -->
     <script src="js/firebase.js"></script>
