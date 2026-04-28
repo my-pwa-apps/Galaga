@@ -1041,17 +1041,151 @@ const AlienSprites = {
         ctx.restore();
     },
     
+    drawPixelPattern(ctx, rows, palette, pixelSize) {
+        const height = rows.length;
+        const width = Math.max(...rows.map(row => row.length));
+        const originX = -width * pixelSize / 2;
+        const originY = -height * pixelSize / 2;
+
+        for (let row = 0; row < height; row++) {
+            for (let col = 0; col < width; col++) {
+                const color = palette[rows[row][col]];
+                if (!color) continue;
+                ctx.fillStyle = color;
+                ctx.fillRect(originX + col * pixelSize, originY + row * pixelSize, pixelSize, pixelSize);
+            }
+        }
+    },
+
+    drawClassicBee(ctx, x, y, time, scale = 1, attacking = false) {
+        const frame = Math.floor(time * (attacking ? 14 : 7)) % 2;
+        const rows = frame === 0 ? [
+            '...R...R...',
+            '..RR.Y.RR..',
+            '.RRRYYYRRR.',
+            'RRYYYYYYYRR',
+            '.RYYRRRYYR.',
+            '..RY.Y.YR..',
+            '.YYR...RYY.',
+            'Y..R...R..Y',
+            '...Y...Y...'
+        ] : [
+            '..R.....R..',
+            '.RRR.Y.RRR.',
+            'RRRYYYYYRRR',
+            '.RYYYYYYYR.',
+            '..YYRRRYY..',
+            '.RY.Y.Y.YR.',
+            'Y.R.....R.Y',
+            '..Y.....Y..',
+            '.Y.......Y.'
+        ];
+
+        ctx.save();
+        ctx.translate(x, y + Math.sin(time * 3) * 1.5);
+        ctx.scale(scale, scale * (attacking ? 1.08 : 1));
+        ctx.shadowColor = attacking ? '#ff3030' : '#ffcc00';
+        ctx.shadowBlur = attacking ? 14 : 7;
+        this.drawPixelPattern(ctx, rows, {
+            R: '#ff1c1c',
+            Y: '#ffd23a'
+        }, 2);
+        ctx.restore();
+    },
+
+    drawClassicButterfly(ctx, x, y, time, scale = 1, attacking = false) {
+        const frame = Math.floor(time * (attacking ? 16 : 8)) % 2;
+        const rows = frame === 0 ? [
+            'MM.......MM',
+            'MMM.....MMM',
+            'MMBB...BBMM',
+            '.MBBY.YBBM.',
+            '..MBYYYBM..',
+            '...RYYYR...',
+            '..MBBYBBM..',
+            '.MMB...BMM.',
+            'MM.......MM',
+            'M.........M'
+        ] : [
+            '.MM.....MM.',
+            'MMMM...MMMM',
+            'MMBBY.YBBMM',
+            '.MBBYYYBBM.',
+            '..MBYYYBM..',
+            '...RYYYR...',
+            '.MMBBYBBMM.',
+            'MMMB...BMMM',
+            '.M.......M.',
+            'M.........M'
+        ];
+
+        ctx.save();
+        ctx.translate(x, y + Math.sin(time * 2.6) * 1.2);
+        ctx.scale(scale, scale * (attacking ? 1.1 : 1));
+        ctx.shadowColor = attacking ? '#ff3cff' : '#cc55ff';
+        ctx.shadowBlur = attacking ? 16 : 8;
+        this.drawPixelPattern(ctx, rows, {
+            M: '#ff4cff',
+            B: '#386cff',
+            Y: '#ffe66d',
+            R: '#ff3030'
+        }, 2);
+        ctx.restore();
+    },
+
+    drawClassicBoss(ctx, x, y, time, scale = 1, attacking = false) {
+        const frame = Math.floor(time * (attacking ? 12 : 5)) % 2;
+        const rows = frame === 0 ? [
+            '...C.....C...',
+            '..CCC...CCC..',
+            '.CCCY.YCCC..',
+            '.CCCBYYYBCCC',
+            '.CCBBYYYBBCC',
+            '.CBBRRRBBC..',
+            '..CBRRRBC..',
+            '.RR.CCC.RR.',
+            'R...C.C...R',
+            '....C.C....',
+            '...C...C...'
+        ] : [
+            '..C.......C..',
+            '.CCC.....CCC.',
+            '.CCCY...YCCC',
+            '.CCCBYYYBCCC',
+            '.CBBYYYBBC.',
+            '..BBRRRBB..',
+            '.RCBRRRBCR.',
+            'RR..CCC..RR',
+            'R...C.C...R',
+            '..C.....C..',
+            '.C.......C.'
+        ];
+
+        ctx.save();
+        ctx.translate(x, y + Math.sin(time * 2.2) * 1);
+        ctx.scale(scale, scale * (attacking ? 1.08 : 1));
+        ctx.shadowColor = attacking ? '#00ffff' : '#30dfff';
+        ctx.shadowBlur = attacking ? 18 : 10;
+        this.drawPixelPattern(ctx, rows, {
+            C: '#37e6ff',
+            B: '#1b63d9',
+            Y: '#ffe66d',
+            R: '#ff3030'
+        }, 2);
+        ctx.restore();
+    },
+
     // Draw enemy by type
     draw(ctx, type, x, y, time, scale = 1, attacking = false) {
         switch (type) {
             case 'skulker':
-                this.drawSkulker(ctx, x, y, time, scale, attacking);
+                this.drawClassicBee(ctx, x, y, time, scale, attacking);
                 break;
             case 'butterfly':
-                this.drawButterfly(ctx, x, y, time, scale, attacking);
+                this.drawClassicButterfly(ctx, x, y, time, scale, attacking);
                 break;
             case 'boss':
-                this.drawBoss(ctx, x, y, time, scale, attacking);
+                this.drawClassicBoss(ctx, x, y, time, scale, attacking);
                 break;
             case 'parasite':
                 this.drawParasite(ctx, x, y, time, scale, attacking);

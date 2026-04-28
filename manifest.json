@@ -1,0 +1,20 @@
+{
+  "name": "Retro Arcade Tribute",
+  "short_name": "Retro Arcade",
+  "description": "Unofficial retro arcade classics tribute with Galaga-inspired and Pac-Man-inspired games.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#070812",
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"]
+}

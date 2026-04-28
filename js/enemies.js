@@ -12,10 +12,12 @@ const EnemyManager = {
     spawningWave: false, // true while a wave is in the timed entrance spawning phase
     spawnTimeouts: [], // active setTimeout IDs for wave spawning
     enemiesSpawnedThisWave: 0, // track how many enemies actually spawned
+    waveReadyTime: 0,
     
     // Formation grid
     formationSpots: [],
     attackQueue: [],
+    entranceSide: 1,
     
     // Initialize enemy manager
     init() {
@@ -71,19 +73,9 @@ const EnemyManager = {
         return null;
     },
     
-    // Progressive difficulty - enemy type unlocks (classic Galaga style)
+    // Original Galaga keeps the same three enemy classes throughout play.
     getAvailableTypes(level) {
-        const unlocks = GameConfig.ENEMY_UNLOCKS;
-        
-        // Find the highest unlock level that's <= current level
-        let availableTypes = unlocks[1]; // Default to level 1
-        for (let unlockLevel in unlocks) {
-            if (parseInt(unlockLevel) <= level) {
-                availableTypes = unlocks[unlockLevel];
-            }
-        }
-        
-        return availableTypes || ['skulker'];
+        return GameConfig.ENEMY_UNLOCKS[1];
     },
     
     // Get enemy properties based on type and level
@@ -119,12 +111,13 @@ const EnemyManager = {
         }
         this.waveNumber++;
         this.enemiesSpawnedThisWave = 0;
+        this.waveReadyTime = performance.now() + this.getEntranceDelay(GameConfig.MAX_ENEMIES - 1) + 2500;
         if (GameConfig.DEBUG_MODE) {
             debugLog(`Spawning wave ${this.waveNumber} for level ${level}`);
         }
 
         const availableTypes = this.getAvailableTypes(level);
-        const enemyCount = Math.min(12 + level * 3, 42);
+        const enemyCount = GameConfig.MAX_ENEMIES;
 
         // Classic Galaga grouping: assign types to rows
         // Top rows: Elite enemies, Bottom rows: Common enemies
@@ -137,7 +130,7 @@ const EnemyManager = {
 
         for (let i = 0; i < enemyCount; i++) {
             const timeoutId = setTimeout(() => {
-                const success = this.spawnEnemyWithType(level, gameState, typesByRow);
+                const success = this.spawnEnemyWithType(level, gameState, typesByRow, i);
                 if (success) {
                     this.enemiesSpawnedThisWave++;
                 }
@@ -150,9 +143,15 @@ const EnemyManager = {
                     this.spawningWave = false;
                     debugLog(`Wave ${this.waveNumber} fully spawned - ${this.enemiesSpawnedThisWave} enemies active`);
                 }
-            }, i * 300);
+            }, this.getEntranceDelay(i));
             this.spawnTimeouts.push(timeoutId);
         }
+    },
+
+    getEntranceDelay(index) {
+        const group = Math.floor(index / 4);
+        const step = index % 4;
+        return group * 680 + step * 120;
     },
     
     // Assign enemy types to formation rows (Galaga-style)
@@ -160,27 +159,10 @@ const EnemyManager = {
     assignTypesToFormationRows(availableTypes, level) {
         const typesByRow = {};
         
-        // Row 0 (top): Boss/elite enemies (4 slots)
-        if (availableTypes.includes('boss')) {
-            typesByRow[0] = ['boss'];
-        } else if (availableTypes.includes('beetle')) {
-            typesByRow[0] = ['beetle'];
-        } else if (availableTypes.includes('octopus')) {
-            typesByRow[0] = ['octopus'];
-        } else {
-            typesByRow[0] = ['butterfly'];
-        }
-        
-        // Row 1: Mid-tier (8 slots)
-        if (availableTypes.includes('wasp')) {
-            typesByRow[1] = ['butterfly', 'wasp'];
-        } else {
-            typesByRow[1] = ['butterfly'];
-        }
-        
-        // Rows 2-4: Common enemies (10 slots each)
-        typesByRow[2] = availableTypes.includes('wraith') ? ['wraith', 'skulker'] : ['skulker'];
-        typesByRow[3] = availableTypes.includes('parasite') ? ['skulker', 'parasite'] : ['skulker'];
+        typesByRow[0] = ['boss'];
+        typesByRow[1] = ['butterfly'];
+        typesByRow[2] = ['skulker'];
+        typesByRow[3] = ['skulker'];
         typesByRow[4] = ['skulker'];
         
         // Filter to only include available types
@@ -195,11 +177,12 @@ const EnemyManager = {
     },
     
     // Spawn a single enemy with row-based type (Galaga-style)
-    spawnEnemyWithType(level, gameState, typesByRow) {
+    spawnEnemyWithType(level, gameState, typesByRow, formationIndex = null) {
         if (gameState.enemies.length >= this.maxEnemies) return false;
         
-        // Get formation spot first
-        const formationSpot = this.getEmptyFormationSpot();
+        const formationSpot = formationIndex === null ?
+            this.getEmptyFormationSpot() :
+            this.reserveFormationSpot(formationIndex);
         if (!formationSpot) {
             if (GameConfig.DEBUG_MODE) {
                 debugLog('[DEBUG] spawnEnemy aborted - no formation spot available. Current enemies:', gameState.enemies.length);
@@ -208,12 +191,12 @@ const EnemyManager = {
         }
         
         // Select enemy type based on formation row (Galaga-style grouping)
-        const rowTypes = typesByRow[formationSpot.row] || typesByRow[0];
-        const type = rowTypes[Math.floor(Math.random() * rowTypes.length)];
+        const rowTypes = typesByRow[formationSpot.row] || typesByRow[4];
+        const type = rowTypes[0];
         const props = this.getEnemyProperties(type, level);
         
-        // Random entrance position
-        const entranceX = Math.random() * GameConfig.CANVAS_WIDTH;
+        const entranceSide = this.getEntranceSide(formationIndex || 0);
+        const entranceX = entranceSide < 0 ? -30 : GameConfig.CANVAS_WIDTH + 30;
         const entranceY = -30;
         
         const enemy = {
@@ -230,62 +213,32 @@ const EnemyManager = {
             shootTimer: 0,
             ...props,
             maxHP: props.hp,
-            entrancePath: this.createEntrancePath(entranceX, entranceY, formationSpot.x, formationSpot.y)
+            entrancePath: this.createEntrancePath(entranceX, entranceY, formationSpot.x, formationSpot.y, entranceSide)
         };
         
         gameState.enemies.push(enemy);
         return true;
     },
-    
-    // Legacy spawn function - kept for compatibility
-    spawnEnemy(level, gameState, availableTypes = null) {
-        if (gameState.enemies.length >= this.maxEnemies) return false;
-        
-        if (!availableTypes) {
-            availableTypes = this.getAvailableTypes(level);
-        }
-        
-        const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-        const props = this.getEnemyProperties(type, level);
-        
-        // Get formation spot
-        const formationSpot = this.getEmptyFormationSpot();
-        if (!formationSpot) {
-            debugLog('spawnEnemy aborted - no formation spot available');
-            return false;
-        }
-        
-        // Random entrance position
-        const entranceX = Math.random() * GameConfig.CANVAS_WIDTH;
-        const entranceY = -30;
-        
-        const enemy = {
-            type,
-            x: entranceX,
-            y: entranceY,
-            targetX: formationSpot.x,
-            targetY: formationSpot.y,
-            formationSpot,
-            state: GameConfig.ENEMY_STATE.ENTRANCE,
-            entranceProgress: 0,
-            formationTime: 0,
-            attackTime: 0,
-            shootTimer: 0,
-            ...props,
-            maxHP: props.hp,
-            entrancePath: this.createEntrancePath(entranceX, entranceY, formationSpot.x, formationSpot.y)
-        };
-        
-        gameState.enemies.push(enemy);
-        return true;
+
+    reserveFormationSpot(index) {
+        const spot = this.formationSpots[index];
+        if (!spot || spot.taken) return null;
+        spot.taken = true;
+        return spot;
+    },
+
+    getEntranceSide(index) {
+        return Math.floor(index / 4) % 2 === 0 ? -1 : 1;
     },
     
     // Create smooth entrance path (bezier curve)
-    createEntrancePath(startX, startY, endX, endY) {
-        const controlX1 = startX + (Math.random() - 0.5) * 100;
-        const controlY1 = startY + 100;
-        const controlX2 = endX + (Math.random() - 0.5) * 100;
-        const controlY2 = endY - 50;
+    createEntrancePath(startX, startY, endX, endY, side = null) {
+        const entrySide = side || (startX < GameConfig.CANVAS_WIDTH / 2 ? -1 : 1);
+        const loopCenterX = entrySide < 0 ? 130 : GameConfig.CANVAS_WIDTH - 130;
+        const controlX1 = loopCenterX;
+        const controlY1 = 125;
+        const controlX2 = endX - entrySide * 85;
+        const controlY2 = endY - 70;
         
         return { startX, startY, controlX1, controlY1, controlX2, controlY2, endX, endY };
     },
@@ -311,7 +264,8 @@ const EnemyManager = {
             enemy.shootTimer += dt;
             const shootCooldown = 1.5;
             
-            if (enemy.shootTimer > shootCooldown) {
+            const waveReady = !this.spawningWave && performance.now() >= this.waveReadyTime;
+            if (waveReady && enemy.shootTimer > shootCooldown) {
                 let shootProbability = enemy.shootChance;
                 
                 if (enemy.state === GameConfig.ENEMY_STATE.ATTACK) {
@@ -384,42 +338,72 @@ const EnemyManager = {
         enemy.y = enemy.targetY + bob;
         
         const waveConfig = gameState.waveConfig;
-        const attackRoll = Math.random();
-        
-        if (attackRoll < waveConfig.baseAttackChance && this.attackQueue.length < waveConfig.maxAttackers) {
-            enemy.state = GameConfig.ENEMY_STATE.ATTACK;
-            enemy.attackTime = 0;
-            enemy.attackPath = this.createAttackPath(enemy, gameState.player);
-            this.attackQueue.push(enemy);
+        if (this.spawningWave || performance.now() < this.waveReadyTime) return;
+        if (this.attackQueue.length >= waveConfig.maxAttackers) return;
+
+        if (Math.random() < waveConfig.groupAttackChance) {
+            this.launchAttackSquad(enemy, gameState);
+        } else if (Math.random() < waveConfig.baseAttackChance) {
+            this.launchAttacker(enemy, gameState, 0);
         }
-        else if (attackRoll < waveConfig.groupAttackChance && this.attackQueue.length < waveConfig.maxAttackers - 1) {
-            const nearbyEnemies = gameState.enemies.filter(e => 
-                e.state === GameConfig.ENEMY_STATE.FORMATION && 
-                e !== enemy &&
-                Math.abs(e.formationSpot.row - enemy.formationSpot.row) <= 1 &&
-                Math.abs(e.formationSpot.col - enemy.formationSpot.col) <= 1
-            );
-            
-            if (nearbyEnemies.length > 0 && Math.random() < 0.5) {
-                enemy.state = GameConfig.ENEMY_STATE.ATTACK;
-                enemy.attackTime = 0;
-                enemy.attackPath = this.createAttackPath(enemy, gameState.player);
-                this.attackQueue.push(enemy);
-                
-                const buddy = nearbyEnemies[Math.floor(Math.random() * nearbyEnemies.length)];
-                buddy.state = GameConfig.ENEMY_STATE.ATTACK;
-                buddy.attackTime = Math.random() * 0.3;
-                buddy.attackPath = this.createAttackPath(buddy, gameState.player);
-                this.attackQueue.push(buddy);
-            }
+    },
+
+    launchAttackSquad(leader, gameState) {
+        const room = gameState.waveConfig.maxAttackers - this.attackQueue.length;
+        if (room <= 0) return;
+
+        const squad = [leader];
+        const escorts = gameState.enemies
+            .filter(enemy => enemy.state === GameConfig.ENEMY_STATE.FORMATION &&
+                enemy !== leader &&
+                this.isClassicEscort(leader, enemy))
+            .sort((a, b) => Math.abs(a.formationSpot.col - leader.formationSpot.col) - Math.abs(b.formationSpot.col - leader.formationSpot.col));
+
+        for (let i = 0; i < escorts.length && squad.length < Math.min(room, 3); i++) {
+            squad.push(escorts[i]);
         }
+
+        for (let i = 0; i < squad.length; i++) {
+            this.launchAttacker(squad[i], gameState, -i * 0.18);
+        }
+    },
+
+    isClassicEscort(leader, candidate) {
+        if (!leader.formationSpot || !candidate.formationSpot) return false;
+
+        if (leader.type === 'boss') {
+            return candidate.type === 'butterfly' &&
+                candidate.formationSpot.row === 1 &&
+                Math.abs(candidate.formationSpot.col - (leader.formationSpot.col * 2 + 1)) <= 1;
+        }
+
+        if (leader.type === 'butterfly') {
+            return candidate.type === 'skulker' &&
+                candidate.formationSpot.row >= 2 &&
+                Math.abs(candidate.formationSpot.col - leader.formationSpot.col) <= 1;
+        }
+
+        return candidate.type === 'skulker' &&
+            candidate.formationSpot.row === leader.formationSpot.row &&
+            Math.abs(candidate.formationSpot.col - leader.formationSpot.col) === 1;
+    },
+
+    launchAttacker(enemy, gameState, phaseOffset = 0) {
+        if (enemy.state !== GameConfig.ENEMY_STATE.FORMATION) return;
+        if (this.attackQueue.includes(enemy)) return;
+
+        enemy.state = GameConfig.ENEMY_STATE.ATTACK;
+        enemy.attackTime = phaseOffset;
+        enemy.attackPath = this.createAttackPath(enemy, gameState.player);
+        this.attackQueue.push(enemy);
     },
     
     // Update attacking enemy
     updateAttack(enemy, dt, gameState) {
         enemy.attackTime += dt;
         
-        const duration = 3.5;
+        const duration = 3.8;
+        if (enemy.attackTime < 0) return;
         if (enemy.attackTime >= duration) {
             // In original Galaga, enemies that dive off-screen re-enter from the top
             // and fly back to their formation spot
@@ -442,22 +426,22 @@ const EnemyManager = {
         const path = enemy.attackPath;
         
         switch(path.pattern) {
-            case 'dive':
-                enemy.x = path.startX + (path.endX - path.startX) * t + Math.sin(t * Math.PI * 4) * path.wobble;
-                enemy.y = path.startY + (path.endY - path.startY) * t * t;
+            case 'classicDive':
+                enemy.x = path.startX + (path.endX - path.startX) * t + Math.sin(t * Math.PI * 2.5) * path.wobble;
+                enemy.y = path.startY + (path.endY - path.startY) * (t * t);
                 break;
                 
-            case 'swoop':
-                const swoopCurve = Math.sin(t * Math.PI);
-                enemy.x = path.startX + (path.endX - path.startX) * t;
-                enemy.y = path.startY + (path.endY - path.startY) * swoopCurve + Math.sin(t * Math.PI * 2) * path.wobble * 0.5;
+            case 'classicLoop':
+                const loopT = Math.min(1, t * 1.4);
+                const angle = loopT * Math.PI * 2;
+                enemy.x = path.startX + (path.endX - path.startX) * t + Math.cos(angle) * path.wobble * (1 - t * 0.35);
+                enemy.y = path.startY + (path.endY - path.startY) * t + Math.sin(angle) * path.wobble * 0.55;
                 break;
                 
-            case 'loop':
-                const loopAngle = t * Math.PI * 2;
-                const radius = path.wobble;
-                enemy.x = path.startX + (path.endX - path.startX) * t + Math.cos(loopAngle) * radius;
-                enemy.y = path.startY + (path.endY - path.startY) * t + Math.sin(loopAngle) * radius;
+            case 'classicSwoop':
+                const side = path.startX < GameConfig.CANVAS_WIDTH / 2 ? 1 : -1;
+                enemy.x = path.startX + side * Math.sin(t * Math.PI) * path.wobble + (path.endX - path.startX) * t * 0.35;
+                enemy.y = path.startY + (path.endY - path.startY) * t;
                 break;
                 
             default:
@@ -473,24 +457,21 @@ const EnemyManager = {
         const patternType = Math.random();
         let endX, endY, wobble, pattern;
         
-        if (patternType < 0.4) {
-            // Direct dive at player
+        if (patternType < 0.5) {
             endX = player.x + (Math.random() - 0.5) * 80;
             endY = GameConfig.CANVAS_HEIGHT + 50;
-            wobble = 20 + Math.random() * 30;
-            pattern = 'dive';
-        } else if (patternType < 0.7) {
-            // Swooping arc
-            endX = startX < GameConfig.CANVAS_WIDTH / 2 ? GameConfig.CANVAS_WIDTH + 50 : -50;
-            endY = player.y + (Math.random() - 0.5) * 100;
-            wobble = 60 + Math.random() * 50;
-            pattern = 'swoop';
+            wobble = 18 + Math.random() * 24;
+            pattern = 'classicDive';
+        } else if (patternType < 0.82) {
+            endX = player.x + (Math.random() - 0.5) * 120;
+            endY = GameConfig.CANVAS_HEIGHT + 55;
+            wobble = 34 + Math.random() * 20;
+            pattern = 'classicLoop';
         } else {
-            // Loop pattern
-            endX = GameConfig.CANVAS_WIDTH - startX;
+            endX = player.x;
             endY = GameConfig.CANVAS_HEIGHT + 50;
-            wobble = 80 + Math.random() * 60;
-            pattern = 'loop';
+            wobble = 90 + Math.random() * 40;
+            pattern = 'classicSwoop';
         }
         
         return { startX, startY, endX, endY, wobble, pattern };
@@ -534,6 +515,7 @@ const EnemyManager = {
         this.waveNumber = 0;
         this.spawningWave = false;
         this.enemiesSpawnedThisWave = 0;
+        this.waveReadyTime = 0;
         this.attackQueue = [];
         this.formationSpots.forEach(spot => spot.taken = false);
         debugLog('EnemyManager reset');

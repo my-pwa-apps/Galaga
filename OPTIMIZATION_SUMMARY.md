@@ -166,7 +166,7 @@ border: 4px solid #2a2a3e;
 - `js/sprites.js` - Alien sprites
 - `js/enemies.js` - Enemy AI
 - `js/powerups.js` - Powerup system
-- `js/firebase.js` - Cloud storage
+- `js/storage.js` - Cloudflare/local score storage
 
 ---
 

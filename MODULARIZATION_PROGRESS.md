@@ -106,7 +106,7 @@
 - Particle batching system (87% fewer state changes)
 - Bullet batching by color
 
-### 12. **js/firebase.js** - Firebase Service (✅ COMPLETE - 294 lines)
+### 12. **js/storage.js** - Cloudflare/local Storage Service (✅ COMPLETE)
 - High score management (top 10)
 - Player statistics persistence
 - Settings synchronization with localStorage fallback
@@ -134,7 +134,7 @@
   4. audio.js, renderer.js, input.js (core systems)
   5. collision.js, objectPool.js, graphics.js (utilities)
   6. sprites.js, enemies.js, powerups.js (game content)
-  7. firebase.js (cloud services)
+  7. storage.js (Cloudflare/local score storage)
   8. main.js (coordinator)
 
 ---
@@ -154,7 +154,7 @@
 | **enemies.js** | 363 | ✅ Complete |
 | **powerups.js** | 232 | ✅ Complete |
 | **graphics.js** | 198 | ✅ Complete |
-| **firebase.js** | 294 | ✅ Complete |
+| **storage.js** | score service | ✅ Complete |
 | **main.js** | 735 | ✅ Complete |
 | **index.html** | updated | ✅ Complete |
 
@@ -169,7 +169,7 @@
 1. Extract EnemyManager (spawn system, AI, formation)
 2. Extract PowerupManager (types, effects, drops)
 3. Extract GraphicsOptimizer (quality, FPS, particles)
-4. Extract FirebaseService (already refactored in game.js)
+4. Extract StorageService (Cloudflare Pages Function plus localStorage fallback)
 5. Create main.js (game loop, initialization, coordination)
 6. Update index.html to load all modules
 7. Test modular version

@@ -5,6 +5,8 @@
 const GameState = {
     // Current state
     current: 'splash',
+    selectedGame: 'galaga',
+    selectedGameIndex: 0,
     
     // Game variables
     score: 0,
@@ -52,6 +54,8 @@ const GameState = {
         survivalTime: 0,
         accuracy: 0,
         powerupsCollected: 0,
+        pelletsEaten: 0,
+        ghostsEaten: 0,
         gameStartTime: 0
     },
     
@@ -70,6 +74,8 @@ const GameState = {
     
     // Methods
     reset() {
+        const selectedGame = this.selectedGame;
+        const selectedGameIndex = this.selectedGameIndex;
         this.score = 0;
         this.lives = 3;
         this.level = 1;
@@ -104,6 +110,8 @@ const GameState = {
             survivalTime: 0,
             accuracy: 0,
             powerupsCollected: 0,
+            pelletsEaten: 0,
+            ghostsEaten: 0,
             gameStartTime: Date.now()
         };
         
@@ -119,6 +127,9 @@ const GameState = {
             formationShootChance: GameConfig.DIFFICULTY.FORMATION_SHOOT_CHANCE,
             attackingShootChance: GameConfig.DIFFICULTY.ATTACKING_SHOOT_CHANCE
         };
+
+        this.selectedGame = selectedGame;
+        this.selectedGameIndex = selectedGameIndex;
         
         debugLog('Game state reset');
     },

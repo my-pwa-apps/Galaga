@@ -28,7 +28,7 @@ The Galaga game has been successfully refactored from a monolithic **3,955-line*
 11. **powerups.js** (232 lines) - 4 powerup types & effects
 
 ### **Services Layer** (294 lines)
-12. **firebase.js** (294 lines) - Cloud storage & high scores
+12. **storage.js** - Cloudflare/local score storage and high scores
 
 ### **Orchestration Layer** (735 lines)
 13. **main.js** (735 lines) - Game loop coordinator
@@ -125,7 +125,7 @@ The Galaga game has been successfully refactored from a monolithic **3,955-line*
 └─────────────┘         └─────────────┘
         ↓                       ↓
 ┌─────────────┐         ┌─────────────┐
-│ powerups.js │         │ firebase.js │
+│ powerups.js │         │ storage.js  │
 └─────────────┘         └─────────────┘
         ↓                       ↓
         └───────────┬───────────┘
@@ -287,13 +287,11 @@ PowerupManager.draw(ctx, gameState, time)
 // Types: double, speed, shield, health
 ```
 
-### **FirebaseService** (firebase.js)
+### **StorageService** (storage.js)
 ```javascript
-FirebaseService.init()           // Initialize Firebase
-FirebaseService.fetchHighScores()
-FirebaseService.submitHighScore(name, score, level, stats)
-FirebaseService.savePlayerStats(sessionId, stats)
-FirebaseService.getConnectionStatus()
+StorageService.init()           // Initialize Cloudflare/local score storage
+StorageService.fetchHighScores(gameId)
+StorageService.submitHighScore(gameId, name, score, level, stats)
 ```
 
 ### **GalagaGame** (main.js)
@@ -412,13 +410,13 @@ Galaga/
 │   ├── sprites.js
 │   ├── enemies.js
 │   ├── powerups.js
-│   ├── firebase.js
+│   ├── storage.js
 │   └── main.js
 └── docs/
     ├── MODULARIZATION_PROGRESS.md
     ├── ALIEN_DIVERSITY.md
     ├── DIFFICULTY_PROGRESSION.md
-    └── FIREBASE_INTEGRATION.md
+        └── CLOUDFLARE_STORAGE.md
 ```
 
 ---

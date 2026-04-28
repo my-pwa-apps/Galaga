@@ -35,17 +35,17 @@ const GameConfig = {
         MAX_BULLETS: 2  // Original Galaga limits player to 2 bullets on screen
     },
     
-    // Difficulty scaling - balanced progression
+    // Difficulty scaling - classic Galaga rhythm with gentle modern ramping
     DIFFICULTY: {
-        BASE_ATTACK_CHANCE: 0.0008,
+        BASE_ATTACK_CHANCE: 0.00025,
         MAX_ATTACKERS: 2,
-        GROUP_ATTACK_CHANCE: 0.05,
-        DIVING_SPEED: 150,
-        BULLET_SPEED: 120,
-        FORMATION_SHOOT_CHANCE: 0.005,
-        ATTACKING_SHOOT_CHANCE: 0.015,
+        GROUP_ATTACK_CHANCE: 0.00012,
+        DIVING_SPEED: 185,
+        BULLET_SPEED: 135,
+        FORMATION_SHOOT_CHANCE: 0.0008,
+        ATTACKING_SHOOT_CHANCE: 0.014,
         RETURN_TO_FORMATION_CHANCE: 0.7,
-        ATTACK_CURVE_INTENSITY: 1,
+        ATTACK_CURVE_INTENSITY: 1.15,
         // Scaling multipliers per level (no HP scaling - enemies always die in 1-2 hits)
         HP_SCALE_PER_LEVEL: 0,
         SPEED_SCALE_PER_LEVEL: 0.06,
@@ -102,18 +102,11 @@ const GameConfig = {
         }
     },
     
-    // Enemy unlock levels - Progressive difficulty like classic Galaga
+    // Original Galaga stages use the same core fleet every round:
+    // 4 Boss Galaga, 8 Butterflies, and 30 Bees. Later stages speed up
+    // attack timing instead of unlocking unrelated enemy species.
     ENEMY_UNLOCKS: {
-        1: ['skulker'],                    // Level 1: Only skulkers (like classic Bees)
-        2: ['skulker', 'butterfly'],       // Level 2: Add butterfly
-        3: ['skulker', 'butterfly', 'wraith'],  // Level 3: Add wraith
-        4: ['skulker', 'butterfly', 'wraith', 'wasp'],  // Level 4: Add wasp
-        5: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite'],  // Level 5: Add parasite
-        6: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus'],  // Level 6: Add octopus
-        7: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 7: Add beetle
-        8: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 8: Same as 7
-        9: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle'],  // Level 9: Same as 7
-        10: ['skulker', 'butterfly', 'wraith', 'wasp', 'parasite', 'octopus', 'beetle', 'boss']  // Level 10: Boss
+        1: ['boss', 'butterfly', 'skulker']
     },
     
     // Colors - Enhanced arcade aesthetic

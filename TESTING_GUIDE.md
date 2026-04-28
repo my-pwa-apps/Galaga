@@ -99,7 +99,7 @@ AudioEngine.shieldHit()      // Shield impact
 
 ### Connection Status
 ```javascript
-FirebaseService.getConnectionStatus()
+StorageService.fetchHighScores(GameState.selectedGame)
 // Should return: { isConnected: true, hasDatabase: true }
 ```
 
@@ -206,7 +206,7 @@ ObjectPool.getStats()
 ### Touch Controls Not Showing
 - Only appears on touch devices
 - Check: `InputManager.isTouchDevice` is true
-- Try: `InputManager.shouldShowTouchControls()`
+- Try resizing to a touch-sized viewport and verify the visible D-pad/action layout
 
 ### Graphics Slow
 - Adaptive quality should kick in

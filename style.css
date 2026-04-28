@@ -42,11 +42,8 @@ body {
 /* ========== Canvas ========== */
 #gameCanvas {
     /* Pixel-perfect rendering - browser compatibility */
-    image-rendering: -moz-crisp-edges;          /* Firefox */
-    image-rendering: -webkit-crisp-edges;       /* Webkit */
     image-rendering: -webkit-optimize-contrast; /* Edge */
     image-rendering: pixelated;                 /* Modern browsers */
-    image-rendering: crisp-edges;               /* Fallback */
     -ms-interpolation-mode: nearest-neighbor;   /* IE */
     
     /* Arcade glow effect */
@@ -92,27 +89,49 @@ body {
     display: none; /* Hidden by default, shown via JS on touch devices */
     width: 100%;
     max-width: 480px;
-    padding: 10px 16px;
+    min-height: 132px;
+    padding: 10px max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
+    gap: 18px;
     flex-shrink: 0;
     -webkit-touch-callout: none;
-    touch-action: manipulation;
+    touch-action: none;
 }
 
 #touchControls.visible {
     display: flex;
 }
 
-.touch-group {
+.touch-dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 58px);
+    grid-template-rows: repeat(3, 42px);
+    gap: 4px;
+    align-items: center;
+    justify-items: center;
+    flex: 0 0 auto;
+}
+
+.touch-action {
     display: flex;
-    gap: 12px;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+}
+
+#touchControls.pacman-mode .touch-action {
+    display: none;
+}
+
+#touchControls.pacman-mode {
+    justify-content: center;
 }
 
 .touch-btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 12px;
+    width: 58px;
+    height: 58px;
+    border-radius: 10px;
     border: 3px solid rgba(255, 255, 255, 0.5);
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
@@ -122,9 +141,30 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    line-height: 1;
     -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
+    touch-action: none;
     transition: background 0.1s, border-color 0.1s;
+}
+
+.touch-btn-up {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.touch-btn-left {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.touch-btn-right {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.touch-btn-down {
+    grid-column: 2;
+    grid-row: 3;
 }
 
 .touch-btn:active,
@@ -134,10 +174,11 @@ body {
 }
 
 .touch-btn-fire {
-    width: 80px;
-    height: 64px;
+    width: min(128px, 28vw);
+    height: 86px;
     font-size: 11px;
     letter-spacing: 1px;
+    border-radius: 14px;
     border-color: rgba(255, 100, 100, 0.6);
     background: rgba(255, 50, 50, 0.15);
 }
@@ -161,38 +202,49 @@ body {
 
 /* Small phones */
 @media (max-width: 400px) {
+    #touchControls {
+        min-height: 116px;
+        gap: 10px;
+        padding-top: 8px;
+    }
+    .touch-dpad {
+        grid-template-columns: repeat(3, 50px);
+        grid-template-rows: repeat(3, 36px);
+        gap: 3px;
+    }
     .touch-btn {
-        width: 56px;
-        height: 56px;
+        width: 50px;
+        height: 50px;
         font-size: 22px;
     }
     .touch-btn-fire {
-        width: 70px;
-        height: 56px;
+        width: min(112px, 30vw);
+        height: 76px;
         font-size: 10px;
-    }
-    .touch-group {
-        gap: 8px;
-    }
-    #touchControls {
-        padding: 8px 10px;
     }
 }
 
 /* Landscape phone */
 @media (max-height: 500px) and (orientation: landscape) {
+    #touchControls {
+        min-height: 86px;
+        padding-top: 4px;
+        padding-bottom: max(4px, env(safe-area-inset-bottom));
+    }
+    .touch-dpad {
+        grid-template-columns: repeat(3, 42px);
+        grid-template-rows: repeat(3, 26px);
+        gap: 2px;
+    }
     .touch-btn {
-        width: 48px;
-        height: 48px;
+        width: 42px;
+        height: 42px;
         font-size: 20px;
     }
     .touch-btn-fire {
-        width: 64px;
-        height: 48px;
+        width: min(104px, 24vw);
+        height: 58px;
         font-size: 9px;
-    }
-    #touchControls {
-        padding: 4px 10px;
     }
 }
 

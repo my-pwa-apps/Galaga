@@ -17,6 +17,7 @@ const GalagaGame = {
     
     // Session
     sessionId: null,
+    isSubmittingScore: false,
     
     // Screen effects
     screenShake: 0,
@@ -33,7 +34,7 @@ const GalagaGame = {
     
     // Initialize the game
     init() {
-        console.log('Galaga: initializing...');
+        debugLog('Retro Arcade Tribute: initializing...');
         
         // Initialize renderer
         Renderer.init('gameCanvas');
@@ -49,7 +50,7 @@ const GalagaGame = {
         AudioEngine.init();
         GraphicsOptimizer.init();
         EnemyManager.init();
-        FirebaseService.init();
+        StorageService.init();
         
         // Initialize input with callbacks
         InputManager.init(Renderer.canvas, {
@@ -60,7 +61,7 @@ const GalagaGame = {
         this.resizeCanvas();
         
         // Generate session ID
-        this.sessionId = FirebaseService.generateSessionId();
+        this.sessionId = StorageService.generateSessionId();
         
         // Initialize background stars
         this.initStars();
@@ -75,7 +76,8 @@ const GalagaGame = {
         GameState.reset();
         this.resetMonitorDebug();
         
-        console.log('Galaga: ready');
+        debugLog('Retro Arcade Tribute: ready');
+        this.registerServiceWorker();
         
         // Start game loop
         this.lastTime = performance.now();
@@ -146,6 +148,7 @@ const GalagaGame = {
         
         // Clear canvas
         Renderer.clear(GameConfig.COLORS.BACKGROUND);
+        InputManager.updateTouchControlMode();
         
         // Draw background stars
         this.updateAndDrawStars(this.dt);
@@ -203,9 +206,32 @@ const GalagaGame = {
     updateSplash(dt) {
         // Just wait for input
     },
+
+    registerServiceWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        if (!['http:', 'https:'].includes(window.location.protocol)) return;
+
+        navigator.serviceWorker.register('./serviceworker.js')
+            .catch(error => console.warn('Service worker registration failed:', error));
+    },
     
     // Update gameplay
     updateGameplay(dt) {
+        if (this.isMazeGame()) {
+            PacManGame.update(dt);
+            return;
+        }
+
+        if (GameState.selectedGame === 'digdug') {
+            DigDugGame.update(dt);
+            return;
+        }
+
+        if (GameState.selectedGame === 'centipede') {
+            CentipedeGame.update(dt);
+            return;
+        }
+
         // Update difficulty
         this.updateDifficulty();
         
@@ -461,10 +487,7 @@ const GalagaGame = {
                 
                 if (GameState.lives <= 0) {
                     GameState.player.alive = false;
-                    GameState.setState(GameConfig.STATE.GAME_OVER);
-                    EnemyManager.reset();
-                    AudioEngine.playerDeath();
-                    this.checkHighScore();
+                    this.handleGameOver();
                 } else {
                     // Brief invulnerability after hit
                     GameState.player.invulnerable = true;
@@ -482,6 +505,8 @@ const GalagaGame = {
                 if (enemy.formationSpot) {
                     enemy.formationSpot.taken = false;
                 }
+                const queueIdx = EnemyManager.attackQueue.indexOf(enemy);
+                if (queueIdx > -1) EnemyManager.attackQueue.splice(queueIdx, 1);
                 GameState.enemies.splice(enemyIdx, 1);
                 
                 // Player takes damage
@@ -490,10 +515,7 @@ const GalagaGame = {
                 
                 if (GameState.lives <= 0) {
                     GameState.player.alive = false;
-                    GameState.setState(GameConfig.STATE.GAME_OVER);
-                    EnemyManager.reset();
-                    AudioEngine.playerDeath();
-                    this.checkHighScore();
+                    this.handleGameOver();
                 } else {
                     // Brief invulnerability after hit
                     GameState.player.invulnerable = true;
@@ -547,27 +569,42 @@ const GalagaGame = {
         debugLog('🏁 Starting level transition. Current level:', GameState.level);
         GameState.levelTransition = 2;
     },
+
+    handleGameOver() {
+        GameState.player.alive = false;
+        GameState.setState(GameConfig.STATE.GAME_OVER);
+        InputManager.updateTouchControlMode();
+        EnemyManager.reset();
+        AudioEngine.playerDeath();
+        this.checkHighScore();
+    },
     
     // Update difficulty
     updateDifficulty() {
         const config = GameState.waveConfig;
         const level = GameState.level;
         
-        // Apply difficulty scaling
-        config.baseAttackChance = GameConfig.DIFFICULTY.BASE_ATTACK_CHANCE * (1 + (level - 1) * 0.05);
-        config.groupAttackChance = GameConfig.DIFFICULTY.GROUP_ATTACK_CHANCE * (1 + (level - 1) * 0.03);
-        config.maxAttackers = Math.min(4 + Math.floor((level - 1) / 2), 8);
-        config.formationShootChance = GameConfig.DIFFICULTY.FORMATION_SHOOT_CHANCE * (1 + (level - 1) * 0.02);
-        config.attackingShootChance = GameConfig.DIFFICULTY.ATTACKING_SHOOT_CHANCE * (1 + (level - 1) * 0.02);
-        config.bulletSpeed = GameConfig.DIFFICULTY.BULLET_SPEED * (1 + (level - 1) * 0.05);
+        const stageRamp = Math.min(level - 1, 20);
+
+        config.baseAttackChance = GameConfig.DIFFICULTY.BASE_ATTACK_CHANCE * (1 + stageRamp * 0.08);
+        config.groupAttackChance = GameConfig.DIFFICULTY.GROUP_ATTACK_CHANCE * (1 + stageRamp * 0.06);
+        config.maxAttackers = Math.min(GameConfig.DIFFICULTY.MAX_ATTACKERS + Math.floor(stageRamp / 4), 4);
+        config.formationShootChance = GameConfig.DIFFICULTY.FORMATION_SHOOT_CHANCE * (1 + stageRamp * 0.03);
+        config.attackingShootChance = Math.min(
+            GameConfig.DIFFICULTY.ATTACKING_SHOOT_CHANCE * (1 + stageRamp * 0.035),
+            GameConfig.DIFFICULTY.SHOOT_CHANCE_MAX
+        );
+        config.bulletSpeed = GameConfig.DIFFICULTY.BULLET_SPEED * (1 + stageRamp * 0.035);
+        config.divingSpeed = GameConfig.DIFFICULTY.DIVING_SPEED * Math.min(1 + stageRamp * 0.025, GameConfig.DIFFICULTY.SPEED_SCALE_MAX);
     },
     
     // Check for high score
     async checkHighScore() {
-        const scores = await FirebaseService.fetchHighScores();
+        this.isSubmittingScore = false;
+        const scores = await StorageService.fetchHighScores(GameState.selectedGame);
         
         if (GameState.score > 0 && (
-            scores.length < FirebaseService.MAX_HIGH_SCORES || 
+            scores.length < StorageService.MAX_HIGH_SCORES ||
             scores.length === 0 ||
             GameState.score > scores[scores.length - 1].score
         )) {
@@ -578,7 +615,7 @@ const GalagaGame = {
     // Fetch high scores
     async fetchHighScores() {
         try {
-            const scores = await FirebaseService.fetchHighScores();
+            const scores = await StorageService.fetchHighScores(GameState.selectedGame);
             GameState.highScores = scores;
             debugLog(`Loaded ${scores.length} high scores`);
         } catch (error) {
@@ -592,14 +629,14 @@ const GalagaGame = {
         
         switch (state) {
             case GameConfig.STATE.SPLASH:
-                if (keyCode === 'Space' || keyCode === 'Enter') {
-                    AudioEngine.menuSelect();
-                    GameState.setState(GameConfig.STATE.PLAYING);
-                    GameState.reset();
-                    this.resetMonitorDebug();
-                    this.scorePopups = [];
-                    EnemyManager.reset(); // clear wave timers & waveNumber before starting
-                    EnemyManager.spawnWave(GameState.level, GameState);
+                if (keyCode === 'ArrowLeft') {
+                    ArcadeCatalog.selectPrevious();
+                    AudioEngine.menuMove();
+                } else if (keyCode === 'ArrowRight') {
+                    ArcadeCatalog.selectNext();
+                    AudioEngine.menuMove();
+                } else if (keyCode === 'Space' || keyCode === 'Enter') {
+                    this.startSelectedGame();
                 }
                 break;
                 
@@ -625,6 +662,8 @@ const GalagaGame = {
                 break;
                 
             case GameConfig.STATE.ENTER_HIGH_SCORE:
+                if (this.isSubmittingScore) break;
+
                 // Navigate between initials
                 if (keyCode === 'ArrowLeft') {
                     GameState.initialIndex = Math.max(0, GameState.initialIndex - 1);
@@ -645,14 +684,49 @@ const GalagaGame = {
                 }
                 // Submit high score
                 else if (keyCode === 'Enter' || keyCode === 'Space') {
+                    this.isSubmittingScore = true;
                     const name = GameState.playerInitials.join('');
-                    FirebaseService.submitHighScore(name, GameState.score, GameState.level, GameState.stats);
                     AudioEngine.menuSelect();
-                    GameState.setState(GameConfig.STATE.SPLASH);
-                    this.fetchHighScores();
+                    StorageService.submitHighScore(GameState.selectedGame, name, GameState.score, GameState.level, GameState.stats)
+                        .then(() => this.fetchHighScores())
+                        .finally(() => {
+                            this.isSubmittingScore = false;
+                            GameState.setState(GameConfig.STATE.SPLASH);
+                        });
                 }
                 break;
         }
+    },
+
+    startSelectedGame() {
+        const selected = ArcadeCatalog.getSelected();
+        if (!ArcadeCatalog.isPlayable(selected)) {
+            AudioEngine.hit();
+            return;
+        }
+
+        AudioEngine.menuSelect();
+        GameState.selectedGame = selected.id;
+        GameState.setState(GameConfig.STATE.PLAYING);
+        GameState.reset();
+        InputManager.reset();
+        this.resetMonitorDebug();
+        this.scorePopups = [];
+        EnemyManager.reset();
+
+        if (selected.id === 'galaga') {
+            EnemyManager.spawnWave(GameState.level, GameState);
+        } else if (this.isMazeGame()) {
+            PacManGame.reset();
+        } else if (selected.id === 'digdug') {
+            DigDugGame.reset();
+        } else if (selected.id === 'centipede') {
+            CentipedeGame.reset();
+        }
+
+        InputManager.updateTouchControlMode();
+
+        this.fetchHighScores();
     },
     
     // Initialize stars
@@ -748,89 +822,193 @@ const GalagaGame = {
     drawSplash() {
         const ctx = Renderer.ctx;
         const time = this.currentTime / 1000;
+        const selected = ArcadeCatalog.getSelected();
+        const cx = GameConfig.CANVAS_WIDTH / 2;
+        const arcadeFont = "'Press Start 2P', monospace";
         
-        // Title with glowing effect
         ctx.save();
-        
-        // Outer glow
-        ctx.shadowColor = '#00ffff';
-        ctx.shadowBlur = 30;
-        ctx.fillStyle = '#00ffff';
-        ctx.font = "bold 40px 'Press Start 2P', monospace";
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('GALAGA', GameConfig.CANVAS_WIDTH / 2, 120);
-        
-        // Inner title
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText('GALAGA', GameConfig.CANVAS_WIDTH / 2, 120);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
         ctx.restore();
-        
-        // Subtitle - authentic arcade style
+
+        Renderer.drawText('RETRO', cx, 70, {
+            font: `bold 30px ${arcadeFont}`,
+            color: '#ff3131',
+            align: 'center',
+            shadow: true,
+            shadowColor: '#ff3131',
+            shadowBlur: 20
+        });
+        Renderer.drawText('ARCADE TRIBUTE', cx, 110, {
+            font: `12px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+        Renderer.drawText('UNOFFICIAL FAN PROJECT', cx, 132, {
+            font: `7px ${arcadeFont}`,
+            color: '#9fb3ff',
+            align: 'center'
+        });
+
+        const cardY = 180;
         ctx.save();
-        ctx.font = "10px 'Press Start 2P', monospace";
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#ff0000';
-        ctx.fillText('\u00A9 1981 NAMCO', GameConfig.CANVAS_WIDTH / 2, 170);
+        ctx.strokeStyle = selected.color;
+        ctx.shadowColor = selected.color;
+        ctx.shadowBlur = 16;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(58, cardY, 364, 180);
         ctx.restore();
-        
-        // Draw some sample aliens flying by
-        const alienY = 250;
-        AlienSprites.draw(ctx, 'skulker', 90, alienY + Math.sin(time * 2) * 5, time, 1.2, false);
-        AlienSprites.draw(ctx, 'butterfly', 180, alienY + Math.sin(time * 2 + 1) * 5, time, 1.2, false);
-        AlienSprites.draw(ctx, 'octopus', 270, alienY + Math.sin(time * 2 + 2) * 5, time, 1.2, false);
-        AlienSprites.draw(ctx, 'parasite', 360, alienY + Math.sin(time * 2 + 3) * 5, time, 1.2, false);
-        
-        // Pulsing start message
-        const pulse = 0.7 + Math.sin(time * 4) * 0.3;
-        const startText = InputManager.isTouchDevice ? '▶ TAP TO START ◀' : '▶ PRESS SPACE ◀';
+
+        Renderer.drawText(selected.title, cx, cardY + 42, {
+            font: `bold 26px ${arcadeFont}`,
+            color: selected.color,
+            align: 'center',
+            shadow: true,
+            shadowColor: selected.color,
+            shadowBlur: 18
+        });
+        Renderer.drawText(`${selected.year}  ${selected.status}`, cx, cardY + 78, {
+            font: `9px ${arcadeFont}`,
+            color: selected.accent,
+            align: 'center'
+        });
+        Renderer.drawText(selected.blurb.toUpperCase(), cx, cardY + 110, {
+            font: `7px ${arcadeFont}`,
+            color: '#cccccc',
+            align: 'center'
+        });
+
+        this.drawCabinetPreview(ctx, selected, cx, cardY + 148, time);
+
+        Renderer.drawText('<', 36, cardY + 93, {
+            font: `24px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+        Renderer.drawText('>', GameConfig.CANVAS_WIDTH - 36, cardY + 93, {
+            font: `24px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+
+        const pulse = 0.6 + Math.sin(time * 4) * 0.4;
+        const prompt = ArcadeCatalog.isPlayable(selected) ?
+            (InputManager.isTouchDevice ? 'TAP FIRE TO START' : 'ENTER / SPACE TO START') :
+            'CABINET COMING NEXT';
         ctx.save();
         ctx.globalAlpha = pulse;
-        ctx.shadowColor = '#ffff00';
-        ctx.shadowBlur = 15;
-        Renderer.drawText(startText, GameConfig.CANVAS_WIDTH / 2, 360, {
-            font: "bold 14px 'Press Start 2P', monospace",
-            color: '#ffff00',
+        Renderer.drawText(prompt, cx, 390, {
+            font: `9px ${arcadeFont}`,
+            color: ArcadeCatalog.isPlayable(selected) ? '#ffff00' : '#888888',
             align: 'center'
         });
         ctx.restore();
-        
-        // Decorative line
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(80, 410);
-        ctx.lineTo(400, 410);
-        ctx.stroke();
-        
-        // Draw high scores with better styling
-        Renderer.drawText('\u2550\u2550\u2550 HIGH SCORES \u2550\u2550\u2550', GameConfig.CANVAS_WIDTH / 2, 430, {
-            font: "11px 'Press Start 2P', monospace",
+
+        Renderer.drawText('LEFT / RIGHT SELECT', cx, 420, {
+            font: `7px ${arcadeFont}`,
+            color: '#999999',
+            align: 'center'
+        });
+
+        Renderer.drawText('HIGH SCORES', cx, 470, {
+            font: `10px ${arcadeFont}`,
             color: '#00ffff',
             align: 'center'
         });
-        
-        GameState.highScores.slice(0, 5).forEach((entry, i) => {
-            const y = 460 + i * 22;
-            const isTopScore = i === 0;
-            
-            // Rank
-            const ranks = ['1ST', '2ND', '3RD', '4TH', '5TH'];
-            ctx.font = "9px 'Press Start 2P', monospace";
-            ctx.textAlign = 'left';
-            ctx.fillStyle = isTopScore ? '#ffff00' : GameConfig.COLORS.TEXT_DIM;
-            ctx.fillText(ranks[i], 100, y);
-            
-            // Name
-            ctx.textAlign = 'center';
-            ctx.fillStyle = isTopScore ? '#ffaa00' : GameConfig.COLORS.TEXT;
-            ctx.fillText(entry.name, GameConfig.CANVAS_WIDTH / 2 - 40, y);
-            
-            // Score with formatting
-            ctx.textAlign = 'right';
-            ctx.fillStyle = isTopScore ? '#00ff00' : GameConfig.COLORS.TEXT_DIM;
-            ctx.fillText(entry.score.toLocaleString(), 380, y);
+
+        GameState.highScores.slice(0, 4).forEach((entry, i) => {
+            const y = 500 + i * 24;
+            Renderer.drawText(`${i + 1}`, 104, y, {
+                font: `8px ${arcadeFont}`,
+                color: '#ffff00',
+                align: 'right'
+            });
+            Renderer.drawText(entry.name, 126, y, {
+                font: `8px ${arcadeFont}`,
+                color: '#ffffff'
+            });
+            Renderer.drawText(entry.score.toLocaleString(), 370, y, {
+                font: `8px ${arcadeFont}`,
+                color: '#ffffff',
+                align: 'right'
+            });
+        });
+
+    },
+
+    drawCabinetPreview(ctx, game, x, y, time) {
+        if (game.id === 'galaga') {
+            AlienSprites.draw(ctx, 'boss', x - 54, y, time, 1.1, false);
+            AlienSprites.draw(ctx, 'butterfly', x, y, time, 1.1, false);
+            AlienSprites.draw(ctx, 'skulker', x + 54, y, time, 1.1, false);
+            return;
+        }
+
+        if (game.id === 'pacman' || game.id === 'mspacman') {
+            ctx.save();
+            ctx.translate(x - 36, y);
+            ctx.fillStyle = game.id === 'mspacman' ? '#ff9ad5' : '#ffd21f';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, 14, 0.35, Math.PI * 2 - 0.35);
+            ctx.closePath();
+            ctx.fill();
+            if (game.id === 'mspacman') {
+                ctx.fillStyle = '#ff3131';
+                ctx.fillRect(-4, -21, 8, 6);
+            }
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 4; i++) ctx.fillRect(28 + i * 18, -2, 4, 4);
+            ctx.fillStyle = '#ff3333';
+            ctx.beginPath();
+            ctx.arc(124, -2, 12, Math.PI, 0);
+            ctx.lineTo(136, 12);
+            ctx.lineTo(128, 7);
+            ctx.lineTo(120, 12);
+            ctx.lineTo(112, 7);
+            ctx.lineTo(112, 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            return;
+        }
+
+        if (game.id === 'digdug') {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = '#6b3f24';
+            ctx.fillRect(-74, -24, 148, 48);
+            ctx.fillStyle = '#05020a';
+            ctx.fillRect(-56, -8, 86, 16);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-44, -18, 16, 24);
+            ctx.fillStyle = '#ff74c8';
+            ctx.beginPath();
+            ctx.arc(46, 0, 13, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            return;
+        }
+
+        if (game.id === 'centipede') {
+            ctx.save();
+            ctx.translate(x - 60, y);
+            for (let index = 0; index < 7; index++) {
+                ctx.fillStyle = '#68ff4d';
+                ctx.beginPath();
+                ctx.arc(index * 20, Math.sin(time * 6 + index) * 5, 9, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#ff4fd8';
+            ctx.fillRect(146, 12, 12, 12);
+            ctx.restore();
+            return;
+        }
+
+        Renderer.drawText('INSERT COIN', x, y - 6, {
+            font: "8px 'Press Start 2P', monospace",
+            color: game.accent,
+            align: 'center'
         });
     },
     
@@ -838,6 +1016,21 @@ const GalagaGame = {
     drawGameplay() {
         const ctx = Renderer.ctx;
         const time = this.currentTime / 1000;
+
+        if (this.isMazeGame()) {
+            PacManGame.draw(ctx, time);
+            return;
+        }
+
+        if (GameState.selectedGame === 'digdug') {
+            DigDugGame.draw(ctx, time);
+            return;
+        }
+
+        if (GameState.selectedGame === 'centipede') {
+            CentipedeGame.draw(ctx, time);
+            return;
+        }
         
         // Draw enemies
         EnemyManager.draw(ctx, GameState, time);
@@ -1176,6 +1369,16 @@ const GalagaGame = {
     
     // Draw game over — authentic Galaga RESULTS screen
     drawGameOver() {
+        if (this.isMazeGame()) {
+            this.drawPacManGameOver();
+            return;
+        }
+
+        if (GameState.selectedGame !== 'galaga') {
+            this.drawSimpleArcadeGameOver();
+            return;
+        }
+
         const ctx = Renderer.ctx;
         const time = this.currentTime / 1000;
         const arcadeFont = "'Press Start 2P', monospace";
@@ -1290,6 +1493,107 @@ const GalagaGame = {
         });
         ctx.restore();
     },
+
+    drawPacManGameOver() {
+        const ctx = Renderer.ctx;
+        const arcadeFont = "'Press Start 2P', monospace";
+        const cx = GameConfig.CANVAS_WIDTH / 2;
+        const time = this.currentTime / 1000;
+
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
+
+        const selected = ArcadeCatalog.getById(GameState.selectedGame);
+
+        Renderer.drawText(selected.title, cx, 110, {
+            font: `24px ${arcadeFont}`,
+            color: selected.color,
+            align: 'center',
+            shadow: true,
+            shadowColor: selected.color,
+            shadowBlur: 18
+        });
+        Renderer.drawText('GAME OVER', cx, 180, {
+            font: `18px ${arcadeFont}`,
+            color: '#ff3333',
+            align: 'center'
+        });
+        Renderer.drawText('SCORE', cx, 255, {
+            font: `10px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+        Renderer.drawText(GameState.score.toLocaleString(), cx, 285, {
+            font: `14px ${arcadeFont}`,
+            color: '#00ffff',
+            align: 'center'
+        });
+        Renderer.drawText(`ROUND ${GameState.level}`, cx, 330, {
+            font: `10px ${arcadeFont}`,
+            color: '#ff9ad5',
+            align: 'center'
+        });
+
+        ctx.save();
+        ctx.globalAlpha = 0.55 + Math.sin(time * 4) * 0.45;
+        Renderer.drawText('PRESS SPACE', cx, 440, {
+            font: `10px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+        ctx.restore();
+    },
+
+    drawSimpleArcadeGameOver() {
+        const ctx = Renderer.ctx;
+        const arcadeFont = "'Press Start 2P', monospace";
+        const selected = ArcadeCatalog.getById(GameState.selectedGame);
+        const cx = GameConfig.CANVAS_WIDTH / 2;
+        const time = this.currentTime / 1000;
+
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, GameConfig.CANVAS_WIDTH, GameConfig.CANVAS_HEIGHT);
+        Renderer.drawText(selected.title, cx, 110, {
+            font: `22px ${arcadeFont}`,
+            color: selected.color,
+            align: 'center',
+            shadow: true,
+            shadowColor: selected.color,
+            shadowBlur: 18
+        });
+        Renderer.drawText('GAME OVER', cx, 180, {
+            font: `18px ${arcadeFont}`,
+            color: '#ff3333',
+            align: 'center'
+        });
+        Renderer.drawText('SCORE', cx, 255, {
+            font: `10px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+        Renderer.drawText(GameState.score.toLocaleString(), cx, 285, {
+            font: `14px ${arcadeFont}`,
+            color: selected.accent,
+            align: 'center'
+        });
+        Renderer.drawText(`ROUND ${GameState.level}`, cx, 330, {
+            font: `10px ${arcadeFont}`,
+            color: selected.color,
+            align: 'center'
+        });
+        ctx.save();
+        ctx.globalAlpha = 0.55 + Math.sin(time * 4) * 0.45;
+        Renderer.drawText('PRESS SPACE', cx, 440, {
+            font: `10px ${arcadeFont}`,
+            color: '#ffffff',
+            align: 'center'
+        });
+        ctx.restore();
+    },
+
+    isMazeGame() {
+        return GameState.selectedGame === 'pacman' || GameState.selectedGame === 'mspacman';
+    },
     
     // Draw enter high score
     drawEnterHighScore() {
@@ -1379,9 +1683,9 @@ const GalagaGame = {
         // Controls hint
         ctx.save();
         ctx.globalAlpha = 0.7;
-        Renderer.drawText('UP/DN  LEFT/RIGHT  ENTER', GameConfig.CANVAS_WIDTH / 2, 400, {
+        Renderer.drawText(this.isSubmittingScore ? 'SAVING SCORE' : 'UP/DN  LEFT/RIGHT  ENTER', GameConfig.CANVAS_WIDTH / 2, 400, {
             font: "7px 'Press Start 2P', monospace",
-            color: '#aaaaaa',
+            color: this.isSubmittingScore ? '#ffff00' : '#aaaaaa',
             align: 'center'
         });
         ctx.restore();

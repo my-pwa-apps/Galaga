@@ -1,86 +1,49 @@
 # Changelog
 
-## [2.3.0] - 2025-10-16
+## [2.4.0] - 2026-04-27
 
-### 🔥 Firebase Refactoring & Statistics System
+### Cloudflare Storage, PWA, and Mobile Controls
 
-#### ✨ New Features
+#### New Features
 
-**Firebase Service Refactoring:**
-- ✅ Centralized `FirebaseService` object for all database operations
-- ✅ Real-time connection monitoring with status indicators
-- ✅ Comprehensive error handling and graceful degradation
-- ✅ Data caching system (5-minute cache duration)
-- ✅ Automatic cleanup of old high scores
-- ✅ Backward compatibility with legacy code
+**Cloudflare score storage:**
+- Added `StorageService` for per-game high scores.
+- Added Cloudflare Pages Function endpoint at `/api/scores`.
+- Added KV-backed score persistence with localStorage fallback for local play.
+- Added server-side validation for game IDs, initials, score ranges, levels, and stats.
+- Configured `wrangler.toml` with production and preview `ARCADE_SCORES` bindings.
 
-**Player Statistics System:**
-- ✅ Comprehensive stat tracking:
-  - Enemies destroyed count
-  - Shots fired vs shots hit
-  - Accuracy percentage (live calculation)
-  - Powerups collected count
-  - Survival time in seconds
-  - Session-based tracking
-- ✅ Automatic stat updates during gameplay
-- ✅ Stats saved to Firebase on game over
-- ✅ Stats included in high score submissions
+**Installable app:**
+- Added `manifest.json` with app name, display mode, theme colors, and icon metadata.
+- Added `assets/icons/icon.svg` for browser and install surfaces.
+- Added `serviceworker.js` with app-shell caching and versioned cache cleanup.
+- Registered the service worker on HTTP/HTTPS deployments.
 
-**Enhanced High Scores:**
-- ✅ High scores now include detailed stats
-- ✅ Timestamp tracking for all scores
-- ✅ Session ID for score tracking
-- ✅ Automatic top 10 maintenance
-- ✅ Score cleanup after submission
+**Mobile controls:**
+- Added playable Ms. Pac-Man, Dig Dug, and Centipede cabinets to the arcade selector.
+- Added four-way D-pad controls for maze movement.
+- Hid the fire button while Pac-Man is active.
+- Added canvas swipe/drag steering for both games.
+- Added tap-anywhere fire for Galaga gameplay.
+- Filled Pac-Man passable corridors with pellets and reserved only the ghost house as empty floor.
+- Repositioned the orange ghost into the ghost house lineup.
+- Tightened Pac-Man collision to check the full actor radius and keep movement centered in lanes.
+- Restored the original ghost-house side-wall positions while keeping the missing pellets filled.
+- Added pellets back to the normal corridors around the ghost house; only the ghost pen/doorway remains empty.
+- Removed pellets from unreachable side-tunnel-adjacent pockets, made ghost-house floor ghost-only, and biased ghosts toward the exit while inside the pen.
+- Added explicit ghost-house exit steering so ghosts leave the pen instead of idling inside.
+- Kept ghost doorway exit direction stable so ghosts fully clear the pen instead of oscillating at the doorway.
+- Removed ghost-only side pockets so ghosts cannot path into invisible traps beside the central pen.
+- Fixed game selection controls by adding pointer support to on-screen buttons and swipe-to-select on the splash canvas.
+- Added a guarded click fallback for on-screen controls so cabinet selection works across pointer, touch, and mouse environments.
+- Made touch/control initialization idempotent so repeated setup cannot double-toggle cabinet selection.
 
-**New Firebase Features:**
-- ✅ `savePlayerStats()` - Save detailed session statistics
-- ✅ `getPlayerStats()` - Retrieve historical stats
-- ✅ `saveSettings()` - Persist user preferences
-- ✅ `loadSettings()` - Load settings from cloud/local
-- ✅ `unlockAchievement()` - Achievement tracking system
-- ✅ `getUserAchievements()` - Retrieve user achievements
-- ✅ `generateSessionId()` - Unique session identifiers
-- ✅ `getConnectionStatus()` - Real-time connection status
+#### Technical Improvements
 
-**Offline Support:**
-- ✅ localStorage fallback for settings
-- ✅ Cached high scores when offline
-- ✅ Automatic sync when connection restored
-- ✅ No game interruption on connection loss
-
-#### 🔧 Technical Improvements
-
-**Code Organization:**
-- ✅ 450+ lines of Firebase service code
-- ✅ Clean async/await patterns throughout
-- ✅ Proper error handling in all operations
-- ✅ Consistent console logging with emojis
-- ✅ JSDoc-style inline documentation
-
-**Database Structure:**
-- ✅ Organized into 4 main collections:
-  - `highScores/` - Top scores with stats
-  - `playerStats/` - Detailed session data
-  - `settings/` - User preferences
-  - `achievements/` - User achievements
-- ✅ Proper indexing for efficient queries
-- ✅ Timestamp tracking for all records
-
-**Performance:**
-- ✅ Reduced database reads with caching
-- ✅ Batched cleanup operations
-- ✅ Efficient query limits
-- ✅ Smart cache invalidation
-
-#### 📝 Documentation
-- ✅ New FIREBASE_INTEGRATION.md (200+ lines)
-- ✅ Complete API documentation
-- ✅ Database structure diagrams
-- ✅ Usage examples and code samples
-- ✅ Security rules recommendations
-- ✅ Testing checklist
-- ✅ Console command reference
+- Removed legacy client-side cloud SDK scripts and hardcoded cloud config.
+- Awaited high-score submission and prevented duplicate score saves.
+- Kept high-score lists separate for Galaga and Pac-Man.
+- Updated documentation for Cloudflare deployment and installability.
 
 ---
 

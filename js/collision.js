@@ -62,8 +62,8 @@ const CollisionSystem = {
     // Check enemy vs player collision
     checkEnemyPlayerCollision(enemy, player) {
         return this.circleCollision(
-            enemy.x, enemy.y, (enemy.w + enemy.h) / 3,
-            player.x, player.y, player.w / 2
+            enemy.x, enemy.y, (enemy.w + enemy.h) / 5,
+            player.x, player.y, player.w / 3
         );
     },
     

@@ -293,6 +293,27 @@ const AudioEngine = {
         osc.start(now);
         osc.stop(now + 0.1);
     },
+
+    menuMove() {
+        if (!this.enabled || !this.context) return;
+
+        const ctx = this.context;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(760, now + 0.06);
+
+        gain.gain.setValueAtTime(this.masterVolume * 0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+
+        osc.start(now);
+        osc.stop(now + 0.07);
+    },
     
     // Shield hit sound
     shieldHit() {

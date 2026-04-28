@@ -1,0 +1,8 @@
+name = "retro-arcade-tribute"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "."
+
+[[kv_namespaces]]
+binding = "ARCADE_SCORES"
+id = "06dce721820746c88c1fd6b45a254b02"
+preview_id = "9b9e721b661443739ce9176cfdd9575d"

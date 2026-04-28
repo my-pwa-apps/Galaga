@@ -9,17 +9,17 @@ const InputManager = {
     touchControls: {
         enabled: false,
         buttons: {
-            left: { x: 0, y: 0, w: 0, h: 0, key: 'ArrowLeft', pressed: false, touchId: null },
-            right: { x: 0, y: 0, w: 0, h: 0, key: 'ArrowRight', pressed: false, touchId: null },
-            fire: { x: 0, y: 0, w: 0, h: 0, key: 'Space', pressed: false, touchId: null },
-            autoShoot: { x: 0, y: 0, w: 0, h: 0, key: null, pressed: false, touchId: null }
+            up: { x: 0, y: 0, w: 0, h: 0, key: 'ArrowUp', pressed: false },
+            left: { x: 0, y: 0, w: 0, h: 0, key: 'ArrowLeft', pressed: false },
+            right: { x: 0, y: 0, w: 0, h: 0, key: 'ArrowRight', pressed: false },
+            down: { x: 0, y: 0, w: 0, h: 0, key: 'ArrowDown', pressed: false },
+            fire: { x: 0, y: 0, w: 0, h: 0, key: 'Space', pressed: false }
         }
     },
     
     // Device detection
     isTouchDevice: false,
     hasKeyboard: false,
-    autoShootActive: false,
     
     // State callbacks
     onStateChange: null,
@@ -29,6 +29,16 @@ const InputManager = {
     
     // Canvas reference
     canvas: null,
+
+    gesture: {
+        active: false,
+        menuMode: false,
+        startX: 0,
+        startY: 0,
+        moved: false,
+        directionKey: null,
+        fireActive: false
+    },
     
     // Initialize input system
     init(canvas, callbacks = {}) {
@@ -120,38 +130,46 @@ const InputManager = {
     // Touch initialization
     initTouch() {
         if (!this.canvas) return;
-        
+
         // Get HTML touch control elements
         const touchControlsEl = document.getElementById('touchControls');
+        const btnUp = document.getElementById('btnUp');
         const btnLeft = document.getElementById('btnLeft');
         const btnRight = document.getElementById('btnRight');
+        const btnDown = document.getElementById('btnDown');
         const btnFire = document.getElementById('btnFire');
         
-        if (!touchControlsEl || !btnLeft || !btnRight || !btnFire) {
+        if (!touchControlsEl || !btnUp || !btnLeft || !btnRight || !btnDown || !btnFire) {
             console.warn('Touch control HTML elements not found');
             return;
         }
         
         // Show touch controls
         touchControlsEl.classList.add('visible');
+        if (this.touchControls.enabled) return;
         
         // Wire up button events with multi-touch support
+        this._wireButton(btnUp, 'up', 'ArrowUp');
         this._wireButton(btnLeft, 'left', 'ArrowLeft');
         this._wireButton(btnRight, 'right', 'ArrowRight');
+        this._wireButton(btnDown, 'down', 'ArrowDown');
         this._wireButton(btnFire, 'fire', 'Space');
         
-        // Canvas tap for state changes only (start/continue — NOT during gameplay)
+        // Canvas gestures support tap-to-fire and swipe/drag steering.
         this.canvas.addEventListener('touchstart', (e) => {
-            // Only handle canvas taps for non-gameplay state changes
-            // During gameplay, the dedicated FIRE button handles shooting
-            if (this.onStateChange) {
-                const state = typeof GameState !== 'undefined' ? GameState.current : '';
-                if (state !== GameConfig.STATE.PLAYING && state !== GameConfig.STATE.PAUSED) {
-                    e.preventDefault();
-                    this.onStateChange('Space');
-                }
+            const state = typeof GameState !== 'undefined' ? GameState.current : '';
+            if (state === GameConfig.STATE.PLAYING) {
+                this.handleCanvasGestureStart(e);
+                return;
+            }
+
+            if (state !== GameConfig.STATE.PAUSED) {
+                this.handleMenuGestureStart(e);
             }
         }, { passive: false });
+        this.canvas.addEventListener('touchmove', (e) => this.handleCanvasGestureMove(e), { passive: false });
+        this.canvas.addEventListener('touchend', (e) => this.handleCanvasGestureEnd(e), { passive: false });
+        this.canvas.addEventListener('touchcancel', (e) => this.handleCanvasGestureEnd(e), { passive: false });
         
         this.touchControls.enabled = true;
     },
@@ -159,13 +177,22 @@ const InputManager = {
     // Wire a touch button to a key
     _wireButton(element, buttonName, keyCode) {
         const button = this.touchControls.buttons[buttonName];
+        let lastPressAt = 0;
         
         const press = (e) => {
             e.preventDefault();
             e.stopPropagation();
+            lastPressAt = Date.now();
             button.pressed = true;
             if (keyCode) this.keys[keyCode] = true;
             element.classList.add('pressed');
+
+            if (this.onStateChange) {
+                const state = typeof GameState !== 'undefined' ? GameState.current : '';
+                if (state !== GameConfig.STATE.PLAYING && state !== GameConfig.STATE.PAUSED) {
+                    this.onStateChange(keyCode);
+                }
+            }
         };
         
         const release = (e) => {
@@ -175,10 +202,28 @@ const InputManager = {
             if (keyCode) this.keys[keyCode] = false;
             element.classList.remove('pressed');
         };
+
+        const clickFallback = (e) => {
+            if (Date.now() - lastPressAt < 250) return;
+            press(e);
+            release(e);
+        };
         
-        element.addEventListener('touchstart', press, { passive: false });
-        element.addEventListener('touchend', release, { passive: false });
-        element.addEventListener('touchcancel', release, { passive: false });
+        if (window.PointerEvent) {
+            element.addEventListener('pointerdown', press);
+            element.addEventListener('pointerup', release);
+            element.addEventListener('pointercancel', release);
+            element.addEventListener('pointerleave', release);
+        } else {
+            element.addEventListener('touchstart', press, { passive: false });
+            element.addEventListener('touchend', release, { passive: false });
+            element.addEventListener('touchcancel', release, { passive: false });
+            element.addEventListener('mousedown', press);
+            element.addEventListener('mouseup', release);
+            element.addEventListener('mouseleave', release);
+        }
+
+        element.addEventListener('click', clickFallback);
         
         // Prevent context menu on long press
         element.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -186,6 +231,115 @@ const InputManager = {
     
     // Handle touch start (legacy - now handled by HTML buttons)
     // Canvas tap is handled in initTouch for state changes only
+
+    handleCanvasGestureStart(e) {
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+
+        e.preventDefault();
+        this.gesture.active = true;
+        this.gesture.startX = touch.clientX;
+        this.gesture.startY = touch.clientY;
+        this.gesture.moved = false;
+        this.clearGestureDirection();
+
+        if (this.getSelectedGame() === 'galaga') {
+            this.keys.Space = true;
+            this.touchControls.buttons.fire.pressed = true;
+            this.gesture.fireActive = true;
+        }
+    },
+
+    handleMenuGestureStart(e) {
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+
+        e.preventDefault();
+        this.gesture.active = true;
+        this.gesture.menuMode = true;
+        this.gesture.startX = touch.clientX;
+        this.gesture.startY = touch.clientY;
+        this.gesture.moved = false;
+    },
+
+    handleCanvasGestureMove(e) {
+        if (!this.gesture.active) return;
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+
+        e.preventDefault();
+        const dx = touch.clientX - this.gesture.startX;
+        const dy = touch.clientY - this.gesture.startY;
+        const threshold = 18;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < threshold) return;
+
+        this.gesture.moved = true;
+        if (this.gesture.menuMode) {
+            if (this.onStateChange && Math.abs(dx) > Math.abs(dy)) {
+                this.onStateChange(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
+            }
+            this.gesture.active = false;
+            this.gesture.menuMode = false;
+            return;
+        }
+
+        const direction = Math.abs(dx) > Math.abs(dy)
+            ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft')
+            : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
+        this.setGestureDirection(direction);
+    },
+
+    handleCanvasGestureEnd(e) {
+        if (!this.gesture.active) return;
+
+        e.preventDefault();
+        if (this.gesture.menuMode) {
+            if (!this.gesture.moved && this.onStateChange) {
+                this.onStateChange('Space');
+            }
+            this.gesture.active = false;
+            this.gesture.menuMode = false;
+            this.gesture.moved = false;
+            return;
+        }
+
+        this.clearGestureDirection();
+        if (this.gesture.fireActive) {
+            this.keys.Space = false;
+            this.touchControls.buttons.fire.pressed = false;
+        }
+
+        this.gesture.active = false;
+        this.gesture.fireActive = false;
+        this.gesture.moved = false;
+    },
+
+    setGestureDirection(keyCode) {
+        if (this.gesture.directionKey === keyCode) return;
+        this.clearGestureDirection();
+        this.gesture.directionKey = keyCode;
+        this.keys[keyCode] = true;
+    },
+
+    clearGestureDirection() {
+        if (!this.gesture.directionKey) return;
+        this.keys[this.gesture.directionKey] = false;
+        this.gesture.directionKey = null;
+    },
+
+    updateTouchControlMode() {
+        const touchControlsEl = document.getElementById('touchControls');
+        if (!touchControlsEl) return;
+
+        const isPacManPlaying = typeof GameState !== 'undefined' &&
+            GameState.current === GameConfig.STATE.PLAYING &&
+            GameState.selectedGame === 'pacman';
+        touchControlsEl.classList.toggle('pacman-mode', isPacManPlaying);
+    },
+
+    getSelectedGame() {
+        return typeof GameState !== 'undefined' ? GameState.selectedGame : 'galaga';
+    },
     
     // Check if key is pressed
     isKeyPressed(keyCode) {
@@ -206,10 +360,18 @@ const InputManager = {
     isRight() {
         return this.isKeyPressed('ArrowRight') || this.isButtonPressed('right');
     },
+
+    isUp() {
+        return this.isKeyPressed('ArrowUp') || this.isButtonPressed('up');
+    },
+
+    isDown() {
+        return this.isKeyPressed('ArrowDown') || this.isButtonPressed('down');
+    },
     
     // Check fire input
     isFire() {
-        return this.isKeyPressed('Space') || this.isButtonPressed('fire') || this.autoShootActive;
+        return this.isKeyPressed('Space') || this.isButtonPressed('fire');
     },
     
     // Check pause input
@@ -222,19 +384,16 @@ const InputManager = {
         return this.isKeyPressed('Space') || this.isKeyPressed('Enter');
     },
     
-    // Should show touch controls
-    shouldShowTouchControls() {
-        return this.isTouchDevice && !this.hasKeyboard && this.touchControls.enabled;
-    },
-    
     // Reset all input state
     reset() {
         this.keys = {};
-        this.autoShootActive = false;
+        this.gesture.active = false;
+        this.gesture.menuMode = false;
+        this.gesture.directionKey = null;
+        this.gesture.fireActive = false;
         
         for (const button of Object.values(this.touchControls.buttons)) {
             button.pressed = false;
-            button.touchId = null;
         }
     }
 };

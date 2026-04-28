@@ -3,60 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Classic Galaga arcade game tribute with modern JavaScript">
-    <meta name="theme-color" content="#000000">
+    <meta name="description" content="Unofficial retro arcade classics tribute with modern JavaScript">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Retro Arcade Tribute">
+    <meta name="apple-mobile-web-app-title" content="Retro Arcade">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Galaga</title>
+    <title>Retro Arcade Tribute</title>
     
     <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" as="style">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json?v=15">
+    <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icons/icon.svg">
+    <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="480" height="640"></canvas>
         <div id="touchControls">
-            <div class="touch-group touch-group-left">
-                <button id="btnLeft" class="touch-btn" aria-label="Move Left">&#9664;</button>
-                <button id="btnRight" class="touch-btn" aria-label="Move Right">&#9654;</button>
+            <div class="touch-dpad" aria-label="Directional controls">
+                <button id="btnUp" class="touch-btn touch-btn-up" aria-label="Move Up">&#9650;</button>
+                <button id="btnLeft" class="touch-btn touch-btn-left" aria-label="Move Left">&#9664;</button>
+                <button id="btnRight" class="touch-btn touch-btn-right" aria-label="Move Right">&#9654;</button>
+                <button id="btnDown" class="touch-btn touch-btn-down" aria-label="Move Down">&#9660;</button>
             </div>
-            <div class="touch-group touch-group-right">
+            <div class="touch-action">
                 <button id="btnFire" class="touch-btn touch-btn-fire" aria-label="Fire">FIRE</button>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK - loaded synchronously before game modules to avoid race condition -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-    <!-- Galaga Game Modules (load order is important!) -->
+    <!-- Game modules (load order is important!) -->
     <!-- 1. Foundation: Config and State -->
-    <script src="js/config.js"></script>
-    <script src="js/gameState.js"></script>
+    <script src="js/config.js?v=15"></script>
+    <script src="js/gameState.js?v=15"></script>
     
     <!-- 2. Core Systems -->
-    <script src="js/audio.js"></script>
-    <script src="js/renderer.js"></script>
-    <script src="js/input.js"></script>
+    <script src="js/audio.js?v=15"></script>
+    <script src="js/renderer.js?v=15"></script>
+    <script src="js/input.js?v=15"></script>
     
     <!-- 3. Utilities -->
-    <script src="js/collision.js"></script>
-    <script src="js/graphics.js"></script>
+    <script src="js/collision.js?v=15"></script>
+    <script src="js/graphics.js?v=15"></script>
     
     <!-- 4. Game Content -->
-    <script src="js/sprites.js"></script>
-    <script src="js/enemies.js"></script>
+    <script src="js/arcade.js?v=15"></script>
+    <script src="js/pacman.js?v=15"></script>
+    <script src="js/fieldGames.js?v=15"></script>
+    <script src="js/sprites.js?v=15"></script>
+    <script src="js/enemies.js?v=15"></script>
     
-    <!-- 5. Cloud Services -->
-    <script src="js/firebase.js"></script>
+    <!-- 5. Cloudflare/local storage service -->
+    <script src="js/storage.js?v=15"></script>
     
     <!-- 6. Main Game Loop (coordinates everything) -->
-    <script src="js/main.js"></script>
+    <script src="js/main.js?v=15"></script>
 </body>
 </html>
