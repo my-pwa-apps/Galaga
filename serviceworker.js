@@ -1,25 +1,25 @@
-const VERSION = 'retro-arcade-v15';
+const VERSION = 'retro-arcade-v20';
 const APP_SHELL_CACHE = `${VERSION}-shell`;
 const APP_SHELL = [
     './',
     './index.html',
-    './style.css?v=15',
-    './manifest.json?v=15',
+    './style.css?v=20',
+    './manifest.json?v=20',
     './assets/icons/icon.svg',
-    './js/config.js?v=15',
-    './js/gameState.js?v=15',
-    './js/audio.js?v=15',
-    './js/renderer.js?v=15',
-    './js/input.js?v=15',
-    './js/collision.js?v=15',
-    './js/graphics.js?v=15',
-    './js/arcade.js?v=15',
-    './js/pacman.js?v=15',
-    './js/fieldGames.js?v=15',
-    './js/sprites.js?v=15',
-    './js/enemies.js?v=15',
-    './js/storage.js?v=15',
-    './js/main.js?v=15'
+    './js/config.js?v=20',
+    './js/gameState.js?v=20',
+    './js/audio.js?v=20',
+    './js/renderer.js?v=20',
+    './js/input.js?v=20',
+    './js/collision.js?v=20',
+    './js/graphics.js?v=20',
+    './js/arcade.js?v=20',
+    './js/pacman.js?v=20',
+    './js/fieldGames.js?v=20',
+    './js/sprites.js?v=20',
+    './js/enemies.js?v=20',
+    './js/storage.js?v=20',
+    './js/main.js?v=20'
 ];
 
 self.addEventListener('install', event => {
